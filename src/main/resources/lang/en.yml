@@ -159,5 +159,56 @@ city:
     perm-granted: "<green>Granted <white><flag></white> to <white><rank></white>."
     perm-revoked: "<green>Revoked <white><flag></white> from <white><rank></white>."
 
+claim:
+  # SPEC 6.3, buying land
+  chunk-claimed: "<red>This chunk already belongs to another city."
+  already-owned: "<red>Your city already owns this chunk."
+  not-adjacent: "<red>A new chunk must share an edge with land you already own. Corners do not count."
+  no-anchor: "<red>Your city owns nothing in this world. Use an outpost to settle a new one."
+  too-close: "<red>This is inside another city's <white><chunks></white> chunk buffer."
+  delinquent: "<red>Your city owes upkeep and cannot buy land until it is paid."
+  at-war: "<red>Land cannot change hands while your city is at war."
+  admin-protected: "<red>This chunk is protected by an administrator."
+  out-of-range: "<red>This chunk is too far from the world origin to be claimed."
+  cancelled: "<red>The claim was cancelled."
+  radius-bounds: "<red>The radius must be between 1 and <white><max></white>."
+  success: "<green>Claimed chunk <white><chunk></white> for <white><cost> C</white>."
+  radius-success: "<green>Claimed <white><count></white> chunks for <white><cost> C</white>."
+
+  # SPEC 6.4, giving it back
+  not-yours: "<red>Your city does not own this chunk."
+  core: "<red>The core chunk cannot be unclaimed. It is where your city began."
+  contains-spawn: "<red>Your city spawn is in this chunk. Move it before unclaiming."
+  breaks-contiguity: "<red>That would cut <white><count></white> chunks off from your city: <white><chunks></white>"
+  unclaim-cancelled: "<red>The unclaim was cancelled."
+  unclaim-success: "<gray>Released chunk <white><chunk></white>. <white><refund> C</white> went back to the treasury."
+  unclaim-radius-success: "<gray>Released <white><count></white> chunks."
+  radius-nothing: "<red>None of those chunks could be released."
+
+  # SPEC 6.3, auto-claim
+  auto-on: "<green>Auto-claim on. Walking into unclaimed land will buy it."
+  auto-off: "<gray>Auto-claim off."
+  auto-claimed: "<green>Auto-claimed <white><chunk></white> for <white><cost> C</white>."
+  auto-stopped: "<yellow>Auto-claim turned off:"
+
+  # SPEC 6.5, seeing it
+  entering: "<green>Entering <city>"
+  leaving: "<gray>Leaving <city>"
+  wilderness: "<white>Wilderness"
+  border-on: "<green>Showing claim borders."
+  border-off: "<gray>Border display off."
+  here-wilderness: "<gray>Chunk <white><chunk></white> is unclaimed."
+  here-owned: "<gray>Chunk <white><chunk></white> belongs to <white><city></white> (<white><type></white>)."
+  map-header: "<dark_gray>--- <gold>Chunk map</gold> <gray>(you are the marked chunk) ---"
+  map-legend: "<gray>Legend: <green>your city <gray>| <yellow>ally <gray>| <red>enemy <gray>| <dark_gray>other <gray>| <white>wilderness"
+  map:
+    tile:
+      own: "<green>#"
+      ally: "<yellow>#"
+      enemy: "<red>#"
+      other: "<dark_gray>#"
+      wilderness: "<white>-"
+      self: "<gold><bold>@</bold></gold>"
+
 chat:
   city-format: "<gray>[<white><tag></white><gray>] "

@@ -4,6 +4,35 @@ All notable changes to CivitasCraft. One section per milestone from `PLAN.md`.
 
 ## [Unreleased]
 
+### M3, Claim system
+
+Added:
+- `ClaimCostEngine`: the SPEC 6.2 polynomial curve, with the flat starter band, distance
+  multiplier, member divisor and young-city discount. Every per-chunk value in the SPEC 6.2
+  reference table is matched to within 0.4 C.
+- `ClaimRegistry`: the `Long2ObjectMap` cache from SPEC 2.3, on a packed chunk key, loaded
+  once at startup. This is the lookup every block event in M4 will make.
+- `Contiguity`: the SPEC 6.1 flood-fill, enforced on unclaim, refusing anything that would
+  orphan part of a city and naming the stranded chunks.
+- `ClaimService`: claim, unclaim, atomic `radius`, and auto-claim, with all ten SPEC 6.3
+  preconditions and all five SPEC 6.4 blocks.
+- `ClaimMap` and `BorderRenderer`: the SPEC 6.5 chunk map and particle outlines.
+- `ClaimBoundaryListener`: the enter/leave action bar, behind a single integer comparison so
+  `PlayerMoveEvent` costs nothing when the player has not changed chunk.
+- `/city claim`, `claim auto`, `claim radius`, `unclaim`, `unclaim radius`, `map`, `here`,
+  `border`.
+- `ChunkClaimEvent` and `ChunkUnclaimEvent`.
+- Tests: the SPEC 6.2 reference table, the member divisor at 1/5/10/25, the distance
+  multiplier at 0/4/5/20, all five SPEC 18.1 contiguity shapes, claim/unclaim/contiguity
+  rejection, and SPEC 17.2 cases 12, 13, 15, 17, 20, 22 and 23.
+
+Fixed:
+- **Disbanding now refunds 50% of each claim's `cost_paid` to the mayor, as SPEC 5.3
+  requires.** It was missing since M2, harmless only because claims cost nothing until now.
+- A `radius` claim was bought centre-outward, so a legal square whose near edge touched the
+  city but whose centre did not was refused entirely. Squares are now grown from whatever is
+  already adjacent.
+
 ### M2, Core city model
 
 Added:

@@ -10,6 +10,9 @@ import java.util.logging.Logger;
 
 import dev.civitas.config.ConfigManager;
 import dev.civitas.config.PluginResources;
+import dev.civitas.core.claim.ClaimCostEngine;
+import dev.civitas.core.claim.ClaimRegistry;
+import dev.civitas.core.claim.ClaimService;
 import dev.civitas.core.economy.Funds;
 import dev.civitas.core.economy.PlayerAccountService;
 import dev.civitas.core.economy.StorageFunds;
@@ -31,16 +34,19 @@ import dev.civitas.util.Scheduler;
  * {@link Scheduler#direct()} runs cache updates inline so a test can assert on the cache the
  * moment a future completes.
  */
-final class CityTestSupport implements AutoCloseable {
+public final class CityTestSupport implements AutoCloseable {
 
-    final ConfigManager configs;
-    final DatabaseManager db;
-    final DaoRegistry daos;
-    final CityRegistry registry;
-    final CityService cities;
-    final RankService ranks;
-    final PlayerAccountService accounts;
-    final Funds funds;
+    public final ConfigManager configs;
+    public final DatabaseManager db;
+    public final DaoRegistry daos;
+    public final CityRegistry registry;
+    public final CityService cities;
+    public final RankService ranks;
+    public final ClaimRegistry claimRegistry;
+    public final ClaimCostEngine costs;
+    public final ClaimService claims;
+    public final PlayerAccountService accounts;
+    public final Funds funds;
 
     private CityTestSupport(Path directory, EventBus events) {
         this.configs = new ConfigManager(
@@ -59,25 +65,29 @@ final class CityTestSupport implements AutoCloseable {
         this.registry = new CityRegistry(daos);
         this.accounts = new PlayerAccountService(db, daos.players(), daos.ledger(), configs);
         this.funds = new StorageFunds(daos.players(), daos.ledger(), configs);
+        this.claimRegistry = new ClaimRegistry(daos.claims());
+        this.costs = new ClaimCostEngine(configs);
+        this.claims = new ClaimService(db, daos, registry, claimRegistry, costs, configs,
+                Scheduler.direct(), events);
         this.cities = new CityService(db, daos, registry, configs,
-                new CityNameValidator(configs), funds, accounts, Scheduler.direct(), events);
+                new CityNameValidator(configs), funds, claims, accounts, Scheduler.direct(), events);
         this.ranks = new RankService(db, daos, Scheduler.direct(), events);
     }
 
-    static CityTestSupport open(Path directory) {
+    public static CityTestSupport open(Path directory) {
         return new CityTestSupport(directory, EventBus.noop());
     }
 
-    static CityTestSupport open(Path directory, EventBus events) {
+    public static CityTestSupport open(Path directory, EventBus events) {
         return new CityTestSupport(directory, events);
     }
 
     /** A player with enough playtime and money to found a city. */
-    UUID givenEligiblePlayer(String name) {
+    public UUID givenEligiblePlayer(String name) {
         return givenPlayer(name, new BigDecimal("50000.00"), TimeUnit.HOURS.toMillis(10));
     }
 
-    UUID givenPlayer(String name, BigDecimal balance, long activePlaytimeMs) {
+    public UUID givenPlayer(String name, BigDecimal balance, long activePlaytimeMs) {
         UUID uuid = UUID.randomUUID();
         await(daos.players().insert(new PlayerRow(uuid, name, balance, null, null,
                 1_000L, 2_000L, activePlaytimeMs, activePlaytimeMs, 0, 0L, 0L, false, 0L, 0L)));
@@ -85,12 +95,12 @@ final class CityTestSupport implements AutoCloseable {
     }
 
     /** A core chunk and a spawn inside it. */
-    static Placement placement(int chunkX, int chunkZ) {
+    public static Placement placement(int chunkX, int chunkZ) {
         return new Placement("world", chunkX, chunkZ,
                 chunkX * 16 + 8.5, 64.0, chunkZ * 16 + 8.5, 0f, 0f);
     }
 
-    City givenCity(UUID founder, String name, int chunkX, int chunkZ) {
+    public City givenCity(UUID founder, String name, int chunkX, int chunkZ) {
         Result<City> result = await(cities.create(founder, name, placement(chunkX, chunkZ)));
         if (result instanceof Result.Failure<City> failure) {
             throw new AssertionError("fixture city could not be founded: " + failure.reason()
@@ -99,8 +109,13 @@ final class CityTestSupport implements AutoCloseable {
         return result.orElseThrow();
     }
 
+    /** Refreshes the player rows the SPEC 6.2 member divisor is computed from. */
+    public void refreshPricing() {
+        await(claims.loadActiveMembers());
+    }
+
     /** Puts a second player into an existing city at its default rank. */
-    UUID givenMember(City city, String name) {
+    public UUID givenMember(City city, String name) {
         UUID uuid = givenEligiblePlayer(name);
         await(cities.invite(city.mayorUuid(), city, uuid));
         Result<City> joined = await(cities.acceptInvite(uuid, city));
@@ -110,7 +125,7 @@ final class CityTestSupport implements AutoCloseable {
         return uuid;
     }
 
-    static <T> T await(CompletableFuture<T> future) {
+    public static <T> T await(CompletableFuture<T> future) {
         try {
             return future.get(20, TimeUnit.SECONDS);
         } catch (Exception e) {
@@ -119,16 +134,16 @@ final class CityTestSupport implements AutoCloseable {
     }
 
     /** Reads a player row straight from storage, to assert on what was persisted. */
-    PlayerRow playerRow(UUID uuid) {
+    public PlayerRow playerRow(UUID uuid) {
         return await(daos.players().findByUuid(uuid)).orElseThrow();
     }
 
     /** The reason code of a failed result, for readable assertions. */
-    static String reasonOf(Result<?> result) {
+    public static String reasonOf(Result<?> result) {
         return result instanceof Result.Failure<?> failure ? failure.reason() : "SUCCESS";
     }
 
-    static Logger quietLogger() {
+    public static Logger quietLogger() {
         Logger logger = Logger.getLogger("civitas-city-test");
         logger.setUseParentHandlers(false);
         logger.setLevel(Level.OFF);

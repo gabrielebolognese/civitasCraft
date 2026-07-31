@@ -13,11 +13,17 @@ import dev.civitas.core.city.CityNameValidator;
 import dev.civitas.core.city.CityRegistry;
 import dev.civitas.core.city.CityService;
 import dev.civitas.core.city.RankService;
+import dev.civitas.core.claim.BorderRenderer;
+import dev.civitas.core.claim.ClaimCostEngine;
+import dev.civitas.core.claim.ClaimMap;
+import dev.civitas.core.claim.ClaimRegistry;
+import dev.civitas.core.claim.ClaimService;
 import dev.civitas.core.economy.Funds;
 import dev.civitas.core.economy.PlayerAccountService;
 import dev.civitas.core.economy.StorageFunds;
 import dev.civitas.lang.LangManager;
 import dev.civitas.listener.CityChatListener;
+import dev.civitas.listener.ClaimBoundaryListener;
 import dev.civitas.listener.PlayerAccountListener;
 import dev.civitas.storage.BackupService;
 import dev.civitas.storage.DatabaseManager;
@@ -50,6 +56,7 @@ public final class CivitasPlugin extends JavaPlugin {
     private DatabaseManager database;
     private DaoRegistry daos;
     private BackupService backups;
+    private BorderRenderer borders;
 
     private final AtomicReference<CivitasServices> services = new AtomicReference<>();
 
@@ -79,6 +86,10 @@ public final class CivitasPlugin extends JavaPlugin {
         CivitasServices current = services.getAndSet(null);
         if (current != null) {
             current.accounts().clearSessions();
+        }
+        if (borders != null) {
+            borders.stopAll();
+            borders = null;
         }
         if (database != null) {
             database.close();
@@ -130,10 +141,13 @@ public final class CivitasPlugin extends JavaPlugin {
 
             DaoRegistry loadedDaos = new DaoRegistry(manager);
             CityRegistry cityRegistry = new CityRegistry(loadedDaos);
+            ClaimRegistry claimRegistry = new ClaimRegistry(loadedDaos.claims());
 
             try {
-                int loaded = cityRegistry.loadAll().join();
-                getLogger().info(() -> "Loaded " + loaded + " cities into the cache.");
+                int cityCount = cityRegistry.loadAll().join();
+                int claimCount = claimRegistry.loadAll().join();
+                getLogger().info(() -> "Loaded " + cityCount + " cities and "
+                        + claimCount + " claims into the cache.");
             } catch (RuntimeException e) {
                 getLogger().log(Level.SEVERE, "Could not load cities; disabling CivitasCraft.", e);
                 manager.close();
@@ -141,15 +155,15 @@ public final class CivitasPlugin extends JavaPlugin {
                 return;
             }
 
-            Bukkit.getScheduler().runTask(this,
-                    () -> onStorageReady(manager, loadedDaos, cityRegistry, settings, scheduler));
+            Bukkit.getScheduler().runTask(this, () ->
+                    onStorageReady(manager, loadedDaos, cityRegistry, claimRegistry, settings, scheduler));
         });
     }
 
     /** Runs on the server thread once the schema is current and the cache is warm. */
     private void onStorageReady(DatabaseManager manager, DaoRegistry loadedDaos,
-                                CityRegistry cityRegistry, DatabaseSettings settings,
-                                Scheduler scheduler) {
+                                CityRegistry cityRegistry, ClaimRegistry claimRegistry,
+                                DatabaseSettings settings, Scheduler scheduler) {
         if (!isEnabled()) {
             // Disabled while the open was in flight; do not leak the pool.
             manager.close();
@@ -163,17 +177,31 @@ public final class CivitasPlugin extends JavaPlugin {
         Funds funds = new StorageFunds(loadedDaos.players(), loadedDaos.ledger(), configs);
         PlayerAccountService accounts =
                 new PlayerAccountService(manager, loadedDaos.players(), loadedDaos.ledger(), configs);
+        ClaimCostEngine costEngine = new ClaimCostEngine(configs);
+        ClaimService claimService = new ClaimService(manager, loadedDaos, cityRegistry,
+                claimRegistry, costEngine, configs, scheduler, EventBus.bukkit());
+        claimService.loadActiveMembers();
+
         CityService cityService = new CityService(manager, loadedDaos, cityRegistry, configs,
-                new CityNameValidator(configs), funds, accounts, scheduler, EventBus.bukkit());
+                new CityNameValidator(configs), funds, claimService, accounts, scheduler,
+                EventBus.bukkit());
         RankService rankService = new RankService(manager, loadedDaos, scheduler, EventBus.bukkit());
+        ClaimMap claimMap = new ClaimMap(claimRegistry, cityRegistry, configs, lang);
+        BorderRenderer borderRenderer =
+                new BorderRenderer(this, claimRegistry, configs, getLogger());
         PlayerLookup lookup = new PlayerLookup(loadedDaos.players());
 
-        services.set(new CivitasServices(cityRegistry, cityService, rankService, accounts, lookup));
+        this.borders = borderRenderer;
+
+        services.set(new CivitasServices(cityRegistry, cityService, rankService, claimRegistry,
+                claimService, claimMap, borderRenderer, accounts, lookup));
 
         getServer().getPluginManager().registerEvents(
                 new PlayerAccountListener(accounts, getLogger()), this);
         getServer().getPluginManager().registerEvents(
                 new CityChatListener(cityRegistry, configs, lang), this);
+        getServer().getPluginManager().registerEvents(
+                new ClaimBoundaryListener(cityRegistry, claimService, borderRenderer, lang), this);
 
         // Anyone already online, on a /reload, never fired a join event for us.
         long now = System.currentTimeMillis();

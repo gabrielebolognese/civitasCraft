@@ -141,3 +141,49 @@ Format:
   M8's, alongside the menu it exists to open. Likewise SPEC 17.1 cases 1 to 3, the inactivity
   sweeps, are deferred: cases 2 and 3 turn on claims becoming unprotected, which is land
   protection in M4. *Date:* 2026-07-31
+
+- **[M3]** SPEC 2.3 asks for a single {@code long} packing `(worldId, chunkX, chunkZ)`, but
+  two full `int` coordinates already fill all 64 bits. *Implemented default:* 12 bits for a
+  session-scoped world index and 26 for each coordinate, giving 4,096 worlds and a reach of
+  +/-33.5M chunks against a vanilla world-border cap of 1.87M. Out-of-range coordinates and
+  a 4,097th world throw rather than wrapping: aliasing two chunks onto one key would hand a
+  city another city's land. *Date:* 2026-07-31
+
+- **[M3]** SPEC 18.1 asks for "all reference values in the Section 6.2 table, to within 1 C",
+  but the table's *Cumulative* column cannot satisfy that. Seven rows are exact, and five
+  (chunks 15, 30, 75, 150, 300) are rounded to a nice number and disagree with the formula by
+  up to 18% (chunk 300 reads 79,000,000 against an actual 66,820,648). The per-chunk *Cost*
+  column is exact everywhere, to within 0.4 C. *Implemented default:* tested every per-chunk
+  cost, which is what the formula produces and what a player is charged, and treated the
+  cumulative column as illustrative. *Date:* 2026-07-31
+
+- **[M3]** SPEC 6.2 measures the distance multiplier from the core, but SPEC 20 decision 4
+  lets a city hold land in several worlds, where there is no distance to the core at all.
+  *Implemented default:* land outside the core's world is charged as if it sat inside the
+  free radius. Treating it as infinitely far would make a second world unaffordable by
+  accident rather than by design. Contiguity is likewise judged per-world, which decision 4
+  states directly. *Date:* 2026-07-31
+
+- **[M3]** SPEC 6.3 permits claiming into a world the city has no land in, but SPEC 6.1
+  requires every normal claim to share an edge with existing land, and a city's first chunk
+  in a new world can share an edge with nothing. *Implemented default:* refused, with a
+  message pointing at outposts, which SPEC 7.1 defines as exactly the mechanism for reaching
+  detached land. *Date:* 2026-07-31
+
+- **[M3]** SPEC 6.3 preconditions 9 and 10 depend on the war system (M19) and admin-protected
+  regions (M21), neither of which exists. *Implemented default:* both are written out as
+  named methods that always pass, with their refusal messages already in `lang/`, so the
+  milestone that adds them has one place to fill in rather than a check to remember.
+  *Date:* 2026-07-31
+
+- **[M3]** SPEC 6.5 specifies a 31x13 map with colours per category but no glyph.
+  *Implemented default:* the glyph and its colour are both `lang/` keys
+  (`claim.map.tile.*`), so a server can change either without a rebuild and the map is
+  translatable. Ally and enemy tiles are wired but unreachable until M13 and M19.
+  *Date:* 2026-07-31
+
+- **[M3]** SPEC 9.2 lists `/city spawn` and `/city setspawn`, which M2 had stubbed as M3
+  work, but neither is in M3's deliverable and SPEC puts both in the GUI (8.3 slot 40, 8.10
+  slot 16). *Implemented default:* retargeted to M8. M3 still owns the claim-side half:
+  unclaiming is refused on the spawn chunk, and SPEC 17.2 case 22 resets a stranded spawn to
+  the core. *Date:* 2026-07-31

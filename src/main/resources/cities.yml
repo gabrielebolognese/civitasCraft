@@ -33,6 +33,9 @@ claims:
   # Duration of the /city border particle outline, SPEC 6.5.
   border-particle-seconds: 60
   border-particle-radius: 64
+  # Any Bukkit Particle name. Both outlines are drawn per-player, so this only
+  # changes what the viewer sees.
+  border-particle: HAPPY_VILLAGER
   # /city map dimensions, SPEC 6.5.
   map-width: 31
   map-height: 13

@@ -25,6 +25,12 @@ import dev.civitas.core.city.CityRank;
 import dev.civitas.core.city.CityService;
 import dev.civitas.core.city.Placement;
 import dev.civitas.core.city.RankService;
+import dev.civitas.core.claim.BorderRenderer;
+import dev.civitas.core.claim.Claim;
+import dev.civitas.core.claim.ChunkKey;
+import dev.civitas.core.claim.ClaimCostEngine;
+import dev.civitas.core.claim.ClaimMap;
+import dev.civitas.core.claim.ClaimService;
 import dev.civitas.lang.LangManager;
 import dev.civitas.lang.Msg;
 import dev.civitas.util.PlayerLookup;
@@ -75,6 +81,18 @@ public final class CityCommand {
         return services.get().lookup();
     }
 
+    private ClaimService claims() {
+        return services.get().claims();
+    }
+
+    private ClaimMap claimMap() {
+        return services.get().map();
+    }
+
+    private BorderRenderer borders() {
+        return services.get().borders();
+    }
+
     /** True, having already told the sender, if storage is not open yet. */
     private boolean notReady(Audience audience) {
         if (services.get() != null) {
@@ -103,13 +121,13 @@ public final class CityCommand {
                 .then(setMotd())
                 .then(open())
                 .then(rename())
-                .then(notYet("spawn", 3))
-                .then(notYet("setspawn", 3))
-                .then(notYet("claim", 3))
-                .then(notYet("unclaim", 3))
-                .then(notYet("map", 3))
-                .then(notYet("here", 3))
-                .then(notYet("border", 3))
+                .then(notYet("spawn", 8))
+                .then(notYet("setspawn", 8))
+                .then(claim())
+                .then(unclaim())
+                .then(mapCommand())
+                .then(here())
+                .then(border())
                 .then(notYet("deposit", 5))
                 .then(notYet("withdraw", 5))
                 .then(notYet("outpost", 10))
@@ -454,6 +472,150 @@ public final class CityCommand {
                                                                             Replies.p("rank", updated.name()),
                                                                             Replies.p("flag", flag.get().name())));
                                                         }))))));
+    }
+
+    // ==================================================================================
+    // Land, SPEC 6
+    // ==================================================================================
+
+    private ArgumentBuilder<CommandSourceStack, ?> claim() {
+        return Commands.literal("claim")
+                .executes(context -> withOwnCity(context, this::claimHere))
+                .then(Commands.literal("auto")
+                        .executes(context -> withOwnCity(context, (player, city) -> {
+                            boolean on = claims().toggleAutoClaim(player.getUniqueId());
+                            lang.send(player, on ? "claim.auto-on" : "claim.auto-off");
+                            if (on) {
+                                claimHere(player, city);
+                            }
+                        })))
+                .then(Commands.literal("radius")
+                        .then(Commands.argument("n", IntegerArgumentType.integer(1, 5))
+                                .executes(context -> withOwnCity(context, (player, city) -> {
+                                    int radius = IntegerArgumentType.getInteger(context, "n");
+                                    Replies.reply(claims().claimRadius(player.getUniqueId(), city,
+                                                    player.getWorld().getName(),
+                                                    chunkX(player), chunkZ(player), radius),
+                                            player, lang, scheduler, logger,
+                                            bought -> {
+                                                lang.send(player, "claim.radius-success",
+                                                        Replies.p("count", String.valueOf(bought.size())),
+                                                        Replies.p("cost", totalCost(bought)));
+                                                bought.forEach(claim -> borders().highlightChunk(player,
+                                                        claim.world(), claim.chunkX(), claim.chunkZ()));
+                                            });
+                                }))));
+    }
+
+    private void claimHere(Player player, City city) {
+        String world = player.getWorld().getName();
+        int chunkX = chunkX(player);
+        int chunkZ = chunkZ(player);
+
+        Replies.reply(claims().claim(player.getUniqueId(), city, world, chunkX, chunkZ),
+                player, lang, scheduler, logger,
+                claim -> {
+                    lang.send(player, "claim.success",
+                            Replies.p("chunk", chunkX + "," + chunkZ),
+                            Replies.p("cost", claim.costPaid().toPlainString()));
+                    borders().highlightChunk(player, world, chunkX, chunkZ);
+                });
+    }
+
+    private ArgumentBuilder<CommandSourceStack, ?> unclaim() {
+        return Commands.literal("unclaim")
+                .executes(context -> withOwnCity(context, (player, city) ->
+                        Replies.reply(claims().unclaim(player.getUniqueId(), city,
+                                        player.getWorld().getName(), chunkX(player), chunkZ(player)),
+                                player, lang, scheduler, logger,
+                                claim -> lang.send(player, "claim.unclaim-success",
+                                        Replies.p("chunk", claim.chunkX() + "," + claim.chunkZ()),
+                                        Replies.p("refund", claims().costs()
+                                                .refundFor(claim.costPaid()).toPlainString())))))
+                .then(Commands.literal("radius")
+                        .then(Commands.argument("n", IntegerArgumentType.integer(1, 5))
+                                .executes(context -> withOwnCity(context, (player, city) ->
+                                        Replies.reply(claims().unclaimRadius(player.getUniqueId(), city,
+                                                        player.getWorld().getName(),
+                                                        chunkX(player), chunkZ(player),
+                                                        IntegerArgumentType.getInteger(context, "n")),
+                                                player, lang, scheduler, logger,
+                                                released -> lang.send(player, "claim.unclaim-radius-success",
+                                                        Replies.p("count",
+                                                                String.valueOf(released.size()))))))));
+    }
+
+    /** SPEC 6.5: the ASCII chunk map. */
+    private ArgumentBuilder<CommandSourceStack, ?> mapCommand() {
+        return Commands.literal("map")
+                .executes(context -> {
+                    Player player = player(context);
+                    if (player == null) {
+                        return Command.SINGLE_SUCCESS;
+                    }
+                    Optional<City> own = cities().registry().cityOf(player.getUniqueId());
+                    lang.sendRaw(player, "claim.map-header");
+                    claimMap().render(player.getWorld().getName(), chunkX(player), chunkZ(player), own)
+                            .forEach(player::sendMessage);
+                    lang.sendRaw(player, "claim.map-legend");
+                    return Command.SINGLE_SUCCESS;
+                });
+    }
+
+    /** SPEC 9.1: who owns the chunk the player is standing in. */
+    private ArgumentBuilder<CommandSourceStack, ?> here() {
+        return Commands.literal("here")
+                .executes(context -> {
+                    Player player = player(context);
+                    if (player == null) {
+                        return Command.SINGLE_SUCCESS;
+                    }
+                    int chunkX = chunkX(player);
+                    int chunkZ = chunkZ(player);
+                    Optional<Claim> claim = claims().registry()
+                            .at(player.getWorld().getName(), chunkX, chunkZ);
+
+                    if (claim.isEmpty()) {
+                        lang.send(player, "claim.here-wilderness",
+                                Replies.p("chunk", chunkX + "," + chunkZ));
+                        return Command.SINGLE_SUCCESS;
+                    }
+                    Optional<City> owner = cities().registry().city(claim.get().cityId());
+                    lang.send(player, "claim.here-owned",
+                            Replies.p("chunk", chunkX + "," + chunkZ),
+                            Replies.p("city", owner.map(City::name).orElse("?")),
+                            Replies.p("type", claim.get().type().name()));
+                    return Command.SINGLE_SUCCESS;
+                });
+    }
+
+    /** SPEC 6.5: toggle the particle outline. */
+    private ArgumentBuilder<CommandSourceStack, ?> border() {
+        return Commands.literal("border")
+                .executes(context -> {
+                    Player player = player(context);
+                    if (player == null) {
+                        return Command.SINGLE_SUCCESS;
+                    }
+                    boolean on = borders().toggle(player);
+                    lang.send(player, on ? "claim.border-on" : "claim.border-off");
+                    return Command.SINGLE_SUCCESS;
+                });
+    }
+
+    private static int chunkX(Player player) {
+        return ChunkKey.toChunk(player.getLocation().getBlockX());
+    }
+
+    private static int chunkZ(Player player) {
+        return ChunkKey.toChunk(player.getLocation().getBlockZ());
+    }
+
+    private static String totalCost(List<Claim> claimed) {
+        return claimed.stream()
+                .map(Claim::costPaid)
+                .reduce(java.math.BigDecimal.ZERO, java.math.BigDecimal::add)
+                .toPlainString();
     }
 
     // ==================================================================================

@@ -69,6 +69,16 @@ public final class PlayerDao extends Dao<PlayerRow> {
         return queryList("SELECT " + COLUMNS + " FROM players WHERE city_id = ?", cityId);
     }
 
+    /**
+     * Every player who currently belongs to a city.
+     *
+     * <p>Read once at startup to seed the active-member counts the SPEC 6.2 claim price
+     * divides by, so pricing a chunk never needs a database round trip.
+     */
+    public CompletableFuture<List<PlayerRow>> findAllWithCity() {
+        return queryList("SELECT " + COLUMNS + " FROM players WHERE city_id IS NOT NULL");
+    }
+
     /** Feeds the SPEC 13.3 Wealth leaderboard. */
     public CompletableFuture<List<PlayerRow>> findTopByBalance(int limit) {
         return queryList("SELECT " + COLUMNS + " FROM players ORDER BY balance DESC LIMIT ?", limit);

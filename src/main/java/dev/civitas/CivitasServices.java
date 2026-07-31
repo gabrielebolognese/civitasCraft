@@ -3,6 +3,10 @@ package dev.civitas;
 import dev.civitas.core.city.CityRegistry;
 import dev.civitas.core.city.CityService;
 import dev.civitas.core.city.RankService;
+import dev.civitas.core.claim.BorderRenderer;
+import dev.civitas.core.claim.ClaimMap;
+import dev.civitas.core.claim.ClaimRegistry;
+import dev.civitas.core.claim.ClaimService;
 import dev.civitas.core.economy.PlayerAccountService;
 import dev.civitas.util.PlayerLookup;
 
@@ -19,6 +23,10 @@ public record CivitasServices(
         CityRegistry registry,
         CityService cities,
         RankService ranks,
+        ClaimRegistry claimRegistry,
+        ClaimService claims,
+        ClaimMap map,
+        BorderRenderer borders,
         PlayerAccountService accounts,
         PlayerLookup lookup) {
 }

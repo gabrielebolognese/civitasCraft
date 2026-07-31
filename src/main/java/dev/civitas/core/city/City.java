@@ -136,7 +136,12 @@ public final class City {
         return treasury;
     }
 
-    void setTreasury(BigDecimal treasury) {
+    /**
+     * Kept in step with the database by whichever service just wrote it. Public because the
+     * claim service charges the treasury too; nothing outside a service may call it, or the
+     * cache and the database will drift.
+     */
+    public void setTreasury(BigDecimal treasury) {
         this.treasury = Objects.requireNonNull(treasury, "treasury");
     }
 
@@ -144,7 +149,8 @@ public final class City {
         return frozen;
     }
 
-    void setFrozen(boolean frozen) {
+    /** See {@link #setTreasury}: service-only, and public so admin tooling can freeze a city. */
+    public void setFrozen(boolean frozen) {
         this.frozen = frozen;
     }
 
@@ -156,7 +162,8 @@ public final class City {
         return delinquentSince;
     }
 
-    void setDelinquentSince(Long delinquentSince) {
+    /** See {@link #setTreasury}: service-only, and public so the upkeep task can mark a debt. */
+    public void setDelinquentSince(Long delinquentSince) {
         this.delinquentSince = delinquentSince;
     }
 
@@ -202,7 +209,8 @@ public final class City {
         return coreChunkZ;
     }
 
-    void setCore(String world, int chunkX, int chunkZ) {
+    /** See {@link #setTreasury}: service-only, and public so the claim service can promote a core. */
+    public void setCore(String world, int chunkX, int chunkZ) {
         this.coreWorld = Objects.requireNonNull(world, "world");
         this.coreChunkX = chunkX;
         this.coreChunkZ = chunkZ;
@@ -228,7 +236,8 @@ public final class City {
         return spawnPitch;
     }
 
-    void setSpawn(double x, double y, double z, float yaw, float pitch) {
+    /** See {@link #setTreasury}: service-only, and public so unclaiming can reset a stranded spawn. */
+    public void setSpawn(double x, double y, double z, float yaw, float pitch) {
         this.spawnX = x;
         this.spawnY = y;
         this.spawnZ = z;

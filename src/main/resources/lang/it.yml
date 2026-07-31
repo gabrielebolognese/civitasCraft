@@ -159,5 +159,56 @@ city:
     perm-granted: "<green>Permesso <white><flag></white> concesso a <white><rank></white>."
     perm-revoked: "<green>Permesso <white><flag></white> revocato a <white><rank></white>."
 
+claim:
+  # SPEC 6.3, acquisto del territorio
+  chunk-claimed: "<red>Questo chunk appartiene gia a un'altra citta."
+  already-owned: "<red>La tua citta possiede gia questo chunk."
+  not-adjacent: "<red>Un nuovo chunk deve condividere un lato con territorio che gia possiedi. Gli angoli non contano."
+  no-anchor: "<red>La tua citta non possiede nulla in questo mondo. Usa un avamposto per insediarti."
+  too-close: "<red>Sei entro la zona cuscinetto di <white><chunks></white> chunk di un'altra citta."
+  delinquent: "<red>La tua citta deve il mantenimento e non puo comprare terreno finche non e pagato."
+  at-war: "<red>Il territorio non puo cambiare proprietario mentre la tua citta e in guerra."
+  admin-protected: "<red>Questo chunk e protetto da un amministratore."
+  out-of-range: "<red>Questo chunk e troppo lontano dall'origine del mondo per essere reclamato."
+  cancelled: "<red>La rivendicazione e stata annullata."
+  radius-bounds: "<red>Il raggio deve essere tra 1 e <white><max></white>."
+  success: "<green>Chunk <white><chunk></white> reclamato per <white><cost> C</white>."
+  radius-success: "<green>Reclamati <white><count></white> chunk per <white><cost> C</white>."
+
+  # SPEC 6.4, restituzione
+  not-yours: "<red>La tua citta non possiede questo chunk."
+  core: "<red>Il chunk centrale non puo essere abbandonato. E dove la tua citta e nata."
+  contains-spawn: "<red>Lo spawn della tua citta e in questo chunk. Spostalo prima di abbandonarlo."
+  breaks-contiguity: "<red>Cosi isoleresti <white><count></white> chunk dalla tua citta: <white><chunks></white>"
+  unclaim-cancelled: "<red>L'abbandono e stato annullato."
+  unclaim-success: "<gray>Chunk <white><chunk></white> rilasciato. <white><refund> C</white> sono tornati al tesoro."
+  unclaim-radius-success: "<gray>Rilasciati <white><count></white> chunk."
+  radius-nothing: "<red>Nessuno di quei chunk poteva essere rilasciato."
+
+  # SPEC 6.3, rivendicazione automatica
+  auto-on: "<green>Rivendicazione automatica attiva. Camminando su terreno libero lo comprerai."
+  auto-off: "<gray>Rivendicazione automatica disattivata."
+  auto-claimed: "<green>Reclamato automaticamente <white><chunk></white> per <white><cost> C</white>."
+  auto-stopped: "<yellow>Rivendicazione automatica disattivata:"
+
+  # SPEC 6.5, visualizzazione
+  entering: "<green>Stai entrando in <city>"
+  leaving: "<gray>Stai lasciando <city>"
+  wilderness: "<white>Terra selvaggia"
+  border-on: "<green>Confini delle rivendicazioni visibili."
+  border-off: "<gray>Visualizzazione dei confini disattivata."
+  here-wilderness: "<gray>Il chunk <white><chunk></white> non e reclamato."
+  here-owned: "<gray>Il chunk <white><chunk></white> appartiene a <white><city></white> (<white><type></white>)."
+  map-header: "<dark_gray>--- <gold>Mappa dei chunk</gold> <gray>(sei nel chunk segnato) ---"
+  map-legend: "<gray>Legenda: <green>tua citta <gray>| <yellow>alleata <gray>| <red>nemica <gray>| <dark_gray>altra <gray>| <white>libera"
+  map:
+    tile:
+      own: "<green>#"
+      ally: "<yellow>#"
+      enemy: "<red>#"
+      other: "<dark_gray>#"
+      wilderness: "<white>-"
+      self: "<gold><bold>@</bold></gold>"
+
 chat:
   city-format: "<gray>[<white><tag></white><gray>] "

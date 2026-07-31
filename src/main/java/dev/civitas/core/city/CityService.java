@@ -21,6 +21,9 @@ import dev.civitas.api.event.CityLeaveEvent;
 import dev.civitas.api.event.CityTransferEvent;
 import dev.civitas.config.ConfigFile;
 import dev.civitas.config.ConfigManager;
+import dev.civitas.core.claim.Claim;
+import dev.civitas.core.claim.ClaimService;
+import dev.civitas.core.claim.ClaimType;
 import dev.civitas.core.economy.Funds;
 import dev.civitas.core.economy.PlayerAccountService;
 import dev.civitas.core.economy.TransactionType;
@@ -31,7 +34,6 @@ import dev.civitas.storage.row.CityInviteRow;
 import dev.civitas.storage.row.CityMemberRow;
 import dev.civitas.storage.row.CityRankRow;
 import dev.civitas.storage.row.CityRow;
-import dev.civitas.storage.row.ClaimRow;
 import dev.civitas.storage.row.LedgerRow;
 import dev.civitas.storage.row.PlayerRow;
 import dev.civitas.util.EventBus;
@@ -62,6 +64,7 @@ public final class CityService {
     private final ConfigManager configs;
     private final CityNameValidator nameValidator;
     private final Funds funds;
+    private final ClaimService claims;
     private final PlayerAccountService accounts;
     private final Scheduler scheduler;
     private final EventBus events;
@@ -73,13 +76,15 @@ public final class CityService {
 
     public CityService(DatabaseManager db, DaoRegistry daos, CityRegistry registry,
                        ConfigManager configs, CityNameValidator nameValidator, Funds funds,
-                       PlayerAccountService accounts, Scheduler scheduler, EventBus events) {
+                       ClaimService claims, PlayerAccountService accounts, Scheduler scheduler,
+                       EventBus events) {
         this.db = Objects.requireNonNull(db, "db");
         this.daos = Objects.requireNonNull(daos, "daos");
         this.registry = Objects.requireNonNull(registry, "registry");
         this.configs = Objects.requireNonNull(configs, "configs");
         this.nameValidator = Objects.requireNonNull(nameValidator, "nameValidator");
         this.funds = Objects.requireNonNull(funds, "funds");
+        this.claims = Objects.requireNonNull(claims, "claims");
         this.accounts = Objects.requireNonNull(accounts, "accounts");
         this.scheduler = Objects.requireNonNull(scheduler, "scheduler");
         this.events = Objects.requireNonNull(events, "events");
@@ -138,6 +143,11 @@ public final class CityService {
         long requiredPlaytime = cities.getLong("creation.min-playtime-hours", 2) * MILLIS_PER_HOUR;
         int minDistance = cities.getInt("creation.min-distance-chunks", 5);
         long disbandCooldown = cities.getLong("creation.disband-cooldown-hours", 24) * MILLIS_PER_HOUR;
+
+        // Captured from inside the transaction so the cache update below can register the
+        // core claim only once the whole founding has actually committed.
+        java.util.concurrent.atomic.AtomicReference<Claim> coreClaim =
+                new java.util.concurrent.atomic.AtomicReference<>();
 
         return db.transaction(connection -> {
             Optional<PlayerRow> playerRow = daos.players().findByUuid(connection, founder);
@@ -223,14 +233,24 @@ public final class CityService {
 
             daos.players().updateCity(connection, founder, cityId, mayorRank.id());
 
-            // The core chunk, free. The cost engine, adjacency and contiguity are M3's; a
-            // core claim is exempt from all three because it is the seed.
-            daos.claims().insert(connection, new ClaimRow(0, cityId, place.world(),
-                    place.chunkX(), place.chunkZ(), now, founder,
-                    dev.civitas.storage.SqlDialect.zero(), "CORE", null));
+            // The core chunk, free. Exempt from cost, adjacency and contiguity because it is
+            // the seed the other three are measured from (SPEC 6.1).
+            Result<Claim> core = claims.writeClaim(connection, founder, city, place.world(),
+                    place.chunkX(), place.chunkZ(), dev.civitas.storage.SqlDialect.zero(),
+                    ClaimType.CORE, null);
+            if (core instanceof Result.Failure<Claim> failure) {
+                return Result.<City>propagate(failure);
+            }
+            coreClaim.set(core.orElseThrow());
 
             return Result.success(city);
-        }).thenApply(result -> applyOnMain(result, city -> registry.register(city)));
+        }).thenApply(result -> applyOnMain(result, city -> {
+            registry.register(city);
+            Claim core = coreClaim.get();
+            if (core != null) {
+                claims.register(core);
+            }
+        }));
     }
 
     /**
@@ -348,6 +368,14 @@ public final class CityService {
         List<UUID> memberUuids = city.members().stream().map(CityMember::uuid).toList();
         BigDecimal treasury = city.treasury();
 
+        // SPEC 5.3: half of what was paid for the land comes back, to the mayor personally.
+        // Note the asymmetry with SPEC 6.4, where an ordinary unclaim refunds to the
+        // treasury: there is no treasury left to refund into once the city is gone.
+        BigDecimal landRefund = claims.registry().claimsOf(city.id()).stream()
+                .map(claim -> claims.costs().refundFor(claim.costPaid()))
+                .reduce(dev.civitas.storage.SqlDialect.zero(), BigDecimal::add);
+        UUID mayor = city.mayorUuid();
+
         return db.transaction(connection -> {
             // SPEC 17.1 case 10: whatever is in the treasury is split evenly among members.
             if (treasury.signum() > 0 && !memberUuids.isEmpty()) {
@@ -359,6 +387,12 @@ public final class CityService {
                                 city.id(), "{\"reason\":\"disband\"}");
                     }
                 }
+            }
+
+            if (landRefund.signum() > 0) {
+                funds.deposit(connection, mayor, landRefund,
+                        TransactionType.CHUNK_UNCLAIM_REFUND, city.id(),
+                        "{\"reason\":\"disband\"}");
             }
 
             daos.cities().updateTreasury(connection, city.id(),
@@ -378,6 +412,7 @@ public final class CityService {
         }).thenApply(result -> applyOnMain(result, disbanded -> {
             disbanded.setDeletedAt(now);
             disbanded.setTreasury(dev.civitas.storage.SqlDialect.zero());
+            claims.forgetCity(disbanded.id());
             registry.unregister(disbanded);
         }));
     }
