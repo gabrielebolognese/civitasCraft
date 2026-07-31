@@ -28,7 +28,8 @@ dependencies {
 
     // shaded into the jar
     implementation("com.zaxxer:HikariCP:5.1.0")
-    implementation("org.xerial:sqlite-jdbc:3.46.1.0")
+    implementation("org.xerial:sqlite-jdbc:3.53.2.1")
+    implementation("com.mysql:mysql-connector-j:9.7.0")
     implementation("it.unimi.dsi:fastutil-core:8.5.14")
     implementation("org.spongepowered:configurate-yaml:4.2.0")
 
@@ -54,10 +55,13 @@ tasks {
         relocate("com.zaxxer.hikari", "dev.civitas.lib.hikari")
         relocate("it.unimi.dsi.fastutil", "dev.civitas.lib.fastutil")
         relocate("org.spongepowered.configurate", "dev.civitas.lib.configurate")
-        // sqlite-jdbc is deliberately NOT relocated: it resolves its native library
-        // and its JDBC driver by hardcoded package name.
+        // The JDBC drivers are deliberately NOT relocated: both resolve their driver
+        // class, and sqlite its native library, by hardcoded package name. Paper gives
+        // every plugin its own class loader, so an unrelocated driver cannot clash with
+        // another plugin's copy.
         minimize {
             exclude(dependency("org.xerial:sqlite-jdbc:.*"))
+            exclude(dependency("com.mysql:mysql-connector-j:.*"))
             exclude(dependency("com.zaxxer:HikariCP:.*"))
         }
     }

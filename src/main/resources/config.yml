@@ -3,6 +3,15 @@
 
 storage:
   type: SQLITE            # SQLITE or MYSQL
+  sqlite:
+    # Relative to the plugin data folder.
+    file: civitas.db
+    # WAL lets readers run while a writer holds the file, which matters because the
+    # war block logger writes in large batches. Set to DELETE only if the database
+    # lives on a filesystem where WAL is unsafe, such as some network mounts.
+    journal-mode: WAL
+    pool-size: 4
+    busy-timeout-ms: 5000
   mysql:
     host: localhost
     port: 3306
@@ -10,6 +19,10 @@ storage:
     username: ""
     password: ""
     pool-size: 10
+    # Appended to the JDBC URL. Leave as-is unless you know why you are changing it.
+    properties: "useUnicode=true&characterEncoding=utf8&useSSL=false&allowPublicKeyRetrieval=true"
+  # Seconds a database call may take before it is logged as slow. Diagnostic only.
+  slow-query-warn-ms: 250
   backup:
     enabled: true
     interval-hours: 6

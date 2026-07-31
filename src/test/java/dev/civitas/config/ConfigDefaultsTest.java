@@ -52,6 +52,10 @@ class ConfigDefaultsTest {
         FileConfiguration config = load(ConfigFile.CONFIG);
 
         assertEquals("SQLITE", config.getString("storage.type"));
+        assertEquals("civitas.db", config.getString("storage.sqlite.file"));
+        assertEquals("WAL", config.getString("storage.sqlite.journal-mode"));
+        assertEquals(4, config.getInt("storage.sqlite.pool-size"));
+        assertEquals(5000, config.getInt("storage.sqlite.busy-timeout-ms"));
         assertEquals(3306, config.getInt("storage.mysql.port"));
         assertEquals(10, config.getInt("storage.mysql.pool-size"));
         assertTrue(config.getBoolean("storage.backup.enabled"));

@@ -1,0 +1,4 @@
+# Migrations for MySQL and MariaDB, applied in ascending version order.
+# One filename per line. Blank lines and # comments are ignored.
+# MigrationIndexTest fails the build if this list and the .sql files disagree.
+V1__init.sql
