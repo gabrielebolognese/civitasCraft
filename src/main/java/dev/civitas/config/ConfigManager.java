@@ -6,9 +6,12 @@ import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.Reader;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.StandardCopyOption;
 import java.util.EnumMap;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.logging.Level;
 
 import org.bukkit.configuration.file.FileConfiguration;
@@ -25,11 +28,15 @@ import org.bukkit.plugin.Plugin;
  */
 public final class ConfigManager {
 
-    private final Plugin plugin;
+    private final PluginResources resources;
     private final Map<ConfigFile, FileConfiguration> loaded = new EnumMap<>(ConfigFile.class);
 
+    public ConfigManager(PluginResources resources) {
+        this.resources = Objects.requireNonNull(resources, "resources");
+    }
+
     public ConfigManager(Plugin plugin) {
-        this.plugin = Objects.requireNonNull(plugin, "plugin");
+        this(PluginResources.of(plugin));
     }
 
     /** Loads every configuration file, creating any that are missing. */
@@ -64,9 +71,9 @@ public final class ConfigManager {
     }
 
     private void load(ConfigFile file) {
-        File onDisk = new File(plugin.getDataFolder(), file.fileName());
+        File onDisk = new File(resources.dataFolder(), file.fileName());
         if (!onDisk.exists()) {
-            plugin.saveResource(file.fileName(), false);
+            copyResource(file.fileName(), onDisk);
         }
 
         FileConfiguration config = YamlConfiguration.loadConfiguration(onDisk);
@@ -77,19 +84,43 @@ public final class ConfigManager {
         loaded.put(file, config);
     }
 
-    private java.util.Optional<YamlConfiguration> readDefaultsFromJar(ConfigFile file) {
-        try (InputStream in = plugin.getResource(file.fileName())) {
+    /**
+     * Writes a packaged default out to disk.
+     *
+     * <p>Done here rather than through {@code Plugin.saveResource} so that config loading
+     * depends only on {@link PluginResources}.
+     */
+    private void copyResource(String resourcePath, File target) {
+        try (InputStream in = resources.resource(resourcePath)) {
             if (in == null) {
-                plugin.getLogger().log(Level.WARNING,
+                resources.logger().log(Level.WARNING,
+                        "No packaged copy of {0}; it will not be created on disk.", resourcePath);
+                return;
+            }
+            File parent = target.getParentFile();
+            if (parent != null && !parent.isDirectory() && !parent.mkdirs()) {
+                throw new IOException("Could not create " + parent);
+            }
+            Files.copy(in, target.toPath(), StandardCopyOption.REPLACE_EXISTING);
+        } catch (IOException e) {
+            resources.logger().log(Level.SEVERE, "Failed to write " + target, e);
+        }
+    }
+
+    private Optional<YamlConfiguration> readDefaultsFromJar(ConfigFile file) {
+        try (InputStream in = resources.resource(file.fileName())) {
+            if (in == null) {
+                resources.logger().log(Level.WARNING,
                         "No packaged defaults for {0}; missing keys will not resolve.", file.fileName());
-                return java.util.Optional.empty();
+                return Optional.empty();
             }
             try (Reader reader = new InputStreamReader(in, StandardCharsets.UTF_8)) {
-                return java.util.Optional.of(YamlConfiguration.loadConfiguration(reader));
+                return Optional.of(YamlConfiguration.loadConfiguration(reader));
             }
         } catch (IOException e) {
-            plugin.getLogger().log(Level.SEVERE, "Failed to read packaged defaults for " + file.fileName(), e);
-            return java.util.Optional.empty();
+            resources.logger().log(Level.SEVERE,
+                    "Failed to read packaged defaults for " + file.fileName(), e);
+            return Optional.empty();
         }
     }
 }

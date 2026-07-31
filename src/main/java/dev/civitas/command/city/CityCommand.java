@@ -1,0 +1,726 @@
+package dev.civitas.command.city;
+
+import java.util.List;
+import java.util.Objects;
+import java.util.Optional;
+import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
+import java.util.function.Supplier;
+import java.util.logging.Logger;
+
+import com.mojang.brigadier.Command;
+import com.mojang.brigadier.arguments.IntegerArgumentType;
+import com.mojang.brigadier.arguments.StringArgumentType;
+import com.mojang.brigadier.builder.ArgumentBuilder;
+import com.mojang.brigadier.builder.LiteralArgumentBuilder;
+import com.mojang.brigadier.context.CommandContext;
+import com.mojang.brigadier.suggestion.SuggestionProvider;
+import com.mojang.brigadier.tree.LiteralCommandNode;
+import dev.civitas.CivitasServices;
+import dev.civitas.command.Replies;
+import dev.civitas.core.city.City;
+import dev.civitas.core.city.CityMember;
+import dev.civitas.core.city.CityPermission;
+import dev.civitas.core.city.CityRank;
+import dev.civitas.core.city.CityService;
+import dev.civitas.core.city.Placement;
+import dev.civitas.core.city.RankService;
+import dev.civitas.lang.LangManager;
+import dev.civitas.lang.Msg;
+import dev.civitas.util.PlayerLookup;
+import dev.civitas.util.Result;
+import dev.civitas.util.Scheduler;
+import io.papermc.paper.command.brigadier.CommandSourceStack;
+import io.papermc.paper.command.brigadier.Commands;
+import net.kyori.adventure.audience.Audience;
+import org.bukkit.Bukkit;
+import org.bukkit.entity.Player;
+
+/**
+ * The {@code /city} command tree, SPEC 9.1 and 9.2.
+ *
+ * <p>Only the subcommands M2 can honour are wired up. The rest are registered as explicit
+ * leaves that say which milestone brings them, rather than being left out: a player who
+ * types {@code /city claim} should be told it is not ready, not told the command does not
+ * exist.
+ */
+public final class CityCommand {
+
+    private final Supplier<CivitasServices> services;
+    private final LangManager lang;
+    private final Scheduler scheduler;
+    private final Logger logger;
+
+    /**
+     * @param services returns null until the async database open has finished, which is why
+     *                 every executor calls {@link #notReady} before doing anything
+     */
+    public CityCommand(Supplier<CivitasServices> services, LangManager lang,
+                       Scheduler scheduler, Logger logger) {
+        this.services = Objects.requireNonNull(services, "services");
+        this.lang = Objects.requireNonNull(lang, "lang");
+        this.scheduler = Objects.requireNonNull(scheduler, "scheduler");
+        this.logger = Objects.requireNonNull(logger, "logger");
+    }
+
+    private CityService cities() {
+        return services.get().cities();
+    }
+
+    private RankService ranks() {
+        return services.get().ranks();
+    }
+
+    private PlayerLookup lookup() {
+        return services.get().lookup();
+    }
+
+    /** True, having already told the sender, if storage is not open yet. */
+    private boolean notReady(Audience audience) {
+        if (services.get() != null) {
+            return false;
+        }
+        lang.send(audience, "plugin.starting");
+        return true;
+    }
+
+    public LiteralCommandNode<CommandSourceStack> build() {
+        return Commands.literal("city")
+                .requires(source -> source.getSender().hasPermission("civitas.use"))
+                .executes(this::showOwnCity)
+                .then(create())
+                .then(info())
+                .then(list())
+                .then(join())
+                .then(accept())
+                .then(deny())
+                .then(leave())
+                .then(invite())
+                .then(kick())
+                .then(transfer())
+                .then(disband())
+                .then(rank())
+                .then(setMotd())
+                .then(open())
+                .then(rename())
+                .then(notYet("spawn", 3))
+                .then(notYet("setspawn", 3))
+                .then(notYet("claim", 3))
+                .then(notYet("unclaim", 3))
+                .then(notYet("map", 3))
+                .then(notYet("here", 3))
+                .then(notYet("border", 3))
+                .then(notYet("deposit", 5))
+                .then(notYet("withdraw", 5))
+                .then(notYet("outpost", 10))
+                .then(notYet("upgrade", 11))
+                .then(notYet("vault", 11))
+                .then(notYet("defense", 12))
+                .then(notYet("hall", 8))
+                .build();
+    }
+
+    // ==================================================================================
+    // Subcommands implemented in M2
+    // ==================================================================================
+
+    private ArgumentBuilder<CommandSourceStack, ?> create() {
+        return Commands.literal("create")
+                .requires(source -> source.getSender().hasPermission("civitas.city.create"))
+                .then(Commands.argument("name", StringArgumentType.word())
+                        .executes(context -> {
+                            Player player = player(context);
+                            if (player == null) {
+                                return Command.SINGLE_SUCCESS;
+                            }
+                            String name = StringArgumentType.getString(context, "name");
+                            Replies.reply(
+                                    cities().create(player.getUniqueId(), name,
+                                            Placement.of(player.getLocation())),
+                                    player, lang, scheduler, logger,
+                                    city -> {
+                                        lang.send(player, "city.create.success",
+                                                Replies.p("name", city.name()));
+                                        Bukkit.broadcast(lang.get("city.create.broadcast",
+                                                Replies.p("name", city.name()),
+                                                Replies.p("player", player.getName())));
+                                    });
+                            return Command.SINGLE_SUCCESS;
+                        }));
+    }
+
+    private ArgumentBuilder<CommandSourceStack, ?> info() {
+        return Commands.literal("info")
+                .executes(this::showOwnCity)
+                .then(Commands.argument("city", StringArgumentType.word())
+                        .suggests(cityNames())
+                        .executes(context -> {
+                            Audience audience = context.getSource().getSender();
+                            if (notReady(audience)) {
+                                return Command.SINGLE_SUCCESS;
+                            }
+                            String name = StringArgumentType.getString(context, "city");
+                            Optional<City> city = cities().registry().cityByName(name);
+                            if (city.isEmpty()) {
+                                lang.send(audience, "city.unknown");
+                            } else {
+                                sendInfo(audience, city.get());
+                            }
+                            return Command.SINGLE_SUCCESS;
+                        }));
+    }
+
+    private ArgumentBuilder<CommandSourceStack, ?> list() {
+        return Commands.literal("list")
+                .executes(context -> sendList(context, 1))
+                .then(Commands.argument("page", IntegerArgumentType.integer(1))
+                        .executes(context ->
+                                sendList(context, IntegerArgumentType.getInteger(context, "page"))));
+    }
+
+    private ArgumentBuilder<CommandSourceStack, ?> join() {
+        return Commands.literal("join")
+                .then(Commands.argument("city", StringArgumentType.word())
+                        .suggests(cityNames())
+                        .executes(context -> withCityArgument(context, (player, city) -> {
+                            Replies.reply(cities().joinOpen(player.getUniqueId(), city),
+                                    player, lang, scheduler, logger,
+                                    joined -> lang.send(player, "city.join.success",
+                                            Replies.p("name", joined.name())));
+                        })));
+    }
+
+    private ArgumentBuilder<CommandSourceStack, ?> accept() {
+        return Commands.literal("accept")
+                .executes(context -> {
+                    // No argument: this accepts a pending mayorship transfer, SPEC 5.3.
+                    Player player = player(context);
+                    if (player == null) {
+                        return Command.SINGLE_SUCCESS;
+                    }
+                    Replies.reply(cities().acceptTransfer(player.getUniqueId()),
+                            player, lang, scheduler, logger,
+                            city -> {
+                                lang.send(player, "city.transfer.accepted",
+                                        Replies.p("name", city.name()));
+                                announce(city, "city.transfer.announce",
+                                        Replies.p("player", player.getName()));
+                            });
+                    return Command.SINGLE_SUCCESS;
+                })
+                .then(Commands.argument("city", StringArgumentType.word())
+                        .suggests(cityNames())
+                        .executes(context -> withCityArgument(context, (player, city) ->
+                                Replies.reply(cities().acceptInvite(player.getUniqueId(), city),
+                                        player, lang, scheduler, logger,
+                                        joined -> {
+                                            lang.send(player, "city.join.success",
+                                                    Replies.p("name", joined.name()));
+                                            announce(joined, "city.join.announce",
+                                                    Replies.p("player", player.getName()));
+                                        }))));
+    }
+
+    private ArgumentBuilder<CommandSourceStack, ?> deny() {
+        return Commands.literal("deny")
+                .then(Commands.argument("city", StringArgumentType.word())
+                        .suggests(cityNames())
+                        .executes(context -> withCityArgument(context, (player, city) ->
+                                Replies.reply(cities().denyInvite(player.getUniqueId(), city),
+                                        player, lang, scheduler, logger,
+                                        ignored -> lang.send(player, "city.invite.denied",
+                                                Replies.p("name", city.name()))))));
+    }
+
+    private ArgumentBuilder<CommandSourceStack, ?> leave() {
+        return Commands.literal("leave")
+                .executes(context -> {
+                    Audience audience = context.getSource().getSender();
+                    lang.send(audience, "city.leave.confirm-hint");
+                    return Command.SINGLE_SUCCESS;
+                })
+                .then(Commands.literal("confirm")
+                        .executes(context -> withOwnCity(context, (player, city) ->
+                                Replies.reply(cities().leave(player.getUniqueId(), city),
+                                        player, lang, scheduler, logger,
+                                        left -> {
+                                            lang.send(player, "city.leave.success",
+                                                    Replies.p("name", left.name()));
+                                            announce(left, "city.leave.announce",
+                                                    Replies.p("player", player.getName()));
+                                        }))));
+    }
+
+    private ArgumentBuilder<CommandSourceStack, ?> invite() {
+        return Commands.literal("invite")
+                .then(Commands.argument("player", StringArgumentType.word())
+                        .suggests(onlinePlayers())
+                        .executes(context -> withResolvedTarget(context, (player, city, target) ->
+                                Replies.reply(cities().invite(player.getUniqueId(), city, target.uuid()),
+                                        player, lang, scheduler, logger,
+                                        ignored -> {
+                                            lang.send(player, "city.invite.sent",
+                                                    Replies.p("player", target.name()));
+                                            Player online = Bukkit.getPlayer(target.uuid());
+                                            if (online != null) {
+                                                lang.send(online, "city.invite.received",
+                                                        Replies.p("name", city.name()),
+                                                        Replies.p("player", player.getName()));
+                                            }
+                                        }))));
+    }
+
+    private ArgumentBuilder<CommandSourceStack, ?> kick() {
+        return Commands.literal("kick")
+                .then(Commands.argument("player", StringArgumentType.word())
+                        .suggests(cityMembers())
+                        .executes(context -> withResolvedTarget(context, (player, city, target) ->
+                                Replies.reply(cities().kick(player.getUniqueId(), city, target.uuid()),
+                                        player, lang, scheduler, logger,
+                                        ignored -> {
+                                            lang.send(player, "city.kick.success",
+                                                    Replies.p("player", target.name()));
+                                            Player online = Bukkit.getPlayer(target.uuid());
+                                            if (online != null) {
+                                                lang.send(online, "city.kick.kicked",
+                                                        Replies.p("name", city.name()));
+                                            }
+                                        }))));
+    }
+
+    private ArgumentBuilder<CommandSourceStack, ?> transfer() {
+        return Commands.literal("transfer")
+                .then(Commands.argument("player", StringArgumentType.word())
+                        .suggests(cityMembers())
+                        .executes(context -> withResolvedTarget(context, (player, city, target) -> {
+                            Result<Void> offered = cities().offerTransfer(player.getUniqueId(), city,
+                                    target.uuid(), target.online());
+                            if (offered instanceof Result.Failure<Void> failure) {
+                                Replies.sendFailure(player, lang, failure);
+                                return;
+                            }
+                            lang.send(player, "city.transfer.offered",
+                                    Replies.p("player", target.name()));
+                            Player online = Bukkit.getPlayer(target.uuid());
+                            if (online != null) {
+                                lang.send(online, "city.transfer.offer-received",
+                                        Replies.p("name", city.name()),
+                                        Replies.p("player", player.getName()));
+                            }
+                        })));
+    }
+
+    private ArgumentBuilder<CommandSourceStack, ?> disband() {
+        return Commands.literal("disband")
+                .executes(context -> withOwnCity(context, (player, city) ->
+                        lang.send(player, "city.disband.confirm-hint",
+                                Replies.p("name", city.name()))))
+                .then(Commands.argument("name", StringArgumentType.word())
+                        .executes(context -> withOwnCity(context, (player, city) -> {
+                            String typed = StringArgumentType.getString(context, "name");
+                            if (!typed.equals(city.name())) {
+                                lang.send(player, "city.disband.name-mismatch",
+                                        Replies.p("name", city.name()));
+                                return;
+                            }
+                            Replies.reply(cities().disband(player.getUniqueId(), city),
+                                    player, lang, scheduler, logger,
+                                    disbanded -> Bukkit.broadcast(lang.get("city.disband.broadcast",
+                                            Replies.p("name", disbanded.name()))));
+                        })));
+    }
+
+    private ArgumentBuilder<CommandSourceStack, ?> setMotd() {
+        return Commands.literal("setmotd")
+                .then(Commands.argument("text", StringArgumentType.greedyString())
+                        .executes(context -> withOwnCity(context, (player, city) ->
+                                Replies.reply(cities().setMotd(player.getUniqueId(), city,
+                                                StringArgumentType.getString(context, "text")),
+                                        player, lang, scheduler, logger,
+                                        updated -> lang.send(player, "city.settings.motd-set")))));
+    }
+
+    private ArgumentBuilder<CommandSourceStack, ?> open() {
+        return Commands.literal("open")
+                .then(Commands.argument("value", StringArgumentType.word())
+                        .suggests((context, builder) -> {
+                            builder.suggest("true");
+                            builder.suggest("false");
+                            return builder.buildFuture();
+                        })
+                        .executes(context -> withOwnCity(context, (player, city) -> {
+                            boolean value = Boolean.parseBoolean(
+                                    StringArgumentType.getString(context, "value"));
+                            Replies.reply(cities().setOpenJoin(player.getUniqueId(), city, value),
+                                    player, lang, scheduler, logger,
+                                    updated -> lang.send(player, value
+                                            ? "city.settings.open-on"
+                                            : "city.settings.open-off"));
+                        })));
+    }
+
+    private ArgumentBuilder<CommandSourceStack, ?> rename() {
+        return Commands.literal("rename")
+                .then(Commands.argument("name", StringArgumentType.word())
+                        .executes(context -> withOwnCity(context, (player, city) ->
+                                Replies.reply(cities().rename(player.getUniqueId(), city,
+                                                StringArgumentType.getString(context, "name")),
+                                        player, lang, scheduler, logger,
+                                        renamed -> lang.send(player, "city.settings.renamed",
+                                                Replies.p("name", renamed.name()))))));
+    }
+
+    // ==================================================================================
+    // /city rank ...
+    // ==================================================================================
+
+    private ArgumentBuilder<CommandSourceStack, ?> rank() {
+        return Commands.literal("rank")
+                .executes(context -> withOwnCity(context, this::sendRanks))
+                .then(Commands.literal("list")
+                        .executes(context -> withOwnCity(context, this::sendRanks)))
+                .then(Commands.literal("create")
+                        .then(Commands.argument("name", StringArgumentType.word())
+                                .then(Commands.argument("weight", IntegerArgumentType.integer(0, 99))
+                                        .executes(context -> withOwnCity(context, (player, city) ->
+                                                Replies.reply(ranks().create(player.getUniqueId(), city,
+                                                                StringArgumentType.getString(context, "name"),
+                                                                IntegerArgumentType.getInteger(context, "weight")),
+                                                        player, lang, scheduler, logger,
+                                                        created -> lang.send(player, "city.rank.created",
+                                                                Replies.p("rank", created.name()))))))))
+                .then(Commands.literal("delete")
+                        .then(Commands.argument("rank", StringArgumentType.word())
+                                .suggests(rankNames())
+                                .executes(context -> withRank(context, (player, city, rank) ->
+                                        Replies.reply(ranks().delete(player.getUniqueId(), city, rank),
+                                                player, lang, scheduler, logger,
+                                                deleted -> lang.send(player, "city.rank.deleted",
+                                                        Replies.p("rank", deleted.name())))))))
+                .then(Commands.literal("set")
+                        .then(Commands.argument("player", StringArgumentType.word())
+                                .suggests(cityMembers())
+                                .then(Commands.argument("rank", StringArgumentType.word())
+                                        .suggests(rankNames())
+                                        .executes(context -> withResolvedTarget(context,
+                                                (player, city, target) -> {
+                                                    String rankName =
+                                                            StringArgumentType.getString(context, "rank");
+                                                    Optional<CityRank> rank = city.rankByName(rankName);
+                                                    if (rank.isEmpty()) {
+                                                        lang.send(player, "city.rank.unknown",
+                                                                Replies.p("rank", rankName));
+                                                        return;
+                                                    }
+                                                    Replies.reply(ranks().assign(player.getUniqueId(), city,
+                                                                    target.uuid(), rank.get()),
+                                                            player, lang, scheduler, logger,
+                                                            assigned -> lang.send(player, "city.rank.assigned",
+                                                                    Replies.p("player", target.name()),
+                                                                    Replies.p("rank", assigned.name())));
+                                                })))))
+                .then(Commands.literal("perm")
+                        .then(Commands.argument("rank", StringArgumentType.word())
+                                .suggests(rankNames())
+                                .then(Commands.argument("flag", StringArgumentType.word())
+                                        .suggests(permissionFlags())
+                                        .then(Commands.argument("value", StringArgumentType.word())
+                                                .suggests((context, builder) -> {
+                                                    builder.suggest("on");
+                                                    builder.suggest("off");
+                                                    return builder.buildFuture();
+                                                })
+                                                .executes(context -> withRank(context,
+                                                        (player, city, rank) -> {
+                                                            String flagName =
+                                                                    StringArgumentType.getString(context, "flag");
+                                                            Optional<CityPermission> flag =
+                                                                    CityPermission.parse(flagName);
+                                                            if (flag.isEmpty()) {
+                                                                lang.send(player, "city.rank.unknown-flag",
+                                                                        Replies.p("flag", flagName));
+                                                                return;
+                                                            }
+                                                            boolean granted = "on".equalsIgnoreCase(
+                                                                    StringArgumentType.getString(context, "value"));
+                                                            Replies.reply(ranks().setPermission(
+                                                                            player.getUniqueId(), city, rank,
+                                                                            flag.get(), granted),
+                                                                    player, lang, scheduler, logger,
+                                                                    updated -> lang.send(player,
+                                                                            granted
+                                                                                    ? "city.rank.perm-granted"
+                                                                                    : "city.rank.perm-revoked",
+                                                                            Replies.p("rank", updated.name()),
+                                                                            Replies.p("flag", flag.get().name())));
+                                                        }))))));
+    }
+
+    // ==================================================================================
+    // Output
+    // ==================================================================================
+
+    private int showOwnCity(CommandContext<CommandSourceStack> context) {
+        Audience audience = context.getSource().getSender();
+        if (notReady(audience)) {
+            return Command.SINGLE_SUCCESS;
+        }
+        if (!(context.getSource().getSender() instanceof Player player)) {
+            lang.send(audience, Msg.COMMAND_PLAYER_ONLY);
+            return Command.SINGLE_SUCCESS;
+        }
+        Optional<City> city = cities().registry().cityOf(player.getUniqueId());
+        if (city.isEmpty()) {
+            lang.send(audience, "city.none");
+            return Command.SINGLE_SUCCESS;
+        }
+        sendInfo(audience, city.get());
+        return Command.SINGLE_SUCCESS;
+    }
+
+    private void sendInfo(Audience audience, City city) {
+        String mayorName = nameOf(city.mayorUuid());
+        lang.sendRaw(audience, "city.info.header", Replies.p("name", city.name()));
+        lang.sendRaw(audience, "city.info.tag",
+                Replies.p("tag", city.tag() == null ? "-" : city.tag()));
+        lang.sendRaw(audience, "city.info.mayor", Replies.p("mayor", mayorName));
+        lang.sendRaw(audience, "city.info.members",
+                Replies.p("count", String.valueOf(city.memberCount())),
+                Replies.p("cap", String.valueOf(cities().memberCap(city))));
+        lang.sendRaw(audience, "city.info.treasury",
+                Replies.p("amount", city.treasury().toPlainString()));
+        lang.sendRaw(audience, "city.info.open",
+                Replies.p("value", String.valueOf(city.isOpenJoin())));
+        if (!city.motd().isBlank()) {
+            lang.sendRaw(audience, "city.info.motd", Replies.p("motd", city.motd()));
+        }
+    }
+
+    private int sendList(CommandContext<CommandSourceStack> context, int page) {
+        Audience audience = context.getSource().getSender();
+        if (notReady(audience)) {
+            return Command.SINGLE_SUCCESS;
+        }
+        List<City> all = cities().registry().cities().stream()
+                .sorted((a, b) -> Integer.compare(b.memberCount(), a.memberCount()))
+                .toList();
+
+        int perPage = 10;
+        int pages = Math.max(1, (all.size() + perPage - 1) / perPage);
+        int clamped = Math.min(page, pages);
+        lang.sendRaw(audience, "city.list.header",
+                Replies.p("page", String.valueOf(clamped)),
+                Replies.p("pages", String.valueOf(pages)));
+
+        if (all.isEmpty()) {
+            lang.sendRaw(audience, "city.list.empty");
+            return Command.SINGLE_SUCCESS;
+        }
+
+        int from = (clamped - 1) * perPage;
+        for (City city : all.subList(from, Math.min(from + perPage, all.size()))) {
+            lang.sendRaw(audience, "city.list.entry",
+                    Replies.p("name", city.name()),
+                    Replies.p("members", String.valueOf(city.memberCount())),
+                    Replies.p("mayor", nameOf(city.mayorUuid())));
+        }
+        return Command.SINGLE_SUCCESS;
+    }
+
+    private void sendRanks(Player player, City city) {
+        lang.sendRaw(player, "city.rank.header", Replies.p("name", city.name()));
+        city.ranks().stream()
+                .sorted((a, b) -> Integer.compare(b.weight(), a.weight()))
+                .forEach(rank -> lang.sendRaw(player, "city.rank.entry",
+                        Replies.p("rank", rank.name()),
+                        Replies.p("weight", String.valueOf(rank.weight())),
+                        Replies.p("permissions", String.valueOf(rank.permissions().size())),
+                        Replies.p("members", String.valueOf(city.membersWithRank(rank.id())))));
+    }
+
+    // ==================================================================================
+    // Plumbing
+    // ==================================================================================
+
+    /** A leaf that names the milestone bringing this subcommand, rather than a syntax error. */
+    private LiteralArgumentBuilder<CommandSourceStack> notYet(String literal, int milestone) {
+        return Commands.literal(literal)
+                .executes(context -> {
+                    lang.send(context.getSource().getSender(), Msg.COMMAND_NOT_IMPLEMENTED,
+                            Replies.p("command", "city " + literal),
+                            Replies.p("milestone", "M" + milestone));
+                    return Command.SINGLE_SUCCESS;
+                })
+                .then(Commands.argument("args", StringArgumentType.greedyString())
+                        .executes(context -> {
+                            lang.send(context.getSource().getSender(), Msg.COMMAND_NOT_IMPLEMENTED,
+                                    Replies.p("command", "city " + literal),
+                                    Replies.p("milestone", "M" + milestone));
+                            return Command.SINGLE_SUCCESS;
+                        }));
+    }
+
+    private Player player(CommandContext<CommandSourceStack> context) {
+        if (notReady(context.getSource().getSender())) {
+            return null;
+        }
+        if (context.getSource().getSender() instanceof Player player) {
+            return player;
+        }
+        lang.send(context.getSource().getSender(), Msg.COMMAND_PLAYER_ONLY);
+        return null;
+    }
+
+    private interface CityAction {
+        void run(Player player, City city);
+    }
+
+    private interface TargetAction {
+        void run(Player player, City city, PlayerLookup.Resolved target);
+    }
+
+    private interface RankAction {
+        void run(Player player, City city, CityRank rank);
+    }
+
+    private int withOwnCity(CommandContext<CommandSourceStack> context, CityAction action) {
+        Player player = player(context);
+        if (player == null) {
+            return Command.SINGLE_SUCCESS;
+        }
+        Optional<City> city = cities().registry().cityOf(player.getUniqueId());
+        if (city.isEmpty()) {
+            lang.send(player, "city.none");
+            return Command.SINGLE_SUCCESS;
+        }
+        action.run(player, city.get());
+        return Command.SINGLE_SUCCESS;
+    }
+
+    private int withCityArgument(CommandContext<CommandSourceStack> context, CityAction action) {
+        Player player = player(context);
+        if (player == null) {
+            return Command.SINGLE_SUCCESS;
+        }
+        String name = StringArgumentType.getString(context, "city");
+        Optional<City> city = cities().registry().cityByName(name);
+        if (city.isEmpty()) {
+            lang.send(player, "city.unknown");
+            return Command.SINGLE_SUCCESS;
+        }
+        action.run(player, city.get());
+        return Command.SINGLE_SUCCESS;
+    }
+
+    private int withRank(CommandContext<CommandSourceStack> context, RankAction action) {
+        return withOwnCity(context, (player, city) -> {
+            String rankName = StringArgumentType.getString(context, "rank");
+            Optional<CityRank> rank = city.rankByName(rankName);
+            if (rank.isEmpty()) {
+                lang.send(player, "city.rank.unknown", Replies.p("rank", rankName));
+                return;
+            }
+            action.run(player, city, rank.get());
+        });
+    }
+
+    /** Resolves the {@code player} argument, which may name someone who is offline. */
+    private int withResolvedTarget(CommandContext<CommandSourceStack> context, TargetAction action) {
+        return withOwnCity(context, (player, city) -> {
+            String typed = StringArgumentType.getString(context, "player");
+            CompletableFuture<Optional<PlayerLookup.Resolved>> resolution = lookup().resolve(typed);
+            resolution.whenComplete((resolved, error) -> scheduler.runOnMain(() -> {
+                if (error != null || resolved == null || resolved.isEmpty()) {
+                    lang.send(player, "player.unknown", Replies.p("player", typed));
+                    return;
+                }
+                action.run(player, city, resolved.get());
+            }));
+        });
+    }
+
+    private void announce(City city, String key, net.kyori.adventure.text.minimessage.tag.resolver.TagResolver... resolvers) {
+        for (CityMember member : city.members()) {
+            Player online = Bukkit.getPlayer(member.uuid());
+            if (online != null) {
+                lang.send(online, key, resolvers);
+            }
+        }
+    }
+
+    private String nameOf(UUID uuid) {
+        Player online = Bukkit.getPlayer(uuid);
+        if (online != null) {
+            return online.getName();
+        }
+        String name = Bukkit.getOfflinePlayer(uuid).getName();
+        return name == null ? uuid.toString().substring(0, 8) : name;
+    }
+
+    // --- suggestions -------------------------------------------------------------------
+
+    private SuggestionProvider<CommandSourceStack> cityNames() {
+        return (context, builder) -> {
+            if (services.get() == null) {
+                return builder.buildFuture();
+            }
+            cities().registry().cities().stream()
+                    .map(City::name)
+                    .filter(name -> name.toLowerCase().startsWith(builder.getRemaining().toLowerCase()))
+                    .forEach(builder::suggest);
+            return builder.buildFuture();
+        };
+    }
+
+    private SuggestionProvider<CommandSourceStack> rankNames() {
+        return (context, builder) -> {
+            if (services.get() != null && context.getSource().getSender() instanceof Player player) {
+                cities().registry().cityOf(player.getUniqueId()).ifPresent(city ->
+                        city.ranks().stream()
+                                .map(CityRank::name)
+                                .filter(name -> name.toLowerCase()
+                                        .startsWith(builder.getRemaining().toLowerCase()))
+                                .forEach(builder::suggest));
+            }
+            return builder.buildFuture();
+        };
+    }
+
+    private SuggestionProvider<CommandSourceStack> cityMembers() {
+        return (context, builder) -> {
+            if (services.get() != null && context.getSource().getSender() instanceof Player player) {
+                cities().registry().cityOf(player.getUniqueId()).ifPresent(city -> {
+                    for (CityMember member : city.members()) {
+                        String name = nameOf(member.uuid());
+                        if (name.toLowerCase().startsWith(builder.getRemaining().toLowerCase())) {
+                            builder.suggest(name);
+                        }
+                    }
+                });
+            }
+            return builder.buildFuture();
+        };
+    }
+
+    private SuggestionProvider<CommandSourceStack> onlinePlayers() {
+        return (context, builder) -> {
+            Bukkit.getOnlinePlayers().stream()
+                    .map(Player::getName)
+                    .filter(name -> name.toLowerCase().startsWith(builder.getRemaining().toLowerCase()))
+                    .forEach(builder::suggest);
+            return builder.buildFuture();
+        };
+    }
+
+    private SuggestionProvider<CommandSourceStack> permissionFlags() {
+        return (context, builder) -> {
+            for (CityPermission permission : CityPermission.values()) {
+                if (permission.name().toLowerCase()
+                        .startsWith(builder.getRemaining().toLowerCase())) {
+                    builder.suggest(permission.name());
+                }
+            }
+            return builder.buildFuture();
+        };
+    }
+}

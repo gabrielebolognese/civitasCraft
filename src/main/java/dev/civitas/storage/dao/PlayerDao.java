@@ -18,7 +18,7 @@ public final class PlayerDao extends Dao<PlayerRow> {
     private static final String COLUMNS =
             "uuid, last_known_name, balance, city_id, rank_id, first_join, last_seen, "
                     + "total_playtime_ms, active_playtime_ms, daily_streak, last_daily_claim, "
-                    + "newcomer_until, frozen";
+                    + "newcomer_until, frozen, last_city_leave, last_city_disband";
 
     public PlayerDao(DatabaseManager db) {
         super(db);
@@ -44,7 +44,9 @@ public final class PlayerDao extends Dao<PlayerRow> {
                 rs.getInt("daily_streak"),
                 rs.getLong("last_daily_claim"),
                 rs.getLong("newcomer_until"),
-                rs.getBoolean("frozen"));
+                rs.getBoolean("frozen"),
+                rs.getLong("last_city_leave"),
+                rs.getLong("last_city_disband"));
     }
 
     public CompletableFuture<Optional<PlayerRow>> findByUuid(UUID uuid) {
@@ -78,10 +80,12 @@ public final class PlayerDao extends Dao<PlayerRow> {
 
     public int insert(Connection connection, PlayerRow row) throws SQLException {
         return updateSync(connection,
-                "INSERT INTO players (" + COLUMNS + ") VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                "INSERT INTO players (" + COLUMNS + ") "
+                        + "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
                 row.uuid(), row.lastKnownName(), row.balance(), row.cityId(), row.rankId(),
                 row.firstJoin(), row.lastSeen(), row.totalPlaytimeMs(), row.activePlaytimeMs(),
-                row.dailyStreak(), row.lastDailyClaim(), row.newcomerUntil(), row.frozen());
+                row.dailyStreak(), row.lastDailyClaim(), row.newcomerUntil(), row.frozen(),
+                row.lastCityLeave(), row.lastCityDisband());
     }
 
     public CompletableFuture<Integer> update(PlayerRow row) {
@@ -92,11 +96,13 @@ public final class PlayerDao extends Dao<PlayerRow> {
         return updateSync(connection,
                 "UPDATE players SET last_known_name = ?, balance = ?, city_id = ?, rank_id = ?, "
                         + "first_join = ?, last_seen = ?, total_playtime_ms = ?, active_playtime_ms = ?, "
-                        + "daily_streak = ?, last_daily_claim = ?, newcomer_until = ?, frozen = ? "
+                        + "daily_streak = ?, last_daily_claim = ?, newcomer_until = ?, frozen = ?, "
+                        + "last_city_leave = ?, last_city_disband = ? "
                         + "WHERE uuid = ?",
                 row.lastKnownName(), row.balance(), row.cityId(), row.rankId(),
                 row.firstJoin(), row.lastSeen(), row.totalPlaytimeMs(), row.activePlaytimeMs(),
                 row.dailyStreak(), row.lastDailyClaim(), row.newcomerUntil(), row.frozen(),
+                row.lastCityLeave(), row.lastCityDisband(),
                 row.uuid());
     }
 
@@ -114,6 +120,29 @@ public final class PlayerDao extends Dao<PlayerRow> {
         return updateSync(connection, "UPDATE players SET balance = ? WHERE uuid = ?", balance, uuid);
     }
 
+    /** Sets the city and rank a player belongs to, or clears both when passed nulls. */
+    public CompletableFuture<Integer> updateCity(UUID uuid, Integer cityId, Integer rankId) {
+        return db.call(connection -> updateCity(connection, uuid, cityId, rankId));
+    }
+
+    public int updateCity(Connection connection, UUID uuid, Integer cityId, Integer rankId)
+            throws SQLException {
+        return updateSync(connection,
+                "UPDATE players SET city_id = ?, rank_id = ? WHERE uuid = ?", cityId, rankId, uuid);
+    }
+
+    /** Stamps the SPEC 5.2 city-switch cooldown. */
+    public int updateLastCityLeave(Connection connection, UUID uuid, long timestamp) throws SQLException {
+        return updateSync(connection,
+                "UPDATE players SET last_city_leave = ? WHERE uuid = ?", timestamp, uuid);
+    }
+
+    /** Stamps the SPEC 17.1 case 7 cooldown before the player may found another city. */
+    public int updateLastCityDisband(Connection connection, UUID uuid, long timestamp) throws SQLException {
+        return updateSync(connection,
+                "UPDATE players SET last_city_disband = ? WHERE uuid = ?", timestamp, uuid);
+    }
+
     /** Clears city and rank for every member of a city, used when a city is disbanded. */
     public CompletableFuture<Integer> clearCity(int cityId) {
         return db.call(connection -> clearCity(connection, cityId));
@@ -122,6 +151,12 @@ public final class PlayerDao extends Dao<PlayerRow> {
     public int clearCity(Connection connection, int cityId) throws SQLException {
         return updateSync(connection,
                 "UPDATE players SET city_id = NULL, rank_id = NULL WHERE city_id = ?", cityId);
+    }
+
+    /** Adds to a balance in one statement, so two concurrent credits both land. */
+    public int addBalance(Connection connection, UUID uuid, BigDecimal delta) throws SQLException {
+        return updateSync(connection,
+                "UPDATE players SET balance = balance + ? WHERE uuid = ?", delta, uuid);
     }
 
     public CompletableFuture<Integer> delete(UUID uuid) {

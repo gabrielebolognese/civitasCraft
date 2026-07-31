@@ -69,7 +69,7 @@ final class StorageTestSupport {
 
     static PlayerRow player(UUID uuid, String name, BigDecimal balance) {
         return new PlayerRow(uuid, name, balance, null, null,
-                1_000L, 2_000L, 3_000L, 4_000L, 5, 6_000L, 7_000L, false);
+                1_000L, 2_000L, 3_000L, 4_000L, 5, 6_000L, 7_000L, false, 0L, 0L);
     }
 
     static CityRow city(String name, UUID mayor, BigDecimal treasury) {

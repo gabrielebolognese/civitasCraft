@@ -40,6 +40,11 @@ public final class CityRankDao extends Dao<CityRankRow> {
                 queryOneSync(connection, "SELECT " + COLUMNS + " FROM city_ranks WHERE id = ?", this::map, id));
     }
 
+    /** Every rank of every city, read once at startup to populate the city cache. */
+    public CompletableFuture<List<CityRankRow>> findAll() {
+        return queryList("SELECT " + COLUMNS + " FROM city_ranks ORDER BY city_id, weight DESC");
+    }
+
     /** Highest weight first, so the caller sees Mayor before Recruit. */
     public CompletableFuture<List<CityRankRow>> findByCity(int cityId) {
         return db.call(connection -> findByCity(connection, cityId));
@@ -88,13 +93,21 @@ public final class CityRankDao extends Dao<CityRankRow> {
      * the same rank cannot half-apply each other's change, the later write simply wins.
      */
     public CompletableFuture<Integer> updatePermissions(int rankId, long permissions) {
-        return db.call(connection -> updateSync(connection,
-                "UPDATE city_ranks SET permissions = ? WHERE id = ?", permissions, rankId));
+        return db.call(connection -> updatePermissions(connection, rankId, permissions));
+    }
+
+    public int updatePermissions(Connection connection, int rankId, long permissions)
+            throws SQLException {
+        return updateSync(connection,
+                "UPDATE city_ranks SET permissions = ? WHERE id = ?", permissions, rankId);
     }
 
     public CompletableFuture<Integer> delete(int rankId) {
-        return db.call(connection ->
-                updateSync(connection, "DELETE FROM city_ranks WHERE id = ?", rankId));
+        return db.call(connection -> delete(connection, rankId));
+    }
+
+    public int delete(Connection connection, int rankId) throws SQLException {
+        return updateSync(connection, "DELETE FROM city_ranks WHERE id = ?", rankId);
     }
 
     public CompletableFuture<Integer> deleteByCity(int cityId) {

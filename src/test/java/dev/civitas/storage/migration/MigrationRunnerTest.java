@@ -46,13 +46,65 @@ class MigrationRunnerTest {
     }
 
     @Test
-    @DisplayName("a first run applies V1 and records it")
-    void firstRunAppliesV1() {
+    @DisplayName("a first run applies every migration, in ascending order")
+    void firstRunAppliesEverything() {
         try (HikariDataSource dataSource = sqliteDataSource("first.db")) {
-            List<Integer> applied =
-                    new MigrationRunner(quietLogger(), SqlDialect.SQLITE).run(dataSource);
+            MigrationRunner runner = new MigrationRunner(quietLogger(), SqlDialect.SQLITE);
+            List<Integer> applied = runner.run(dataSource);
 
-            assertEquals(List.of(1), applied);
+            List<Integer> expected = runner.discover().stream().map(Migration::version).toList();
+            assertEquals(expected, applied);
+            assertEquals(expected.stream().sorted().toList(), applied,
+                    "migrations must be applied in ascending version order");
+        }
+    }
+
+    @Test
+    @DisplayName("V2 applies on top of an existing V1 database, not only on a fresh one")
+    void secondMigrationAppliesToAnExistingDatabase() {
+        try (HikariDataSource dataSource = sqliteDataSource("upgrade.db")) {
+            // Apply V1 alone, exactly as a server running the previous release would have.
+            MigrationRunner runner = new MigrationRunner(quietLogger(), SqlDialect.SQLITE);
+            Migration v1 = runner.discover().get(0);
+            assertEquals(1, v1.version());
+            applyOnly(dataSource, v1);
+
+            List<Integer> applied = runner.run(dataSource);
+
+            assertFalse(applied.contains(1), "V1 must not be reapplied");
+            assertTrue(applied.contains(2), "V2 must be applied to an existing database");
+            assertTrue(hasColumn(dataSource, "players", "last_city_leave"));
+            assertTrue(hasColumn(dataSource, "city_bans", "banned_uuid"));
+        }
+    }
+
+    /** Runs one migration's statements and records it, bypassing the runner's own loop. */
+    private void applyOnly(HikariDataSource dataSource, Migration migration) {
+        try (var connection = dataSource.getConnection();
+             var statement = connection.createStatement()) {
+            statement.execute("CREATE TABLE IF NOT EXISTS " + MigrationRunner.VERSION_TABLE
+                    + " (version INTEGER NOT NULL PRIMARY KEY, name VARCHAR(64) NOT NULL, "
+                    + "applied_at BIGINT NOT NULL)");
+            String script = new String(getClass().getClassLoader()
+                    .getResourceAsStream(migration.resourcePath()).readAllBytes(),
+                    java.nio.charset.StandardCharsets.UTF_8);
+            for (String sql : MigrationRunner.splitStatements(script)) {
+                statement.execute(sql);
+            }
+            statement.executeUpdate("INSERT INTO " + MigrationRunner.VERSION_TABLE
+                    + " (version, name, applied_at) VALUES (" + migration.version()
+                    + ", '" + migration.name() + "', 0)");
+        } catch (Exception e) {
+            throw new AssertionError(e);
+        }
+    }
+
+    private boolean hasColumn(HikariDataSource dataSource, String table, String column) {
+        try (var connection = dataSource.getConnection();
+             var rs = connection.getMetaData().getColumns(null, null, table, column)) {
+            return rs.next();
+        } catch (java.sql.SQLException e) {
+            throw new AssertionError(e);
         }
     }
 
@@ -64,7 +116,7 @@ class MigrationRunnerTest {
                     new MigrationRunner(quietLogger(), SqlDialect.SQLITE);
 
             assertFalse(runner.run(dataSource).isEmpty());
-            assertTrue(runner.run(dataSource).isEmpty(), "V1 was applied twice");
+            assertTrue(runner.run(dataSource).isEmpty(), "a migration was applied twice");
             assertTrue(runner.run(dataSource).isEmpty());
         }
     }
@@ -87,7 +139,7 @@ class MigrationRunnerTest {
                 throw new AssertionError(e);
             }
 
-            assertEquals(Set.of(1), versions);
+            assertEquals(Set.of(1, 2), versions);
         }
     }
 

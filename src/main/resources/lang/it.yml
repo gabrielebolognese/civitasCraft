@@ -13,9 +13,151 @@ general:
 plugin:
   enabled: "<green>CivitasCraft <version> attivato."
   disabled: "<gray>CivitasCraft disattivato."
+  starting: "<gray>CivitasCraft si sta ancora avviando. Riprova tra un momento."
   reloaded: "<green>Configurazione ricaricata."
 
 command:
   not-implemented: "<yellow>/<command> non e ancora implementato. Arrivera nel milestone <milestone>."
   player-only: "<red>Quel comando puo essere usato solo da un giocatore."
   no-permission: "<red>Non hai il permesso di usare quel comando."
+  error: "<red>Qualcosa e andato storto. I dettagli sono nella console del server."
+
+player:
+  unknown: "<red>Nessun giocatore di nome <white><player></white> e mai entrato in questo server."
+
+economy:
+  no-account: "<red>Non hai ancora un conto. Rientra nel server e riprova."
+  frozen: "<red>Il tuo conto e bloccato. Contatta un amministratore."
+  insufficient-funds: "<red>Ti servono <white><required> C</white> ma hai solo <white><balance> C</white>. Ti mancano <white><short> C</white>."
+  amount-not-positive: "<red>L'importo deve essere maggiore di zero."
+  max-balance: "<red>Il saldo supererebbe il limite del server di <white><max> C</white>."
+
+city:
+  none: "<gray>Non fai parte di nessuna citta. Usa <white>/city create <nome></white> per fondarne una."
+  unknown: "<red>Nessuna citta con quel nome."
+  frozen: "<red>Questa citta e bloccata da un amministratore e non puo essere modificata."
+  not-a-member: "<red>Quel giocatore non e membro di questa citta."
+  no-permission: "<red>Il tuo grado non ha il permesso <white><permission></white>."
+
+  create:
+    already-in-city: "<red>Fai gia parte di una citta. Lasciala prima di fondarne un'altra."
+    name-invalid: "<red>Quel nome contiene caratteri non consentiti."
+    name-length: "<red>Il nome di una citta deve avere tra <white><min></white> e <white><max></white> caratteri."
+    name-blocked: "<red>Quel nome e riservato."
+    name-taken: "<red>Esiste gia una citta chiamata <white><name></white>."
+    playtime: "<red>Servono <white><required></white> ore di gioco per fondare una citta. Ne hai <white><have></white>."
+    disband-cooldown: "<red>Hai sciolto una citta di recente. Potrai fondarne un'altra tra <white><hours></white> ore."
+    chunk-claimed: "<red>Questo chunk appartiene gia a una citta."
+    too-close: "<red>Sei troppo vicino a un'altra citta. Allontanati di almeno <white><chunks></white> chunk."
+    world-blocked: "<red>Non si possono fondare citta in questo mondo."
+    world-disabled: "<red>Questo mondo non e abilitato alle citta."
+    cancelled: "<red>La fondazione della citta e stata annullata."
+    success: "<green>Hai fondato <white><name></white>!"
+    broadcast: "<gold>La citta di <name> e stata fondata da <player>!"
+
+  disband:
+    confirm-hint: "<red>Questa azione e irreversibile. Scrivi <white>/city disband <name></white> per confermare."
+    name-mismatch: "<red>Quello non e il nome della tua citta. Scrivi esattamente <white><name></white>."
+    cancelled: "<red>Lo scioglimento e stato annullato."
+    broadcast: "<gray>La citta di <white><name></white> e stata sciolta."
+
+  invite:
+    already-member: "<red>Quel giocatore fa gia parte di questa citta."
+    sent: "<green>Hai invitato <white><player></white>. L'invito scade a breve."
+    received: "<gold><player></gold> ti ha invitato a unirti a <white><name></white>. Usa <white>/city accept <name></white>."
+    denied: "<gray>Hai rifiutato l'invito di <white><name></white>."
+
+  join:
+    no-invite: "<red>Non hai nessun invito in sospeso da quella citta."
+    not-open: "<red>Quella citta accetta solo su invito."
+    already-in-city: "<red>Fai gia parte di una citta."
+    banned: "<red>Sei bandito da quella citta."
+    full: "<red>Quella citta e piena, ha <white><cap></white> membri."
+    cooldown: "<red>Hai lasciato una citta di recente. Potrai unirti a un'altra tra <white><hours></white> ore."
+    no-rank: "<red>Quella citta non ha un grado da assegnarti. Il sindaco deve crearne uno."
+    cancelled: "<red>L'ingresso e stato annullato."
+    success: "<green>Ti sei unito a <white><name></white>."
+    announce: "<gray><player> si e unito alla citta."
+
+  leave:
+    confirm-hint: "<yellow>Scrivi <white>/city leave confirm</white> per lasciare la tua citta."
+    mayor: "<red>Il sindaco non puo andarsene. Trasferisci la carica o sciogli la citta."
+    cancelled: "<red>L'uscita e stata annullata."
+    success: "<gray>Hai lasciato <white><name></white>."
+    announce: "<gray><player> ha lasciato la citta."
+
+  kick:
+    self: "<red>Non puoi espellere te stesso. Usa <white>/city leave confirm</white>."
+    mayor: "<red>Il sindaco non puo essere espulso."
+    outranked: "<red>Non puoi agire su un membro di grado pari o superiore."
+    cancelled: "<red>L'espulsione e stata annullata."
+    success: "<green>Hai rimosso <white><player></white> dalla citta."
+    kicked: "<red>Sei stato rimosso da <white><name></white>."
+
+  ban:
+    mayor: "<red>Il sindaco non puo essere bandito."
+    not-banned: "<red>Quel giocatore non e bandito da questa citta."
+
+  transfer:
+    not-mayor: "<red>Solo il sindaco puo trasferire la carica."
+    self: "<red>Sei gia il sindaco."
+    offline: "<red>Quel giocatore deve essere online per accettare la carica."
+    none: "<red>Non hai nessuna offerta di carica in sospeso."
+    no-rank: "<red>Questa citta non ha un grado da sindaco. Contatta un amministratore."
+    cancelled: "<red>Il trasferimento e stato annullato."
+    offered: "<yellow>Hai offerto la carica a <white><player></white>. Ha un minuto per accettare."
+    offer-received: "<gold><player></gold> ti offre la carica di sindaco di <white><name></white>. Usa <white>/city accept</white>."
+    accepted: "<green>Ora sei il sindaco di <white><name></white>."
+    announce: "<gold><player> e ora il sindaco."
+
+  treasury:
+    insufficient: "<red>Il tesoro necessita di <white><required> C</white> ma contiene <white><balance> C</white>."
+
+  settings:
+    motd-set: "<green>Messaggio del giorno aggiornato."
+    open-on: "<green>Ora chiunque puo unirsi senza invito."
+    open-off: "<green>Ora la citta accetta solo su invito."
+    renamed: "<green>La tua citta si chiama ora <white><name></white>."
+
+  info:
+    header: "<dark_gray>--- <gold><name></gold> ---"
+    tag: "<gray>Sigla: <white><tag>"
+    mayor: "<gray>Sindaco: <white><mayor>"
+    members: "<gray>Membri: <white><count></white>/<white><cap>"
+    treasury: "<gray>Tesoro: <white><amount> C"
+    open: "<gray>Ingresso libero: <white><value>"
+    motd: "<gray>MOTD: <white><motd>"
+
+  list:
+    header: "<dark_gray>--- <gold>Citta</gold> <gray>(pagina <page>/<pages>) ---"
+    empty: "<gray>Non e ancora stata fondata nessuna citta."
+    entry: "<white><name></white> <gray>- <white><members></white> membri, sindaco <white><mayor>"
+
+  rank:
+    header: "<dark_gray>--- <gold>Gradi di <name></gold> ---"
+    entry: "<white><rank></white> <gray>peso <white><weight></white>, <white><permissions></white> permessi, <white><members></white> membri"
+    unknown: "<red>Questa citta non ha nessun grado chiamato <white><rank></white>."
+    unknown-flag: "<red>Non esiste nessun permesso chiamato <white><flag></white>."
+    name-invalid: "<red>Il nome di un grado deve avere da 1 a 16 caratteri."
+    exists: "<red>Questa citta ha gia un grado chiamato <white><rank></white>."
+    outranked: "<red>Non puoi modificare <white><rank></white>, il suo peso di <white><weight></white> non e inferiore al tuo."
+    cannot-grant: "<red>Non puoi concedere permessi che non possiedi: <white><permissions></white>."
+    weight-too-high: "<red>Il peso deve essere al massimo <white><max></white>, inferiore al tuo grado."
+    weight-reserved: "<red>Il peso deve essere al massimo <white><max></white>. Il peso del sindaco e riservato."
+    weight-negative: "<red>Il peso non puo essere negativo."
+    cannot-delete-mayor: "<red>Il grado di sindaco non puo essere eliminato."
+    last: "<red>Una citta deve mantenere almeno un grado."
+    no-fallback: "<red>Non c'e nessun altro grado a cui spostare questi membri."
+    mayor-not-default: "<red>Il grado di sindaco non puo essere quello dei nuovi membri."
+    mayor: "<red>Il grado del sindaco non puo essere cambiato. Trasferisci la carica invece."
+    cancelled: "<red>Il cambio di grado e stato annullato."
+    already-highest: "<red>Quel membro ha gia il grado piu alto che puoi assegnare."
+    already-lowest: "<red>Quel membro ha gia il grado piu basso."
+    created: "<green>Grado <white><rank></white> creato."
+    deleted: "<green>Grado <white><rank></white> eliminato. I suoi membri sono passati al grado predefinito."
+    assigned: "<green><player> ora e <white><rank></white>."
+    perm-granted: "<green>Permesso <white><flag></white> concesso a <white><rank></white>."
+    perm-revoked: "<green>Permesso <white><flag></white> revocato a <white><rank></white>."
+
+chat:
+  city-format: "<gray>[<white><tag></white><gray>] "

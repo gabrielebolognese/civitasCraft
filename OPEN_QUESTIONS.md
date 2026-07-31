@@ -91,3 +91,53 @@ Format:
   SQLite is backed up in-process with `VACUUM INTO`, which is consistent while the server
   runs. On MySQL the service writes nothing and says so once at startup, so the operator
   learns before they need a backup rather than after. *Date:* 2026-07-31
+
+- **[M2]** SPEC 5.1 charges a 10,000 C creation fee, but the economy module is M5 and PLAN.md
+  makes M5 depend on M2, not the reverse. *Implemented default:* a narrow `Funds` interface
+  in M2 with a storage-backed implementation over `PlayerDao` and `LedgerDao`; M5's economy
+  service will implement the same interface and replace it. Every method takes a
+  `Connection`, so the fee lands in the same transaction as the city insert. Charging a
+  founder and then failing to create their city is the failure mode this rules out.
+  *Date:* 2026-07-31
+
+- **[M2]** SPEC 2.3 says the custom events are "all cancellable", but SPEC 5.1 lists
+  `CityCreateEvent` as step 9, after the city has been written. Cancelling at that point
+  would mean undoing a committed transaction. *Implemented default:* every event fires
+  *before* its mutation, which is the only point at which cancelling can mean anything.
+  *Date:* 2026-07-31
+
+- **[M2]** SPEC 5.1 precondition 2 requires two hours of *active* playtime, but
+  `active_playtime_ms` is the anti-AFK-filtered counter defined in SPEC 4.2.1, which M9
+  implements. Without something feeding it, no city could ever be founded. *Implemented
+  default:* M2 credits unfiltered session time to both playtime counters and reads the live
+  session so a player who joins and plays for three hours qualifies in one sitting. This is
+  more permissive than SPEC 4.2.1 intends and never less, so nobody is wrongly blocked. M9
+  replaces the accrual with the filtered version. *Date:* 2026-07-31
+
+- **[M2]** SPEC 5.2 says rejoining the *same* city has no cooldown, but nothing records which
+  city a player left. *Implemented default:* an invite exempts the joiner from the cooldown,
+  an open-join walk-in does not. An invite is the city saying it wants that player back,
+  which is the case the exemption exists for; a walk-in is exactly the war-day mercenary hop
+  the cooldown exists to stop. *Date:* 2026-07-31
+
+- **[M2]** SPEC 5.2 and 8.6 require a city ban list and SPEC 8.6 puts it in a GUI, but SPEC 9.2
+  lists no `/city ban` command. *Implemented default:* the ban list, its table and the
+  service methods exist in M2 because joining has to check them, but no command is added.
+  The GUI in M8 will drive it. *Date:* 2026-07-31
+
+- **[M2]** SPEC 5.1 preconditions 6 and 7 need claims, which are M3. *Implemented default:*
+  both are plain queries rather than claim-engine work, "is this chunk claimed" and "is any
+  claim within N chunks", so M2 enforces them through `ClaimDao` and writes the core claim
+  row directly. The cost engine, adjacency, contiguity and the chunk cache remain M3's.
+  *Date:* 2026-07-31
+
+- **[M2]** SPEC 5.7 makes the member cap depend on the Population upgrade, which is M11.
+  *Implemented default:* `memberCap` returns the base cap from `cities.yml` and ignores
+  upgrade levels. The conservative direction: a city never gets capacity it has not paid for.
+  *Date:* 2026-07-31
+
+- **[M2]** SPEC 8.1's City Hall block is step 7 of SPEC 5.1, but the GUI it opens is M8.
+  *Implemented default:* not implemented in M2. Founding writes everything else; the block is
+  M8's, alongside the menu it exists to open. Likewise SPEC 17.1 cases 1 to 3, the inactivity
+  sweeps, are deferred: cases 2 and 3 turn on claims becoming unprotected, which is land
+  protection in M4. *Date:* 2026-07-31

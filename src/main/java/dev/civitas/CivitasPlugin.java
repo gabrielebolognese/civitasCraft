@@ -1,29 +1,45 @@
 package dev.civitas;
 
 import java.io.File;
+import java.util.List;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.logging.Level;
 
 import dev.civitas.command.CommandRegistry;
+import dev.civitas.command.city.CityCommand;
 import dev.civitas.config.ConfigFile;
 import dev.civitas.config.ConfigManager;
+import dev.civitas.core.city.CityNameValidator;
+import dev.civitas.core.city.CityRegistry;
+import dev.civitas.core.city.CityService;
+import dev.civitas.core.city.RankService;
+import dev.civitas.core.economy.Funds;
+import dev.civitas.core.economy.PlayerAccountService;
+import dev.civitas.core.economy.StorageFunds;
 import dev.civitas.lang.LangManager;
+import dev.civitas.listener.CityChatListener;
+import dev.civitas.listener.PlayerAccountListener;
 import dev.civitas.storage.BackupService;
 import dev.civitas.storage.DatabaseManager;
 import dev.civitas.storage.DatabaseSettings;
 import dev.civitas.storage.dao.DaoRegistry;
+import dev.civitas.util.EventBus;
+import dev.civitas.util.PlayerLookup;
+import dev.civitas.util.Scheduler;
 import org.bukkit.Bukkit;
+import org.bukkit.entity.Player;
 import org.bukkit.plugin.java.JavaPlugin;
 
 /**
  * Plugin entry point and lifecycle owner.
  *
- * <p>Construction order is dependency order: configuration, language, then storage. Services
- * and listeners are added by later milestones and slot in after storage.
+ * <p>Construction order is dependency order: configuration, language, commands, then
+ * storage and the services that sit on it.
  *
- * <p>The database is opened on an async task, because migrations can take seconds on a large
- * schema and SPEC 2.1 forbids blocking the server thread on storage. Until it finishes,
- * {@link #daos()} returns {@code null}; every consumer added from M2 onward is constructed
- * inside that callback, so nothing can observe the half-open state.
+ * <p>The database opens on an async task, because migrations can take seconds and SPEC 2.1
+ * forbids blocking the server thread on storage. Commands must be registered before that
+ * finishes, so they are handed {@link #services()} as a supplier and refuse politely while
+ * it still returns null.
  */
 public final class CivitasPlugin extends JavaPlugin {
 
@@ -35,6 +51,8 @@ public final class CivitasPlugin extends JavaPlugin {
     private DaoRegistry daos;
     private BackupService backups;
 
+    private final AtomicReference<CivitasServices> services = new AtomicReference<>();
+
     @Override
     public void onEnable() {
         configs = new ConfigManager(this);
@@ -43,10 +61,12 @@ public final class CivitasPlugin extends JavaPlugin {
         lang = new LangManager(this, configs);
         lang.load();
 
-        new CommandRegistry(this, lang).registerAll();
+        Scheduler scheduler = Scheduler.bukkit(this);
+        CityCommand cityCommand = new CityCommand(services::get, lang, scheduler, getLogger());
+        new CommandRegistry(this, lang).registerAll(List.of(cityCommand.build()));
 
         warnIfRollbackDisabled();
-        openDatabaseAsync();
+        openDatabaseAsync(scheduler);
 
         getLogger().info(() -> "Enabled version " + getPluginMeta().getVersion()
                 + ", language " + lang.activeLanguage() + ".");
@@ -56,6 +76,10 @@ public final class CivitasPlugin extends JavaPlugin {
     public void onDisable() {
         // Blocking here is correct: SPEC 17.7 case 84 requires buffered writes to reach
         // disk before the server exits, and there is no later opportunity.
+        CivitasServices current = services.getAndSet(null);
+        if (current != null) {
+            current.accounts().clearSessions();
+        }
         if (database != null) {
             database.close();
             database = null;
@@ -83,7 +107,12 @@ public final class CivitasPlugin extends JavaPlugin {
         return daos;
     }
 
-    private void openDatabaseAsync() {
+    /** @return the services, or {@code null} until the async open has completed */
+    public CivitasServices services() {
+        return services.get();
+    }
+
+    private void openDatabaseAsync(Scheduler scheduler) {
         DatabaseSettings settings =
                 DatabaseSettings.from(configs.get(ConfigFile.CONFIG), getDataFolder());
 
@@ -99,12 +128,28 @@ public final class CivitasPlugin extends JavaPlugin {
                 return;
             }
 
-            Bukkit.getScheduler().runTask(this, () -> onDatabaseReady(manager, settings));
+            DaoRegistry loadedDaos = new DaoRegistry(manager);
+            CityRegistry cityRegistry = new CityRegistry(loadedDaos);
+
+            try {
+                int loaded = cityRegistry.loadAll().join();
+                getLogger().info(() -> "Loaded " + loaded + " cities into the cache.");
+            } catch (RuntimeException e) {
+                getLogger().log(Level.SEVERE, "Could not load cities; disabling CivitasCraft.", e);
+                manager.close();
+                Bukkit.getScheduler().runTask(this, () -> getServer().getPluginManager().disablePlugin(this));
+                return;
+            }
+
+            Bukkit.getScheduler().runTask(this,
+                    () -> onStorageReady(manager, loadedDaos, cityRegistry, settings, scheduler));
         });
     }
 
-    /** Runs on the main thread once the schema is current. Later milestones wire in here. */
-    private void onDatabaseReady(DatabaseManager manager, DatabaseSettings settings) {
+    /** Runs on the server thread once the schema is current and the cache is warm. */
+    private void onStorageReady(DatabaseManager manager, DaoRegistry loadedDaos,
+                                CityRegistry cityRegistry, DatabaseSettings settings,
+                                Scheduler scheduler) {
         if (!isEnabled()) {
             // Disabled while the open was in flight; do not leak the pool.
             manager.close();
@@ -112,8 +157,29 @@ public final class CivitasPlugin extends JavaPlugin {
         }
 
         this.database = manager;
-        this.daos = new DaoRegistry(manager);
+        this.daos = loadedDaos;
         this.backups = new BackupService(getLogger(), manager, new File(getDataFolder(), "backups"));
+
+        Funds funds = new StorageFunds(loadedDaos.players(), loadedDaos.ledger(), configs);
+        PlayerAccountService accounts =
+                new PlayerAccountService(manager, loadedDaos.players(), loadedDaos.ledger(), configs);
+        CityService cityService = new CityService(manager, loadedDaos, cityRegistry, configs,
+                new CityNameValidator(configs), funds, accounts, scheduler, EventBus.bukkit());
+        RankService rankService = new RankService(manager, loadedDaos, scheduler, EventBus.bukkit());
+        PlayerLookup lookup = new PlayerLookup(loadedDaos.players());
+
+        services.set(new CivitasServices(cityRegistry, cityService, rankService, accounts, lookup));
+
+        getServer().getPluginManager().registerEvents(
+                new PlayerAccountListener(accounts, getLogger()), this);
+        getServer().getPluginManager().registerEvents(
+                new CityChatListener(cityRegistry, configs, lang), this);
+
+        // Anyone already online, on a /reload, never fired a join event for us.
+        long now = System.currentTimeMillis();
+        for (Player online : Bukkit.getOnlinePlayers()) {
+            accounts.onJoin(online.getUniqueId(), online.getName(), now);
+        }
 
         getLogger().info(() -> "Storage ready on " + settings.dialect() + ".");
         scheduleBackups(settings);

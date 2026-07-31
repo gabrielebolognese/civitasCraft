@@ -41,10 +41,15 @@ public final class CityInviteDao extends Dao<CityInviteRow> {
     }
 
     public CompletableFuture<Optional<CityInviteRow>> findPending(int cityId, UUID invitee, long now) {
-        return db.call(connection -> queryOneSync(connection,
+        return db.call(connection -> findPending(connection, cityId, invitee, now));
+    }
+
+    public Optional<CityInviteRow> findPending(Connection connection, int cityId, UUID invitee,
+                                               long now) throws SQLException {
+        return queryOneSync(connection,
                 "SELECT " + COLUMNS + " FROM city_invites "
                         + "WHERE city_id = ? AND invitee_uuid = ? AND expires_at > ?",
-                this::map, cityId, invitee, now));
+                this::map, cityId, invitee, now);
     }
 
     public CompletableFuture<List<CityInviteRow>> findByCity(int cityId) {
@@ -79,7 +84,10 @@ public final class CityInviteDao extends Dao<CityInviteRow> {
     }
 
     public CompletableFuture<Integer> deleteByCity(int cityId) {
-        return db.call(connection ->
-                updateSync(connection, "DELETE FROM city_invites WHERE city_id = ?", cityId));
+        return db.call(connection -> deleteByCity(connection, cityId));
+    }
+
+    public int deleteByCity(Connection connection, int cityId) throws SQLException {
+        return updateSync(connection, "DELETE FROM city_invites WHERE city_id = ?", cityId);
     }
 }

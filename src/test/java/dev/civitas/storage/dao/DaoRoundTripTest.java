@@ -100,7 +100,7 @@ class DaoRoundTripTest {
     private void givenPlayer(UUID uuid, String name) {
         await(daos.players().insert(
                 new PlayerRow(uuid, name, money("2000.00"), null, null,
-                        1L, 2L, 0L, 0L, 0, 0L, 0L, false)));
+                        1L, 2L, 0L, 0L, 0, 0L, 0L, false, 0L, 0L)));
     }
 
     // --- registry ---------------------------------------------------------------------
@@ -108,7 +108,7 @@ class DaoRoundTripTest {
     @Test
     @DisplayName("the registry exposes one DAO per table and every table exists")
     void registryCoversEveryTable() {
-        assertEquals(23, daos.all().size(), "a DAO is missing from the registry");
+        assertEquals(24, daos.all().size(), "a DAO is missing from the registry");
 
         for (Dao<?> dao : daos.all()) {
             assertEquals(0L, await(dao.count()), dao.table() + " should start empty");
@@ -125,7 +125,7 @@ class DaoRoundTripTest {
         @DisplayName("inserts, reads back every field, and updates")
         void roundTrip() {
             PlayerRow original = new PlayerRow(ALICE, "Alice", money("1234.56"), null, null,
-                    100L, 200L, 300L, 400L, 7, 500L, 600L, true);
+                    100L, 200L, 300L, 400L, 7, 500L, 600L, true, 0L, 0L);
             await(daos.players().insert(original));
 
             PlayerRow read = await(daos.players().findByUuid(ALICE)).orElseThrow();
@@ -157,10 +157,10 @@ class DaoRoundTripTest {
         void ordersByBalance() {
             await(daos.players().insert(
                     new PlayerRow(ALICE, "Alice", money("100.00"), null, null,
-                            0L, 0L, 0L, 0L, 0, 0L, 0L, false)));
+                            0L, 0L, 0L, 0L, 0, 0L, 0L, false, 0L, 0L)));
             await(daos.players().insert(
                     new PlayerRow(BOB, "Bob", money("5000.00"), null, null,
-                            0L, 0L, 0L, 0L, 0, 0L, 0L, false)));
+                            0L, 0L, 0L, 0L, 0, 0L, 0L, false, 0L, 0L)));
 
             List<PlayerRow> top = await(daos.players().findTopByBalance(10));
 

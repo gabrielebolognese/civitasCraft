@@ -5,7 +5,7 @@
 
 ## Current session focus
 
-**Next milestone:** M2, Core city model
+**Next milestone:** M3, Claim system
 
 ## Session protocol
 
@@ -25,7 +25,7 @@
 |---|---|---|---|---|
 | 0 | Project skeleton | none | DONE | Build, config, lang, Result, stub command tree. 48 tests. Enables cleanly on the test server. |
 | 1 | Storage layer | M0 | DONE | Hikari, migration runner, all SPEC 3 tables, 23 DAOs, async guard, backups. 136 tests. MySQL path untested locally. |
-| 2 | Core city model | M1 | TODO | |
+| 2 | Core city model | M1 | DONE | Entities, registry, CityService, RankService, 22-flag bitmask, events, /city tree, chat tag. V2 migration. 275 tests. |
 | 3 | Claim system | M2 | TODO | |
 | 4 | Land protection | M3 | TODO | |
 | 5 | Economy core | M2 | TODO | |

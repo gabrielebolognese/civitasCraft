@@ -13,9 +13,151 @@ general:
 plugin:
   enabled: "<green>CivitasCraft <version> enabled."
   disabled: "<gray>CivitasCraft disabled."
+  starting: "<gray>CivitasCraft is still starting up. Try again in a moment."
   reloaded: "<green>Configuration reloaded."
 
 command:
   not-implemented: "<yellow>/<command> is not implemented yet. It arrives in milestone <milestone>."
   player-only: "<red>That command can only be used by a player."
   no-permission: "<red>You do not have permission to use that."
+  error: "<red>Something went wrong. The details are in the server console."
+
+player:
+  unknown: "<red>No player named <white><player></white> has ever joined this server."
+
+economy:
+  no-account: "<red>You have no account yet. Rejoin the server and try again."
+  frozen: "<red>Your account is frozen. Contact an administrator."
+  insufficient-funds: "<red>You need <white><required> C</white> but only have <white><balance> C</white>. You are <white><short> C</white> short."
+  amount-not-positive: "<red>The amount must be greater than zero."
+  max-balance: "<red>That would take the balance over the server limit of <white><max> C</white>."
+
+city:
+  none: "<gray>You are not in a city. Use <white>/city create <name></white> to found one."
+  unknown: "<red>No city by that name."
+  frozen: "<red>This city is frozen by an administrator and cannot be changed."
+  not-a-member: "<red>That player is not a member of this city."
+  no-permission: "<red>Your rank does not have the <white><permission></white> permission."
+
+  create:
+    already-in-city: "<red>You are already in a city. Leave it before founding another."
+    name-invalid: "<red>That name contains characters that are not allowed."
+    name-length: "<red>A city name must be between <white><min></white> and <white><max></white> characters."
+    name-blocked: "<red>That name is reserved."
+    name-taken: "<red>A city called <white><name></white> already exists."
+    playtime: "<red>You need <white><required></white> hours of playtime to found a city. You have <white><have></white>."
+    disband-cooldown: "<red>You disbanded a city recently. You may found another in <white><hours></white> hours."
+    chunk-claimed: "<red>This chunk already belongs to a city."
+    too-close: "<red>You are too close to another city. Move at least <white><chunks></white> chunks away."
+    world-blocked: "<red>Cities cannot be founded in this world."
+    world-disabled: "<red>This world is not enabled for cities."
+    cancelled: "<red>City creation was cancelled."
+    success: "<green>You founded <white><name></white>!"
+    broadcast: "<gold>The city of <name> has been founded by <player>!"
+
+  disband:
+    confirm-hint: "<red>This cannot be undone. Type <white>/city disband <name></white> to confirm."
+    name-mismatch: "<red>That is not your city's name. Type <white><name></white> exactly."
+    cancelled: "<red>Disbanding was cancelled."
+    broadcast: "<gray>The city of <white><name></white> has been disbanded."
+
+  invite:
+    already-member: "<red>That player is already in this city."
+    sent: "<green>Invited <white><player></white>. The invite expires shortly."
+    received: "<gold><player></gold> has invited you to join <white><name></white>. Use <white>/city accept <name></white>."
+    denied: "<gray>You declined the invite from <white><name></white>."
+
+  join:
+    no-invite: "<red>You have no pending invite from that city."
+    not-open: "<red>That city is invite-only."
+    already-in-city: "<red>You are already in a city."
+    banned: "<red>You are banned from that city."
+    full: "<red>That city is full, at <white><cap></white> members."
+    cooldown: "<red>You left a city recently. You may join a different one in <white><hours></white> hours."
+    no-rank: "<red>That city has no rank to assign you. Its mayor must create one."
+    cancelled: "<red>Joining was cancelled."
+    success: "<green>You joined <white><name></white>."
+    announce: "<gray><player> joined the city."
+
+  leave:
+    confirm-hint: "<yellow>Type <white>/city leave confirm</white> to leave your city."
+    mayor: "<red>The mayor cannot leave. Transfer mayorship or disband the city."
+    cancelled: "<red>Leaving was cancelled."
+    success: "<gray>You left <white><name></white>."
+    announce: "<gray><player> left the city."
+
+  kick:
+    self: "<red>You cannot kick yourself. Use <white>/city leave confirm</white>."
+    mayor: "<red>The mayor cannot be kicked."
+    outranked: "<red>You cannot act on a member of equal or higher rank."
+    cancelled: "<red>The kick was cancelled."
+    success: "<green>Removed <white><player></white> from the city."
+    kicked: "<red>You were removed from <white><name></white>."
+
+  ban:
+    mayor: "<red>The mayor cannot be banned."
+    not-banned: "<red>That player is not banned from this city."
+
+  transfer:
+    not-mayor: "<red>Only the mayor can transfer mayorship."
+    self: "<red>You are already the mayor."
+    offline: "<red>That player must be online to accept mayorship."
+    none: "<red>You have no pending mayorship offer."
+    no-rank: "<red>This city has no mayor rank. Contact an administrator."
+    cancelled: "<red>The transfer was cancelled."
+    offered: "<yellow>Offered mayorship to <white><player></white>. They have a minute to accept."
+    offer-received: "<gold><player></gold> is offering you mayorship of <white><name></white>. Use <white>/city accept</white>."
+    accepted: "<green>You are now the mayor of <white><name></white>."
+    announce: "<gold><player> is now the mayor."
+
+  treasury:
+    insufficient: "<red>The treasury needs <white><required> C</white> but holds <white><balance> C</white>."
+
+  settings:
+    motd-set: "<green>Message of the day updated."
+    open-on: "<green>Anyone may now join without an invite."
+    open-off: "<green>The city is now invite-only."
+    renamed: "<green>Your city is now called <white><name></white>."
+
+  info:
+    header: "<dark_gray>--- <gold><name></gold> ---"
+    tag: "<gray>Tag: <white><tag>"
+    mayor: "<gray>Mayor: <white><mayor>"
+    members: "<gray>Members: <white><count></white>/<white><cap>"
+    treasury: "<gray>Treasury: <white><amount> C"
+    open: "<gray>Open join: <white><value>"
+    motd: "<gray>MOTD: <white><motd>"
+
+  list:
+    header: "<dark_gray>--- <gold>Cities</gold> <gray>(page <page>/<pages>) ---"
+    empty: "<gray>No cities have been founded yet."
+    entry: "<white><name></white> <gray>- <white><members></white> members, mayor <white><mayor>"
+
+  rank:
+    header: "<dark_gray>--- <gold>Ranks of <name></gold> ---"
+    entry: "<white><rank></white> <gray>weight <white><weight></white>, <white><permissions></white> permissions, <white><members></white> members"
+    unknown: "<red>This city has no rank called <white><rank></white>."
+    unknown-flag: "<red>There is no permission called <white><flag></white>."
+    name-invalid: "<red>A rank name must be 1 to 16 characters."
+    exists: "<red>This city already has a rank called <white><rank></white>."
+    outranked: "<red>You cannot edit <white><rank></white>, its weight of <white><weight></white> is not below yours."
+    cannot-grant: "<red>You cannot grant permissions you do not hold: <white><permissions></white>."
+    weight-too-high: "<red>The weight must be at most <white><max></white>, below your own rank."
+    weight-reserved: "<red>The weight must be at most <white><max></white>. The mayor's weight is reserved."
+    weight-negative: "<red>The weight cannot be negative."
+    cannot-delete-mayor: "<red>The mayor rank cannot be deleted."
+    last: "<red>A city must keep at least one rank."
+    no-fallback: "<red>There is no other rank to move these members to."
+    mayor-not-default: "<red>The mayor rank cannot be the rank new members receive."
+    mayor: "<red>The mayor's rank cannot be changed. Transfer mayorship instead."
+    cancelled: "<red>The rank change was cancelled."
+    already-highest: "<red>That member already holds the highest rank you can assign."
+    already-lowest: "<red>That member already holds the lowest rank."
+    created: "<green>Created rank <white><rank></white>."
+    deleted: "<green>Deleted rank <white><rank></white>. Its members moved to the default rank."
+    assigned: "<green><player> is now <white><rank></white>."
+    perm-granted: "<green>Granted <white><flag></white> to <white><rank></white>."
+    perm-revoked: "<green>Revoked <white><flag></white> from <white><rank></white>."
+
+chat:
+  city-format: "<gray>[<white><tag></white><gray>] "

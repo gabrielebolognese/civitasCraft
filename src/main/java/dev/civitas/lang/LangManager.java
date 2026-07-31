@@ -13,6 +13,7 @@ import java.util.logging.Level;
 
 import dev.civitas.config.ConfigFile;
 import dev.civitas.config.ConfigManager;
+import dev.civitas.config.PluginResources;
 import net.kyori.adventure.audience.Audience;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.minimessage.MiniMessage;
@@ -39,7 +40,7 @@ public final class LangManager {
 
     private static final String FOLDER = "lang";
 
-    private final Plugin plugin;
+    private final PluginResources resources;
     private final ConfigManager configs;
     private final MiniMessage miniMessage = MiniMessage.miniMessage();
 
@@ -47,17 +48,21 @@ public final class LangManager {
     private FileConfiguration fallback = new YamlConfiguration();
     private String activeLanguage = FALLBACK_LANGUAGE;
 
-    public LangManager(Plugin plugin, ConfigManager configs) {
-        this.plugin = Objects.requireNonNull(plugin, "plugin");
+    public LangManager(PluginResources resources, ConfigManager configs) {
+        this.resources = Objects.requireNonNull(resources, "resources");
         this.configs = Objects.requireNonNull(configs, "configs");
+    }
+
+    public LangManager(Plugin plugin, ConfigManager configs) {
+        this(PluginResources.of(plugin), configs);
     }
 
     /** Copies the bundled language files out of the jar and loads the configured one. */
     public void load() {
         for (String language : BUNDLED_LANGUAGES) {
-            File onDisk = new File(new File(plugin.getDataFolder(), FOLDER), language + ".yml");
+            File onDisk = new File(new File(resources.dataFolder(), FOLDER), language + ".yml");
             if (!onDisk.exists()) {
-                plugin.saveResource(FOLDER + "/" + language + ".yml", false);
+                copyResource(FOLDER + "/" + language + ".yml", onDisk);
             }
         }
 
@@ -83,7 +88,7 @@ public final class LangManager {
     public Component get(String key, TagResolver... resolvers) {
         String raw = rawOrNull(key);
         if (raw == null) {
-            plugin.getLogger().log(Level.WARNING, "Missing language key: {0}", key);
+            resources.logger().log(Level.WARNING, "Missing language key: {0}", key);
             String template = rawOrNull(Msg.GENERAL_MISSING_MESSAGE);
             if (template == null) {
                 return Component.text("Missing message: " + key);
@@ -130,15 +135,33 @@ public final class LangManager {
         return value != null ? value : fallback.getString(key);
     }
 
+    private void copyResource(String resourcePath, File target) {
+        try (InputStream in = resources.resource(resourcePath)) {
+            if (in == null) {
+                resources.logger().log(Level.WARNING,
+                        "No packaged copy of {0}; it will not be created on disk.", resourcePath);
+                return;
+            }
+            File parent = target.getParentFile();
+            if (parent != null && !parent.isDirectory() && !parent.mkdirs()) {
+                throw new IOException("Could not create " + parent);
+            }
+            java.nio.file.Files.copy(in, target.toPath(),
+                    java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+        } catch (IOException e) {
+            resources.logger().log(Level.SEVERE, "Failed to write " + target, e);
+        }
+    }
+
     private FileConfiguration read(String language) {
-        File onDisk = new File(new File(plugin.getDataFolder(), FOLDER), language + ".yml");
+        File onDisk = new File(new File(resources.dataFolder(), FOLDER), language + ".yml");
         if (onDisk.exists()) {
             return YamlConfiguration.loadConfiguration(onDisk);
         }
 
-        try (InputStream in = plugin.getResource(FOLDER + "/" + language + ".yml")) {
+        try (InputStream in = resources.resource(FOLDER + "/" + language + ".yml")) {
             if (in == null) {
-                plugin.getLogger().log(Level.SEVERE,
+                resources.logger().log(Level.SEVERE,
                         "Language ''{0}'' has no file on disk and none in the jar; falling back to {1}.",
                         new Object[] {language, FALLBACK_LANGUAGE});
                 return new YamlConfiguration();
@@ -147,7 +170,7 @@ public final class LangManager {
                 return YamlConfiguration.loadConfiguration(reader);
             }
         } catch (IOException e) {
-            plugin.getLogger().log(Level.SEVERE, "Failed to read language file " + language, e);
+            resources.logger().log(Level.SEVERE, "Failed to read language file " + language, e);
             return new YamlConfiguration();
         }
     }

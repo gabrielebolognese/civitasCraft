@@ -26,10 +26,14 @@ import org.bukkit.plugin.java.JavaPlugin;
  */
 public final class CommandRegistry {
 
-    /** Every root command in SPEC.md Section 9, with the milestone that implements it. */
+    /**
+     * Root commands still waiting for the milestone that implements them.
+     *
+     * <p>{@code /city} is absent: M2 registers a real tree for it through
+     * {@link #registerAll(LiteralCommandNode)}.
+     */
     private static final List<CommandSpec> COMMANDS = List.of(
-            // SPEC 9.1 and 9.2, the city command tree.
-            CommandSpec.of("city", "civitas.use", 2, "City management."),
+            // SPEC 9.2, city chat.
             CommandSpec.of("cc", "civitas.use", 2, "City-only chat.", "citychat"),
 
             // SPEC 9.3, war and diplomacy.
@@ -76,10 +80,17 @@ public final class CommandRegistry {
         return COMMANDS;
     }
 
-    /** Hooks the Lifecycle API. Safe to call once, from {@code onEnable}. */
-    public void registerAll() {
+    /**
+     * Hooks the Lifecycle API. Safe to call once, from {@code onEnable}.
+     *
+     * @param implemented fully built command trees to register alongside the stubs
+     */
+    public void registerAll(List<LiteralCommandNode<CommandSourceStack>> implemented) {
         plugin.getLifecycleManager().registerEventHandler(LifecycleEvents.COMMANDS, event -> {
             Commands registrar = event.registrar();
+            for (LiteralCommandNode<CommandSourceStack> node : implemented) {
+                registrar.register(node, "CivitasCraft command.", List.of());
+            }
             for (CommandSpec spec : COMMANDS) {
                 registrar.register(build(spec), spec.description(), spec.aliases());
             }

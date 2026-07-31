@@ -84,8 +84,15 @@ public final class CityDao extends Dao<CityRow> {
     }
 
     public CompletableFuture<Optional<CityRow>> findByTag(String tag) {
-        return db.call(connection -> queryOneSync(connection,
-                "SELECT " + COLUMNS + " FROM cities WHERE LOWER(tag) = LOWER(?)", this::map, tag));
+        return db.call(connection -> findByTag(connection, tag));
+    }
+
+    public Optional<CityRow> findByTag(Connection connection, String tag) throws SQLException {
+        if (tag == null) {
+            return Optional.empty();
+        }
+        return queryOneSync(connection,
+                "SELECT " + COLUMNS + " FROM cities WHERE LOWER(tag) = LOWER(?)", this::map, tag);
     }
 
     /** Live cities only. Soft-deleted rows are excluded, SPEC 5.3. */
@@ -153,8 +160,12 @@ public final class CityDao extends Dao<CityRow> {
 
     /** Soft delete, SPEC 5.3. The row is retained for the admin restore window. */
     public CompletableFuture<Integer> softDelete(int cityId, long deletedAt) {
-        return db.call(connection ->
-                updateSync(connection, "UPDATE cities SET deleted_at = ? WHERE id = ?", deletedAt, cityId));
+        return db.call(connection -> softDelete(connection, cityId, deletedAt));
+    }
+
+    public int softDelete(Connection connection, int cityId, long deletedAt) throws SQLException {
+        return updateSync(connection,
+                "UPDATE cities SET deleted_at = ? WHERE id = ?", deletedAt, cityId);
     }
 
     public CompletableFuture<Integer> restore(int cityId) {

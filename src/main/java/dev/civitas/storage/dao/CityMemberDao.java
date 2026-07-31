@@ -45,6 +45,11 @@ public final class CityMemberDao extends Dao<CityMemberRow> {
                 "SELECT " + COLUMNS + " FROM city_members WHERE uuid = ?", this::map, uuid);
     }
 
+    /** Every membership, read once at startup to populate the city cache. */
+    public CompletableFuture<List<CityMemberRow>> findAll() {
+        return queryList("SELECT " + COLUMNS + " FROM city_members");
+    }
+
     public CompletableFuture<List<CityMemberRow>> findByCity(int cityId) {
         return db.call(connection -> findByCity(connection, cityId));
     }
@@ -116,7 +121,10 @@ public final class CityMemberDao extends Dao<CityMemberRow> {
     }
 
     public CompletableFuture<Integer> deleteByCity(int cityId) {
-        return db.call(connection ->
-                updateSync(connection, "DELETE FROM city_members WHERE city_id = ?", cityId));
+        return db.call(connection -> deleteByCity(connection, cityId));
+    }
+
+    public int deleteByCity(Connection connection, int cityId) throws SQLException {
+        return updateSync(connection, "DELETE FROM city_members WHERE city_id = ?", cityId);
     }
 }

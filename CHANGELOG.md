@@ -4,6 +4,42 @@ All notable changes to CivitasCraft. One section per milestone from `PLAN.md`.
 
 ## [Unreleased]
 
+### M2, Core city model
+
+Added:
+- `City`, `CityMember` and `CityRank`, held in a `CityRegistry` loaded once at startup.
+  Membership and permission lookups run on the hot path of chat and commands, so they never
+  touch the database.
+- `CityPermission` and `PermissionSet`: the 22 SPEC 5.4 flags as a value type over the stored
+  bitmask. A mask written by another version cannot grant a flag that does not exist here.
+- `CityService`: create, disband, invite, accept, deny, open-join, leave, kick, transfer,
+  rename, MOTD, open-join toggle, ban and unban. Every operation checks cheaply in memory,
+  fires a cancellable event, then does all its writes in one transaction that re-checks
+  whatever the database owns.
+- `RankService`: create, delete, rename, reweight, per-flag toggling, assignment, promote and
+  demote, enforcing "cannot grant what you lack" and "cannot edit equal or higher weight".
+- Seven cancellable events under `dev.civitas.api.event`, all fired before their mutation.
+- `Funds` and `StorageFunds`: the narrow money seam M5 will implement, so the SPEC 5.1 fee
+  lands in the same transaction as the city it paid for.
+- `PlayerAccountService` and its listener: the `players` row, the SPEC 4.2 starting balance
+  and playtime accrual.
+- The `/city` command tree for everything M2 implements; the rest remain named stubs.
+- `CityChatListener`, the SPEC 20 decision 6 city-tag prefix, wrapping any renderer already
+  set so a dedicated chat plugin still wins.
+- Migration V2: `city_bans`, plus `players.last_city_leave` and `players.last_city_disband`
+  for the SPEC 5.2 and 17.1 case 7 cooldowns.
+- Tests: the SPEC 18.1 bitmask and rank rules, the SPEC 18.2 creation flow with all nine
+  preconditions failing individually, membership, SPEC 17.1 cases 4, 6, 7, 9 and 10, and a
+  guard that every message key the code asks for exists and no message is orphaned.
+
+Changed:
+- `ConfigManager` and `LangManager` now depend on a narrow `PluginResources` rather than on
+  `Plugin`, so config and language loading can be exercised without a server.
+
+Fixed:
+- Cooldown messages round remaining time up rather than down. "Come back in 23 hours" when
+  23 hours 59 minutes remain sends a player away and then refuses them again.
+
 ### M1, Storage layer
 
 Added:

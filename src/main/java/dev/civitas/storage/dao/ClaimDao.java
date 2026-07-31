@@ -79,6 +79,35 @@ public final class ClaimDao extends Dao<ClaimRow> {
                 this::map, cityId);
     }
 
+    /**
+     * Whether any claim sits within {@code radius} chunks of a position, Chebyshev distance.
+     *
+     * <p>Expressed as a bounding-box query because Chebyshev distance ≤ r is exactly "inside
+     * the square", which an index range scan answers without reading every claim. Used for
+     * the SPEC 5.1 precondition 7 and SPEC 6.3 precondition 5 buffers.
+     *
+     * @param excludeCityId a city to ignore, so a city's own claims do not block it
+     */
+    public CompletableFuture<Boolean> existsWithin(String world, int chunkX, int chunkZ,
+                                                   int radius, Integer excludeCityId) {
+        return db.call(connection -> existsWithin(connection, world, chunkX, chunkZ, radius, excludeCityId));
+    }
+
+    public boolean existsWithin(Connection connection, String world, int chunkX, int chunkZ,
+                                int radius, Integer excludeCityId) throws SQLException {
+        String sql = "SELECT 1 AS present FROM claims WHERE world = ? "
+                + "AND chunk_x BETWEEN ? AND ? AND chunk_z BETWEEN ? AND ?"
+                + (excludeCityId == null ? "" : " AND city_id <> ?")
+                + " LIMIT 1";
+
+        Object[] params = excludeCityId == null
+                ? new Object[] {world, chunkX - radius, chunkX + radius, chunkZ - radius, chunkZ + radius}
+                : new Object[] {world, chunkX - radius, chunkX + radius, chunkZ - radius, chunkZ + radius,
+                        excludeCityId};
+
+        return queryOneSync(connection, sql, rs -> rs.getInt("present"), params).isPresent();
+    }
+
     public CompletableFuture<List<ClaimRow>> findByOutpost(int outpostId) {
         return queryList("SELECT " + COLUMNS + " FROM claims WHERE outpost_id = ?", outpostId);
     }

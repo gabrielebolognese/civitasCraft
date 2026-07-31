@@ -50,7 +50,9 @@ class SchemaTest {
         Map<String, List<String>> schema = new LinkedHashMap<>();
         schema.put("players", List.of("uuid", "last_known_name", "balance", "city_id", "rank_id",
                 "first_join", "last_seen", "total_playtime_ms", "active_playtime_ms", "daily_streak",
-                "last_daily_claim", "newcomer_until", "frozen"));
+                "last_daily_claim", "newcomer_until", "frozen",
+                // Added by V2 for the SPEC 5.2 and 17.1 case 7 cooldowns.
+                "last_city_leave", "last_city_disband"));
         schema.put("cities", List.of("id", "name", "display_name", "tag", "mayor_uuid", "founded_at",
                 "treasury", "core_world", "core_chunk_x", "core_chunk_z", "spawn_x", "spawn_y",
                 "spawn_z", "spawn_yaw", "spawn_pitch", "open_join", "motd", "upkeep_due",
@@ -71,6 +73,8 @@ class SchemaTest {
                 "item", "quantity", "timestamp"));
         schema.put("city_members", List.of("uuid", "city_id", "rank_id", "joined_at", "contributed_total"));
         schema.put("city_invites", List.of("city_id", "invitee_uuid", "inviter_uuid", "expires_at"));
+        // Added by V2: SPEC 5.2 and 8.6 need a ban list that SPEC 3 does not define.
+        schema.put("city_bans", List.of("city_id", "banned_uuid", "banned_by", "reason", "banned_at"));
         schema.put("alliances", List.of("city_a_id", "city_b_id", "state", "formed_at"));
         schema.put("truces", List.of("city_a_id", "city_b_id", "expires_at"));
         schema.put("war_participants", List.of("war_id", "city_id", "side", "is_ally"));
