@@ -1,0 +1,6 @@
+name: CivitasCraft
+version: '${version}'
+main: dev.civitas.CivitasPlugin
+api-version: '1.21'
+authors: [Gabriele]
+description: City-building server plugin with claims, economy, and rollback-based wars.
