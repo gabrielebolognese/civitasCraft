@@ -1,0 +1,35 @@
+# CivitasCraft, core configuration.
+# SPEC.md Section 16.1. Every value in SPEC.md is a config key; nothing is hardcoded.
+
+storage:
+  type: SQLITE            # SQLITE or MYSQL
+  mysql:
+    host: localhost
+    port: 3306
+    database: civitas
+    username: ""
+    password: ""
+    pool-size: 10
+  backup:
+    enabled: true
+    interval-hours: 6
+    keep-count: 28
+
+worlds:
+  city-enabled:
+    - world
+  blacklisted:
+    - world_the_end
+    - world_nether       # nether claimable is a design choice, off by default
+
+# Active language file under lang/. Falls back to 'en' for any missing key.
+language: en
+
+performance:
+  claim-cache-size: 100000
+  gui-refresh-ticks: 20
+  ledger-batch-size: 200
+  ledger-flush-seconds: 5
+
+# Verbose logging, toggleable in-game with /ca debug <on|off>.
+debug: false

@@ -1,0 +1,80 @@
+# War, scoring and the rollback engine.
+# SPEC.md Section 16.3.
+#
+# WARNING: rollback.enabled must never be set to false on a live server.
+# Without it, war permanently destroys player builds, which breaks the plugin's
+# core promise (SPEC 1.2 and 11.1).
+
+declaration:
+  min-members: 3
+  min-claims: 10
+  min-city-age-days: 14
+  min-wager: 50000
+  max-wager-percent-of-smaller-treasury: 25
+  same-opponent-cooldown-days: 21
+  decline-window-hours: 6
+  decline-penalty-percent: 30
+  large-vs-small-block: true
+  large-city-member-threshold: 20
+  small-city-member-threshold: 5
+
+phases:
+  prep-hours: 48
+  active-days: 7
+
+zone:
+  perimeter-chunks: 1
+
+scoring:
+  kill: 10
+  capture-point-hold: 25
+  capture-hold-seconds: 60
+  destroy-defense-unit: 15
+  block-break: 0.1
+  block-break-score-cap: 500
+  city-hall-reach: 100
+  city-hall-hold-seconds: 30
+  draw-threshold-percent: 5
+  capture-points: 3
+  capture-point-visible-range: 100
+
+rewards:
+  winner-wager-share-percent: 80
+  loser-refund-percent: 20
+  burn-percent: 20
+  ally-payout-share-percent: 30
+  winner-market-bonus-percent: 10
+  winner-market-bonus-days: 7
+  immunity-days: 7
+
+allies:
+  # SPEC 11.10: an ally joining a war escrows this share of the primary wager.
+  wager-percent-of-primary: 25
+
+peace:
+  # SPEC 8.8: suing for peace forfeits this share of your wager.
+  forfeit-percent: 25
+
+rollback:
+  enabled: true                  # NEVER set false on a live server
+  blocks-per-tick: 400
+  checkpoint-every-blocks: 5000
+  verify-sample-percent: 2
+  chunk-hash-failsafe: true
+  suppress-block-drops: true
+  restore-entities: true
+  restore-container-nbt: true
+  loot-is-permanent: true        # stolen items not returned, see SPEC 11.7
+  vault-immune: true
+  # SPEC 11.8.2 step 3: rows read per page while replaying the log.
+  read-page-size: 5000
+
+block-log:
+  # SPEC 11.8.1 buffering targets.
+  flush-interval-seconds: 2
+  flush-batch-size: 500
+  # SPEC 17.7 case 85: bounded in-memory buffer if the database goes away.
+  max-buffered-entries: 100000
+  # SPEC 17.4 case 58: stop accepting grief rather than risk a partial rollback.
+  max-rows-per-war: 5000000
+  warn-at-percent: 80

@@ -1,0 +1,149 @@
+# Cities, claims, upkeep, members and outposts.
+# SPEC.md Section 16.2, plus the rank and upgrade tables from Sections 5.4 and 5.7.
+
+creation:
+  cost: 10000
+  min-playtime-hours: 2
+  name-min-length: 3
+  name-max-length: 24
+  name-pattern: "^[A-Za-z0-9_]+$"
+  blocked-names: [admin, staff, server, console, "null", undefined]
+  min-distance-chunks: 5
+  # SPEC 17.1 case 7: cooldown applied to a player after any disband.
+  disband-cooldown-hours: 24
+  rename-cost: 15000
+
+claims:
+  starter-flat-count: 8
+  starter-flat-cost: 500
+  formula-base: 400
+  formula-exponent: 1.25
+  distance-multiplier-per-chunk: 0.05
+  distance-free-radius: 4
+  member-divisor-per-member: 0.18
+  active-member-days: 14
+  new-city-discount: 0.75
+  new-city-days: 14
+  buffer-chunks: 5
+  unclaim-refund-percent: 50
+  enforce-contiguity: true
+  radius-claim-max: 5
+  # Duration of the particle outline shown to the claimer, SPEC 6.3.
+  claim-border-particle-seconds: 10
+  # Duration of the /city border particle outline, SPEC 6.5.
+  border-particle-seconds: 60
+  border-particle-radius: 64
+  # /city map dimensions, SPEC 6.5.
+  map-width: 31
+  map-height: 13
+
+upkeep:
+  enabled: true
+  percent-of-land-value-per-day: 0.4
+  charge-hour: 4                 # 04:00 server time
+  grace-period-days: 3
+  delinquent-auto-unclaim: true
+  delinquent-unclaim-per-day: 3  # outermost chunks first
+  # SPEC 17.3 case 31: cap on missed cycles charged after downtime.
+  max-catchup-cycles: 7
+
+members:
+  base-cap: 10
+  switch-cooldown-hours: 24
+  invite-expiry-minutes: 5
+  # SPEC 5.3: seconds the target has to accept a mayorship transfer.
+  transfer-accept-seconds: 60
+  # SPEC 8.5 / 17.6 case 71: non-mayor treasury withdrawal cap.
+  withdraw-percent-per-day: 25
+
+spawn:
+  # SPEC 5.6
+  warmup-seconds: 5
+  warmup-seconds-during-war: 15
+  cooldown-seconds: 30
+
+inactivity:
+  # SPEC 17.1 cases 1, 2 and 3.
+  mayor-transfer-days: 30
+  dormant-days: 60
+  soft-delete-days: 120
+  restore-window-days: 14
+
+outposts:
+  base-max: 2
+  creation-cost-flat: 25000
+  creation-cost-multiplier: 3.0
+  upkeep-per-day: 2000
+  min-distance-from-own-city: 32
+  min-distance-from-other-city: 8
+  teleport-cost: 100
+  teleport-warmup-seconds: 8
+  teleport-cooldown-seconds: 180
+  delete-refund-percent: 50
+
+# Default ranks created with every new city, SPEC 5.4.
+# Permission flag names must match the CityPermission enum.
+ranks:
+  mayor:
+    name: Mayor
+    weight: 100
+    default: false
+    permissions: [ALL]
+  co-mayor:
+    name: Co-Mayor
+    weight: 80
+    default: false
+    permissions: [ALL_EXCEPT, DISBAND, TRANSFER, MANAGE_RANKS]
+  architect:
+    name: Architect
+    weight: 60
+    default: false
+    permissions: [BUILD, CONTAINER, INTERACT, CLAIM, SET_SPAWN, OUTPOST_TP, DEPOSIT]
+  citizen:
+    name: Citizen
+    weight: 40
+    default: false
+    permissions: [BUILD, CONTAINER, INTERACT, OUTPOST_TP, DEPOSIT]
+  recruit:
+    name: Recruit
+    weight: 20
+    default: true
+    permissions: [CONTAINER_READONLY, INTERACT, DEPOSIT, OUTPOST_TP]
+
+# City upgrades, SPEC 5.7. Costs are per level, L1 to L5.
+upgrades:
+  population:
+    display-name: Population
+    effect-per-level: 5          # +5 member cap
+    costs: [20000, 50000, 120000, 280000, 600000]
+  vault:
+    display-name: Vault
+    effect-per-level: 1          # +1 vault page of 27 slots
+    page-size: 27
+    costs: [30000, 70000, 150000, 320000, 700000]
+  treasury-interest:
+    display-name: Treasury Interest
+    effect-per-level: 4.0        # -4% upkeep
+    costs: [40000, 90000, 200000, 420000, 900000]
+  outpost-range:
+    display-name: Outpost Range
+    effect-per-level: 1          # +1 max outpost
+    max-total: 6
+    costs: [60000, 140000, 300000, 650000, 1400000]
+  fortification:
+    display-name: Fortification
+    effect-per-level: 5.0        # +5% defense unit health
+    units-per-level: 1
+    costs: [50000, 110000, 240000, 500000, 1100000]
+  market-access:
+    display-name: Market Access
+    effect-per-level: 0.8        # -0.8% market tax
+    costs: [45000, 100000, 220000, 460000, 1000000]
+
+protection:
+  # SPEC 5.5. Villager trading inside claims is a toggle, default allowed.
+  allow-villager-trading: true
+
+chat:
+  # SPEC 20 decision 6: prefix chat with the city tag via a low-priority handler.
+  city-tag-prefix-enabled: true

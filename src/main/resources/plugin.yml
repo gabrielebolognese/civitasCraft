@@ -4,3 +4,112 @@ main: dev.civitas.CivitasPlugin
 api-version: '1.21'
 authors: [Gabriele]
 description: City-building server plugin with claims, economy, and rollback-based wars.
+
+# Commands are registered through Brigadier via Paper's Lifecycle API
+# (see dev.civitas.command.CommandRegistry), so they are deliberately not
+# declared here. Permission nodes still are, so they appear in permission
+# plugins and honour their documented defaults. See SPEC.md Section 10.
+permissions:
+  civitas.use:
+    description: Base access to CivitasCraft commands.
+    default: true
+  civitas.city.create:
+    description: Found a city.
+    default: true
+  civitas.economy.balance:
+    description: Check a balance.
+    default: true
+  civitas.economy.pay:
+    description: Transfer money to another player.
+    default: true
+  civitas.market.use:
+    description: Use the server market.
+    default: true
+  civitas.quests.use:
+    description: Use quests and weekly challenges.
+    default: true
+  civitas.contest.use:
+    description: Take part in building contests.
+    default: true
+  civitas.bounty.use:
+    description: Place and view bounties.
+    default: true
+
+  civitas.bypass.claim:
+    description: Build anywhere, ignoring claim protection.
+    default: op
+  civitas.bypass.cooldown:
+    description: Ignore teleport and command cooldowns.
+    default: op
+  civitas.bypass.war:
+    description: Immune to war PvP and war restrictions.
+    default: op
+  civitas.bypass.economy:
+    description: Purchases cost nothing.
+    default: op
+  civitas.bypass.*:
+    description: All bypass nodes.
+    default: op
+    children:
+      civitas.bypass.claim: true
+      civitas.bypass.cooldown: true
+      civitas.bypass.war: true
+      civitas.bypass.economy: true
+
+  civitas.admin:
+    description: Parent node required by every admin command.
+    default: op
+  civitas.admin.info:
+    description: Inspect cities and players.
+    default: op
+  civitas.admin.audit:
+    description: Read the ledger, run fraud heuristics, export CSV.
+    default: op
+  civitas.admin.inspect:
+    description: Toggle block inspect mode.
+    default: op
+  civitas.admin.city:
+    description: Manage cities.
+    default: op
+  civitas.admin.claim:
+    description: Manage claims.
+    default: op
+  civitas.admin.economy:
+    description: Manage balances, treasuries and the market.
+    default: op
+  civitas.admin.war:
+    description: Manage wars and rollbacks.
+    default: op
+  civitas.admin.event:
+    description: Start and stop server events.
+    default: op
+  civitas.admin.contest:
+    description: Manage building contests.
+    default: op
+  civitas.admin.system:
+    description: Reload, backup, debug and performance commands.
+    default: op
+  civitas.admin.*:
+    description: Every admin node.
+    default: op
+    children:
+      civitas.admin: true
+      civitas.admin.info: true
+      civitas.admin.audit: true
+      civitas.admin.inspect: true
+      civitas.admin.city: true
+      civitas.admin.claim: true
+      civitas.admin.economy: true
+      civitas.admin.war: true
+      civitas.admin.event: true
+      civitas.admin.contest: true
+      civitas.admin.system: true
+
+  # Limit nodes are numeric suffixes resolved at runtime and cannot be
+  # enumerated here. See SPEC.md Section 10:
+  #   civitas.limit.cities.<n>   default 1
+  #   civitas.limit.homes.<n>
+  #   civitas.limit.shops.<n>    default 5
+  civitas.limit.cities.1:
+    description: May belong to one city. The default for every player.
+    default: true

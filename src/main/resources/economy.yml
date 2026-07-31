@@ -1,0 +1,127 @@
+# Economy: income sources, sinks, market and bounties.
+# SPEC.md Sections 4.2 to 4.8, exposed as config per SPEC 16.4.
+
+# Hard ceiling on any single balance, SPEC 17.3 case 27.
+max-balance: 1000000000000
+# SPEC 17.3 case 26: amounts are floored to this many decimal places.
+decimal-places: 2
+currency-symbol: "C"
+
+income:
+  starting-balance: 2000
+
+  stipend:
+    enabled: true
+    amount: 40
+    interval-minutes: 15
+    required-actions: 3
+    daily-cap: 640
+    # Cumulative blocks moved that counts as one "moved" action, SPEC 4.2.1.
+    move-distance-blocks: 32
+    # SPEC 17.6 case 70: new accounts earn nothing until this much active playtime.
+    min-active-playtime-minutes: 30
+
+  daily-login:
+    enabled: true
+    base: 250
+    streak-bonus: 125
+    max: 1000
+    streak-reset-hours: 48
+
+  quests:
+    per-day: 3
+    reward-min: 300
+    reward-max: 800
+
+  challenges:
+    per-week: 2
+    reward-min: 2500
+    reward-max: 8000
+
+  contest-prizes:
+    first: 50000
+    second: 25000
+    third: 12000
+
+  newcomer:
+    # SPEC 4.2 and 15.1: all personal income multiplied for new players.
+    multiplier: 1.5
+    days: 14
+
+sinks:
+  # Values duplicated from cities.yml / war.yml / defense.yml live in those files.
+  # This block holds the sinks that belong to no other module.
+  market-sale-tax-percent: 5
+
+market:
+  enabled: true
+  # price = base_price * clamp((target_stock / (current_stock + 1)) ^ elasticity, min, max)
+  default-elasticity: 0.45
+  clamp-min: 0.25
+  clamp-max: 3.0
+  # The market sells to players at price * spread.
+  buy-spread: 1.35
+  # Stock decays toward target_stock by this fraction each hour, SPEC 4.4.
+  stock-decay-percent-per-hour: 2.0
+  # SPEC 17.3 case 29 and 30: the market only accepts plain vanilla items.
+  reject-damaged: true
+  reject-enchanted: true
+  reject-named: true
+  reject-containers-with-contents: true
+  # SPEC 11.9: winning city members get a temporary sell bonus.
+  war-winner-bonus-percent: 10
+  war-winner-bonus-days: 7
+
+  # SPEC 4.4 starting table. Items absent from this list are not traded by the
+  # server market. See the exclusion rule in SPEC 4.4 before adding anything.
+  items:
+    WHEAT:           { base-price: 3,    target-stock: 20000, elasticity: 0.40 }
+    CARROT:          { base-price: 3,    target-stock: 20000, elasticity: 0.40 }
+    POTATO:          { base-price: 3,    target-stock: 20000, elasticity: 0.40 }
+    PUMPKIN:         { base-price: 5,    target-stock: 12000, elasticity: 0.45 }
+    MELON_SLICE:     { base-price: 2,    target-stock: 30000, elasticity: 0.40 }
+    SUGAR_CANE:      { base-price: 4,    target-stock: 15000, elasticity: 0.45 }
+    COCOA_BEANS:     { base-price: 6,    target-stock: 8000,  elasticity: 0.50 }
+    BAMBOO:          { base-price: 1,    target-stock: 40000, elasticity: 0.35 }
+    IRON_INGOT:      { base-price: 45,   target-stock: 6000,  elasticity: 0.55 }
+    GOLD_INGOT:      { base-price: 70,   target-stock: 4000,  elasticity: 0.55 }
+    DIAMOND:         { base-price: 400,  target-stock: 1500,  elasticity: 0.60 }
+    EMERALD:         { base-price: 250,  target-stock: 2000,  elasticity: 0.60 }
+    NETHERITE_SCRAP: { base-price: 3500, target-stock: 200,   elasticity: 0.70 }
+    OAK_LOG:         { base-price: 4,    target-stock: 25000, elasticity: 0.40 }
+    STONE:           { base-price: 1,    target-stock: 50000, elasticity: 0.30 }
+    BEEF:            { base-price: 8,    target-stock: 10000, elasticity: 0.45 }
+    LEATHER:         { base-price: 12,   target-stock: 6000,  elasticity: 0.50 }
+    HONEY_BOTTLE:    { base-price: 25,   target-stock: 3000,  elasticity: 0.55 }
+    NETHER_WART:     { base-price: 8,    target-stock: 8000,  elasticity: 0.50 }
+
+player-shops:
+  enabled: true
+  # SPEC 4.5: player shops are deliberately untaxed.
+  tax-percent: 0
+  default-limit-per-player: 5
+  sign-header: "[Shop]"
+
+bounties:
+  enabled: true
+  minimum: 1000
+  expiry-days: 30
+  # SPEC 4.7: bounties may only be claimed during an active war.
+  claimable-only-during-war: true
+
+inflation:
+  # SPEC 4.8
+  log-interval-minutes: 60
+  weekly-growth-warn-percent: 15
+
+audit:
+  # SPEC 17.6 case 79, /ca audit suspicious heuristics.
+  single-withdrawal-percent-of-treasury: 40
+  transfers-to-same-player-per-hour: 5
+  income-multiple-of-lifetime-earnings-24h: 3
+  new-account-receive-threshold: 100000
+  treasury-drop-percent: 60
+  treasury-drop-window-minutes: 10
+  income-rate-percentile-multiple: 3
+  # Reasons are mandatory on admin economy commands when strict mode is on.
+  strict-admin-reasons: true

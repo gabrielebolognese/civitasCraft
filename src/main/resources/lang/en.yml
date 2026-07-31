@@ -1,0 +1,21 @@
+# CivitasCraft, English messages.
+# All player-facing text lives here. Never hardcode a string in Java.
+# Formatting is MiniMessage. Legacy colour codes are not supported.
+#
+# Placeholders are MiniMessage tags, e.g. <command>, and are supplied by the
+# caller. An unknown tag renders literally rather than throwing.
+
+prefix: "<dark_gray>[<gold>Civitas<dark_gray>] <gray>"
+
+general:
+  missing-message: "<red>Missing message: <key>"
+
+plugin:
+  enabled: "<green>CivitasCraft <version> enabled."
+  disabled: "<gray>CivitasCraft disabled."
+  reloaded: "<green>Configuration reloaded."
+
+command:
+  not-implemented: "<yellow>/<command> is not implemented yet. It arrives in milestone <milestone>."
+  player-only: "<red>That command can only be used by a player."
+  no-permission: "<red>You do not have permission to use that."

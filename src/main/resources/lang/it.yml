@@ -1,0 +1,21 @@
+# CivitasCraft, messaggi in italiano.
+# Ogni testo mostrato ai giocatori vive qui. Mai scrivere stringhe nel codice Java.
+# La formattazione usa MiniMessage. I codici colore legacy non sono supportati.
+#
+# I segnaposto sono tag MiniMessage, ad esempio <command>, forniti dal chiamante.
+# Un tag sconosciuto viene mostrato come testo invece di causare un errore.
+
+prefix: "<dark_gray>[<gold>Civitas<dark_gray>] <gray>"
+
+general:
+  missing-message: "<red>Messaggio mancante: <key>"
+
+plugin:
+  enabled: "<green>CivitasCraft <version> attivato."
+  disabled: "<gray>CivitasCraft disattivato."
+  reloaded: "<green>Configurazione ricaricata."
+
+command:
+  not-implemented: "<yellow>/<command> non e ancora implementato. Arrivera nel milestone <milestone>."
+  player-only: "<red>Quel comando puo essere usato solo da un giocatore."
+  no-permission: "<red>Non hai il permesso di usare quel comando."

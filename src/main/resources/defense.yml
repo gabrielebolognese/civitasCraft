@@ -1,0 +1,141 @@
+# City defense units.
+# SPEC.md Section 12, exposed as config per SPEC 16.4.
+
+enabled: true
+
+placement:
+  # SPEC 12.4
+  base-max-active-units: 5
+  units-per-fortification-level: 2
+  max-units-per-chunk: 3
+  # Units bought during an ACTIVE war cost this multiplier.
+  wartime-purchase-multiplier: 2.0
+
+behaviour:
+  # SPEC 12.3
+  war-target-range: 24
+  leash-distance-blocks: 8
+  name-visible-range: 16
+  attack-hostile-mobs-in-peacetime: true
+  attack-players-in-peacetime: false
+
+# Each unit is a vanilla mob with attribute modifiers and equipment. No NMS.
+# The Fortification upgrade adds health-bonus-percent-per-level to every unit.
+health-bonus-percent-per-fortification-level: 5.0
+
+units:
+  watchman:
+    display-name: Watchman
+    mob: ZOMBIE
+    health: 40
+    damage: 5
+    speed: 0.25
+    cost: 8000
+    upkeep-per-day: 400
+    equipment:
+      helmet: CHAINMAIL_HELMET
+      chestplate: CHAINMAIL_CHESTPLATE
+      leggings: CHAINMAIL_LEGGINGS
+      boots: CHAINMAIL_BOOTS
+      main-hand: IRON_SWORD
+
+  city-guard:
+    display-name: City Guard
+    mob: ZOMBIE
+    health: 100
+    damage: 9
+    speed: 0.30
+    cost: 20000
+    upkeep-per-day: 900
+    equipment:
+      helmet: IRON_HELMET
+      chestplate: IRON_CHESTPLATE
+      leggings: IRON_LEGGINGS
+      boots: IRON_BOOTS
+      main-hand: IRON_SWORD
+      off-hand: SHIELD
+
+  elite-guard:
+    display-name: Elite Guard
+    mob: ZOMBIE
+    health: 160
+    damage: 14
+    speed: 0.32
+    cost: 45000
+    upkeep-per-day: 2000
+    equipment:
+      helmet: DIAMOND_HELMET
+      chestplate: DIAMOND_CHESTPLATE
+      leggings: DIAMOND_LEGGINGS
+      boots: DIAMOND_BOOTS
+      main-hand: DIAMOND_SWORD
+
+  archer:
+    display-name: Archer
+    mob: SKELETON
+    health: 60
+    damage: 8
+    speed: 0.28
+    cost: 15000
+    upkeep-per-day: 700
+    equipment:
+      helmet: LEATHER_HELMET
+      chestplate: LEATHER_CHESTPLATE
+      leggings: LEATHER_LEGGINGS
+      boots: LEATHER_BOOTS
+      main-hand: BOW
+      main-hand-enchantments:
+        POWER: 3
+
+  sharpshooter:
+    display-name: Sharpshooter
+    mob: SKELETON
+    health: 90
+    damage: 13
+    speed: 0.28
+    cost: 32000
+    upkeep-per-day: 1400
+    equipment:
+      helmet: CHAINMAIL_HELMET
+      chestplate: CHAINMAIL_CHESTPLATE
+      leggings: CHAINMAIL_LEGGINGS
+      boots: CHAINMAIL_BOOTS
+      main-hand: BOW
+      main-hand-enchantments:
+        POWER: 5
+
+  warhound:
+    display-name: Warhound
+    mob: WOLF
+    health: 45
+    damage: 7
+    speed: 0.42
+    cost: 10000
+    upkeep-per-day: 500
+    equipment:
+      body: WOLF_ARMOR
+
+  siege-golem:
+    display-name: Siege Golem
+    mob: IRON_GOLEM
+    health: 250
+    damage: 22
+    speed: 0.22
+    cost: 60000
+    upkeep-per-day: 3000
+    equipment: {}
+
+  sentry:
+    display-name: Sentry
+    mob: SNOW_GOLEM
+    health: 30
+    damage: 0
+    speed: 0.0
+    cost: 6000
+    upkeep-per-day: 300
+    equipment: {}
+    # The Sentry debuffs instead of dealing damage, SPEC 12.2.
+    effect:
+      type: SLOWNESS
+      amplifier: 1
+      duration-ticks: 100

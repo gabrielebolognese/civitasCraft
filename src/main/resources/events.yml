@@ -1,0 +1,84 @@
+# Scheduled server-wide events and building contests.
+# SPEC.md Sections 13.4 and 13.5, exposed as config per SPEC 16.4.
+
+events:
+  enabled: true
+  # Minutes of advance warning before an event starts, SPEC 13.5.
+  announce-minutes-before: 30
+  boss-bar: true
+
+  definitions:
+    market-boom:
+      display-name: Market Boom
+      duration-hours: 6
+      sell-price-percent: 140
+
+    market-crash:
+      display-name: Market Crash
+      duration-hours: 6
+      sell-price-percent: 70
+      buy-price-percent: 70
+
+    harvest-festival:
+      display-name: Harvest Festival
+      duration-hours: 24
+      crop-growth-multiplier: 2.0
+      farming-quest-reward-multiplier: 2.0
+
+    gold-rush:
+      display-name: Gold Rush
+      duration-hours: 12
+      mining-quest-reward-multiplier: 2.0
+
+    invasion:
+      display-name: Invasion
+      duration-hours: 4
+      wave-interval-minutes: 20
+      mobs-per-wave: 20
+      spawn-radius-from-city-border: 32
+      treasury-reward-per-mob: 25
+
+    founders-week:
+      display-name: Founders' Week
+      duration-hours: 168
+      claim-cost-percent: 75
+      city-creation-free: true
+
+    double-upkeep:
+      display-name: Double Upkeep
+      duration-hours: 24
+      upkeep-multiplier: 2.0
+      # A rare sink event, announced well in advance.
+      announce-hours-before: 48
+
+    tax-holiday:
+      display-name: Tax Holiday
+      duration-hours: 24
+      market-tax-percent: 0
+
+contests:
+  enabled: true
+  # SPEC 13.4: a 14-day cycle run automatically.
+  cycle-days: 14
+  build-days: 11
+  voting-days: 2
+  max-region-size: 64
+  entries-per-city: 1
+  vote-axes: [creativity, technical-skill, theme-fit]
+  vote-min: 1
+  vote-max: 10
+
+  anti-abuse:
+    # SPEC 13.4
+    block-self-city-votes: true
+    low-playtime-hours: 5
+    low-playtime-vote-weight: 0.25
+    discard-ip-matched-votes: true
+    verify-built-during-window: true
+
+  themes:
+    - Medieval Market
+    - Underground Base
+    - Floating Island
+    - Grand Library
+    - Harbour Town

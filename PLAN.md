@@ -5,7 +5,7 @@
 
 ## Current session focus
 
-**Next milestone:** M0, Project skeleton
+**Next milestone:** M1, Storage layer
 
 ## Session protocol
 
@@ -23,7 +23,7 @@
 
 | M | Milestone | Depends on | Status | Notes |
 |---|---|---|---|---|
-| 0 | Project skeleton | none | TODO | |
+| 0 | Project skeleton | none | DONE | Build, config, lang, Result, stub command tree. 48 tests. Enables cleanly on the test server. |
 | 1 | Storage layer | M0 | TODO | |
 | 2 | Core city model | M1 | TODO | |
 | 3 | Claim system | M2 | TODO | |

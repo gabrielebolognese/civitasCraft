@@ -4,11 +4,14 @@
 
 plugins {
     java
-    id("com.gradleup.shadow") version "8.3.5"
+    id("com.gradleup.shadow") version "9.6.1"
 }
 
 group = "dev.civitas"
 version = "0.1.0"
+
+val paperApiVersion = "1.21.11-R0.1-SNAPSHOT"
+val pluginVersion = version.toString()
 
 java {
     toolchain.languageVersion.set(JavaLanguageVersion.of(21))
@@ -21,20 +24,29 @@ repositories {
 }
 
 dependencies {
-    compileOnly("io.papermc.paper:paper-api:1.21.4-R0.1-SNAPSHOT")
+    compileOnly("io.papermc.paper:paper-api:$paperApiVersion")
 
     // shaded into the jar
     implementation("com.zaxxer:HikariCP:5.1.0")
     implementation("org.xerial:sqlite-jdbc:3.46.1.0")
     implementation("it.unimi.dsi:fastutil-core:8.5.14")
-    implementation("org.spongepowered:configurate-yaml:4.1.2")
+    implementation("org.spongepowered:configurate-yaml:4.2.0")
 
+    // The server API is compileOnly at runtime but tests need the real classes
+    // (YamlConfiguration, MiniMessage, Component) on their classpath.
+    testImplementation("io.papermc.paper:paper-api:$paperApiVersion")
     testImplementation("org.junit.jupiter:junit-jupiter:5.11.3")
-    testImplementation("com.github.seeseemelk:MockBukkit-v1.21:3.9.0")
+    testRuntimeOnly("org.junit.platform:junit-platform-launcher")
+    testImplementation("org.mockbukkit.mockbukkit:mockbukkit-v1.21:4.110.0")
 }
 
 tasks {
-    test { useJUnitPlatform() }
+    test {
+        useJUnitPlatform()
+        testLogging {
+            events("passed", "skipped", "failed")
+        }
+    }
 
     shadowJar {
         archiveClassifier.set("")
@@ -42,19 +54,31 @@ tasks {
         relocate("com.zaxxer.hikari", "dev.civitas.lib.hikari")
         relocate("it.unimi.dsi.fastutil", "dev.civitas.lib.fastutil")
         relocate("org.spongepowered.configurate", "dev.civitas.lib.configurate")
-        minimize()
+        // sqlite-jdbc is deliberately NOT relocated: it resolves its native library
+        // and its JDBC driver by hardcoded package name.
+        minimize {
+            exclude(dependency("org.xerial:sqlite-jdbc:.*"))
+            exclude(dependency("com.zaxxer:HikariCP:.*"))
+        }
     }
 
     build { dependsOn(shadowJar) }
 
     processResources {
+        // Captured at configuration time: reading project.version inside the
+        // filesMatching action would touch Task.project at execution time, which
+        // Gradle 10 rejects and the configuration cache cannot support.
+        val tokens = mapOf("version" to pluginVersion)
+        inputs.properties(tokens)
         filesMatching("plugin.yml") {
-            expand("version" to project.version)
+            expand(tokens)
         }
     }
 
     withType<JavaCompile> {
         options.encoding = "UTF-8"
-        options.compilerArgs.add("-parameters")
+        options.compilerArgs.addAll(
+            listOf("-parameters", "-Xlint:all,-serial,-processing", "-Werror")
+        )
     }
 }
