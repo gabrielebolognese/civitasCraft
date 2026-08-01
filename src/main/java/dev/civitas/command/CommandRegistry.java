@@ -29,8 +29,8 @@ public final class CommandRegistry {
     /**
      * Root commands still waiting for the milestone that implements them.
      *
-     * <p>{@code /city} is absent: M2 registers a real tree for it through
-     * {@link #registerAll(LiteralCommandNode)}.
+     * <p>Commands with a real implementation are absent from this list and registered
+     * through {@link #registerAll(List)} instead.
      */
     private static final List<CommandSpec> COMMANDS = List.of(
             // SPEC 9.2, city chat.
@@ -42,10 +42,9 @@ public final class CommandRegistry {
             CommandSpec.of("truce", "civitas.use", 13, "Offer and accept truces."),
             CommandSpec.of("ac", "civitas.use", 13, "Alliance chat.", "allychat"),
 
-            // SPEC 9.1, economy.
-            CommandSpec.of("money", "civitas.economy.balance", 5, "Check a balance.", "balance"),
-            CommandSpec.of("pay", "civitas.economy.pay", 5, "Send money to another player."),
-            CommandSpec.of("bounty", "civitas.bounty.use", 5, "Place and list bounties."),
+            // SPEC 4.7. The escrow is economy, but a bounty is only claimable during a war
+            // (SPEC 4.7), so the payout half needs the war system.
+            CommandSpec.of("bounty", "civitas.bounty.use", 19, "Place and list bounties."),
 
             // SPEC 9.1, market.
             CommandSpec.of("shop", "civitas.market.use", 6, "Open the server market."),

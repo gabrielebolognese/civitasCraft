@@ -139,7 +139,7 @@ class MigrationRunnerTest {
                 throw new AssertionError(e);
             }
 
-            assertEquals(Set.of(1, 2), versions);
+            assertEquals(Set.of(1, 2, 3), versions);
         }
     }
 

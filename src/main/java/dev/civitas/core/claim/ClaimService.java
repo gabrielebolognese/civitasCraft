@@ -602,6 +602,64 @@ public final class ClaimService {
     }
 
     // ==================================================================================
+    // Releasing land the city can no longer pay for, SPEC 17.3 case 32
+    // ==================================================================================
+
+    /**
+     * The chunks a debt sweep may take, outermost first.
+     *
+     * <p>"Outermost" is Chebyshev distance from the core, so a city shrinks inward rather
+     * than losing its middle. Anything that cannot legally go is filtered out here rather
+     * than attempted and refused: the core, the chunk holding the city spawn, outposts, and
+     * any chunk whose removal would strand land (SPEC 6.1). Filtering by contiguity one
+     * candidate at a time would be wrong, since removing the furthest chunk can make the
+     * next-furthest safe to remove, so the caller re-asks after each release.
+     *
+     * @param limit how many to return
+     */
+    public List<Claim> releasableForDebt(City city, int limit) {
+        return registry.claimsOf(city.id()).stream()
+                .filter(claim -> claim.type() == ClaimType.NORMAL)
+                .filter(claim -> !containsSpawn(city, claim))
+                .filter(claim -> checkContiguity(city, claim).isSuccess())
+                .sorted(Comparator.comparingInt((Claim claim) ->
+                        distanceFromCore(city, claim.world(), claim.chunkX(), claim.chunkZ()))
+                        .reversed()
+                        .thenComparing(Comparator.comparingLong(Claim::claimedAt).reversed()))
+                .limit(Math.max(0, limit))
+                .toList();
+    }
+
+    /**
+     * Releases a chunk on the plugin's own authority, refunding to the treasury as usual.
+     *
+     * <p>No permission check and no actor: this is the server collecting on a debt, not a
+     * member giving land up, and SPEC 17.3 case 32 requires it to happen whether or not
+     * anyone with UNCLAIM is online. Every other rule still applies, and the refund is what
+     * may clear the debt.
+     */
+    public CompletableFuture<Result<Claim>> releaseForDebt(City city, Claim claim) {
+        if (claim.isCore()) {
+            return completed(Result.failure("CORE_CHUNK", "claim.core"));
+        }
+        if (containsSpawn(city, claim)) {
+            return completed(Result.failure("CONTAINS_SPAWN", "claim.contains-spawn"));
+        }
+        Result<Void> contiguity = checkContiguity(city, claim);
+        if (contiguity instanceof Result.Failure<Void> failure) {
+            return completed(Result.propagate(failure));
+        }
+
+        BigDecimal refund = costs.refundFor(claim.costPaid());
+        if (!events.fire(new ChunkUnclaimEvent(city, null, claim, refund))) {
+            return completed(Result.failure("CANCELLED", "claim.unclaim-cancelled"));
+        }
+
+        return db.transaction(connection -> releaseClaim(connection, null, city, claim, refund))
+                .thenApply(result -> applyOnMain(result, registry::remove));
+    }
+
+    // ==================================================================================
     // Consequences of losing land
     // ==================================================================================
 

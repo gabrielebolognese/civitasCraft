@@ -1,5 +1,6 @@
 package dev.civitas.storage.dao;
 
+import java.math.BigDecimal;
 import java.sql.Connection;
 import java.sql.ResultSet;
 import java.sql.SQLException;
@@ -72,6 +73,36 @@ public final class LedgerDao extends Dao<LedgerRow> {
         return queryList("SELECT " + COLUMNS + " FROM ledger "
                 + "WHERE type = ? AND timestamp >= ? ORDER BY timestamp DESC LIMIT ?",
                 type, since, limit);
+    }
+
+    /**
+     * How much one player has taken <em>out</em> under one type, for one city, since a
+     * moment in time.
+     *
+     * <p>This is what makes the SPEC 8.5 withdrawal cap need no extra state: the ledger
+     * already records every withdrawal with its actor, its city and its timestamp, so the
+     * 24-hour total is a query rather than a counter that could drift.
+     *
+     * <p>Only negative amounts are counted. A treasury movement writes two rows under the
+     * same type, actor and city, one for the side the money left and one for the side it
+     * arrived at, so a plain {@code SUM} would net them to exactly zero and the cap would
+     * never bite.
+     *
+     * @return the summed outflow, which is negative or zero
+     */
+    public CompletableFuture<BigDecimal> sumOutflowByActor(UUID actor, int cityId, String type,
+                                                           long since) {
+        return db.call(connection -> sumOutflowByActor(connection, actor, cityId, type, since));
+    }
+
+    public BigDecimal sumOutflowByActor(Connection connection, UUID actor, int cityId, String type,
+                                        long since) throws SQLException {
+        return queryOneSync(connection,
+                "SELECT COALESCE(SUM(amount), 0) AS total FROM ledger "
+                        + "WHERE actor_uuid = ? AND city_id = ? AND type = ? AND timestamp >= ? "
+                        + "AND amount < 0",
+                rs -> money(rs, "total"), actor, cityId, type, since)
+                .orElse(BigDecimal.ZERO);
     }
 
     public CompletableFuture<Long> insert(LedgerRow row) {

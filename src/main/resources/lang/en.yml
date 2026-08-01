@@ -31,6 +31,18 @@ economy:
   insufficient-funds: "<red>You need <white><required> C</white> but only have <white><balance> C</white>. You are <white><short> C</white> short."
   amount-not-positive: "<red>The amount must be greater than zero."
   max-balance: "<red>That would take the balance over the server limit of <white><max> C</white>."
+  amount-invalid: "<red>That is not a valid amount. Use plain numbers, like <white>1500</white> or <white>1500.50</white>."
+  pay-self: "<red>You cannot pay yourself."
+  balance-self: "<gray>Balance: <white><amount>"
+  balance-other: "<gray><player>'s balance: <white><amount>"
+  pay-sent: "<green>Paid <white><amount></white> to <white><player></white>. You now have <white><balance></white>."
+  pay-received: "<green><player> paid you <white><amount></white>."
+  upkeep:
+    failed: "<red>Your city could not pay its <white><amount> C</white> upkeep. Land will be sold if this continues."
+    grace: "<yellow>Your city owes upkeep. Land will start being sold in <white><days></white> days."
+    land-sold: "<red><count></red> <red>chunks were sold to cover unpaid upkeep."
+    nothing-to-sell: "<red>Your city owes upkeep and has no land left to sell. Only the core remains."
+    debt-cleared: "<green>The land sale covered your city's upkeep. The debt is settled."
 
 city:
   none: "<gray>You are not in a city. Use <white>/city create <name></white> to found one."
@@ -112,6 +124,9 @@ city:
 
   treasury:
     insufficient: "<red>The treasury needs <white><required> C</white> but holds <white><balance> C</white>."
+    deposited: "<green>Deposited <white><amount></white>. The treasury now holds <white><treasury></white>."
+    withdrawn: "<green>Withdrew <white><amount></white>. The treasury now holds <white><treasury></white>."
+    cap: "<red>You may take at most <white><percent>%</white> of the treasury a day, which is <white><limit> C</white>. You have already taken <white><taken> C</white>, leaving <white><remaining> C</white>."
 
   settings:
     motd-set: "<green>Message of the day updated."

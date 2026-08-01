@@ -26,7 +26,7 @@ import dev.civitas.core.claim.ClaimCostEngine;
 import dev.civitas.core.claim.ClaimRegistry;
 import dev.civitas.core.claim.ClaimService;
 import dev.civitas.core.economy.PlayerAccountService;
-import dev.civitas.core.economy.StorageFunds;
+import dev.civitas.core.economy.EconomyService;
 import dev.civitas.core.protection.BlockClassifier;
 import dev.civitas.core.protection.ProtectionGuard;
 import dev.civitas.core.protection.ProtectionService;
@@ -114,8 +114,10 @@ class ProtectionListenerTest {
                 new PlayerAccountService(db, daos.players(), daos.ledger(), configs);
         ClaimService claims = new ClaimService(db, daos, cities, claimRegistry,
                 new ClaimCostEngine(configs), configs, Scheduler.direct(), EventBus.noop());
+        EconomyService economy = new EconomyService(db, daos.players(), daos.ledger(),
+                configs, quiet);
         CityService cityService = new CityService(db, daos, cities, configs,
-                new CityNameValidator(configs), new StorageFunds(daos.players(), daos.ledger(), configs),
+                new CityNameValidator(configs), economy,
                 claims, accounts, Scheduler.direct(), EventBus.noop());
 
         protection = new ProtectionService(claimRegistry, cities, configs);

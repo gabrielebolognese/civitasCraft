@@ -3,3 +3,4 @@
 # MigrationIndexTest fails the build if this list and the .sql files disagree.
 V1__init.sql
 V2__city_bans_and_cooldowns.sql
+V3__economy_snapshots.sql

@@ -15,7 +15,9 @@ import dev.civitas.core.claim.ClaimRegistry;
 import dev.civitas.core.claim.ClaimService;
 import dev.civitas.core.economy.Funds;
 import dev.civitas.core.economy.PlayerAccountService;
-import dev.civitas.core.economy.StorageFunds;
+import dev.civitas.core.economy.EconomyService;
+import dev.civitas.core.economy.TreasuryService;
+import dev.civitas.core.economy.UpkeepCalculator;
 import dev.civitas.core.protection.ProtectionService;
 import dev.civitas.storage.DatabaseManager;
 import dev.civitas.storage.DatabaseSettings;
@@ -48,6 +50,9 @@ public final class CityTestSupport implements AutoCloseable {
     public final ClaimService claims;
     public final ProtectionService protection;
     public final PlayerAccountService accounts;
+    public final EconomyService economy;
+    public final TreasuryService treasury;
+    public final UpkeepCalculator upkeep;
     public final Funds funds;
 
     private CityTestSupport(Path directory, EventBus events) {
@@ -66,7 +71,10 @@ public final class CityTestSupport implements AutoCloseable {
         this.daos = new DaoRegistry(db);
         this.registry = new CityRegistry(daos);
         this.accounts = new PlayerAccountService(db, daos.players(), daos.ledger(), configs);
-        this.funds = new StorageFunds(daos.players(), daos.ledger(), configs);
+        this.economy = new EconomyService(db, daos.players(), daos.ledger(), configs, quietLogger());
+        this.funds = economy;
+        this.treasury = new TreasuryService(db, daos, economy, configs, Scheduler.direct());
+        this.upkeep = new UpkeepCalculator(configs);
         this.claimRegistry = new ClaimRegistry(daos.claims());
         this.costs = new ClaimCostEngine(configs);
         this.claims = new ClaimService(db, daos, registry, claimRegistry, costs, configs,
@@ -93,7 +101,9 @@ public final class CityTestSupport implements AutoCloseable {
     public UUID givenPlayer(String name, BigDecimal balance, long activePlaytimeMs) {
         UUID uuid = UUID.randomUUID();
         await(daos.players().insert(new PlayerRow(uuid, name, balance, null, null,
-                1_000L, 2_000L, activePlaytimeMs, activePlaytimeMs, 0, 0L, 0L, false, 0L, 0L)));
+                1_000L, System.currentTimeMillis(), activePlaytimeMs, activePlaytimeMs,
+                0, 0L, 0L, false, 0L, 0L)));
+        economy.remember(uuid, balance);
         return uuid;
     }
 

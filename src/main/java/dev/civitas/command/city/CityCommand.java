@@ -31,6 +31,8 @@ import dev.civitas.core.claim.ChunkKey;
 import dev.civitas.core.claim.ClaimCostEngine;
 import dev.civitas.core.claim.ClaimMap;
 import dev.civitas.core.claim.ClaimService;
+import dev.civitas.core.economy.Money;
+import dev.civitas.core.economy.TreasuryService;
 import dev.civitas.lang.LangManager;
 import dev.civitas.lang.Msg;
 import dev.civitas.util.PlayerLookup;
@@ -93,6 +95,10 @@ public final class CityCommand {
         return services.get().borders();
     }
 
+    private TreasuryService treasury() {
+        return services.get().treasury();
+    }
+
     /** True, having already told the sender, if storage is not open yet. */
     private boolean notReady(Audience audience) {
         if (services.get() != null) {
@@ -128,8 +134,8 @@ public final class CityCommand {
                 .then(mapCommand())
                 .then(here())
                 .then(border())
-                .then(notYet("deposit", 5))
-                .then(notYet("withdraw", 5))
+                .then(deposit())
+                .then(withdraw())
                 .then(notYet("outpost", 10))
                 .then(notYet("upgrade", 11))
                 .then(notYet("vault", 11))
@@ -616,6 +622,52 @@ public final class CityCommand {
                 .map(Claim::costPaid)
                 .reduce(java.math.BigDecimal.ZERO, java.math.BigDecimal::add)
                 .toPlainString();
+    }
+
+    // ==================================================================================
+    // Treasury, SPEC 9.2
+    // ==================================================================================
+
+    private ArgumentBuilder<CommandSourceStack, ?> deposit() {
+        return Commands.literal("deposit")
+                .then(Commands.argument("amount", StringArgumentType.word())
+                        .executes(context -> withOwnCity(context, (player, city) ->
+                                withAmount(context, player, amount ->
+                                        Replies.reply(treasury().deposit(player.getUniqueId(),
+                                                        city, amount),
+                                                player, lang, scheduler, logger,
+                                                after -> lang.send(player, "city.treasury.deposited",
+                                                        Replies.p("amount", money(amount)),
+                                                        Replies.p("treasury", money(after))))))));
+    }
+
+    private ArgumentBuilder<CommandSourceStack, ?> withdraw() {
+        return Commands.literal("withdraw")
+                .then(Commands.argument("amount", StringArgumentType.word())
+                        .executes(context -> withOwnCity(context, (player, city) ->
+                                withAmount(context, player, amount ->
+                                        Replies.reply(treasury().withdraw(player.getUniqueId(),
+                                                        city, amount),
+                                                player, lang, scheduler, logger,
+                                                after -> lang.send(player, "city.treasury.withdrawn",
+                                                        Replies.p("amount", money(amount)),
+                                                        Replies.p("treasury", money(after))))))));
+    }
+
+    /** Parses the {@code amount} argument, reporting the failure if it is not a plain number. */
+    private void withAmount(CommandContext<CommandSourceStack> context, Player player,
+                            java.util.function.Consumer<java.math.BigDecimal> action) {
+        Result<java.math.BigDecimal> parsed =
+                Money.parse(StringArgumentType.getString(context, "amount"));
+        if (parsed instanceof Result.Failure<java.math.BigDecimal> failure) {
+            Replies.sendFailure(player, lang, failure);
+            return;
+        }
+        action.accept(parsed.orElseThrow());
+    }
+
+    private String money(java.math.BigDecimal amount) {
+        return Money.format(amount, services.get().economy().configs());
     }
 
     // ==================================================================================

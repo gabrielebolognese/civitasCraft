@@ -70,6 +70,16 @@ public final class PlayerDao extends Dao<PlayerRow> {
     }
 
     /**
+     * Every player the server has ever seen.
+     *
+     * <p>Read once at startup to fill the balance cache SPEC 2.3 asks for. One query rather
+     * than one per player, and never read again: the cache is written through on change.
+     */
+    public CompletableFuture<List<PlayerRow>> findAll() {
+        return queryList("SELECT " + COLUMNS + " FROM players");
+    }
+
+    /**
      * Every player who currently belongs to a city.
      *
      * <p>Read once at startup to seed the active-member counts the SPEC 6.2 claim price

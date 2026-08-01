@@ -111,8 +111,17 @@ bounties:
 
 inflation:
   # SPEC 4.8
+  enabled: true
   log-interval-minutes: 60
   weekly-growth-warn-percent: 15
+  # How long circulation readings are kept. Only the last week is read, but keeping
+  # more lets an admin see a trend.
+  keep-days: 60
+
+# SPEC 20 decision 7. Only takes effect if Vault is installed; turn it off if another
+# plugin should own the server economy.
+vault:
+  enabled: true
 
 audit:
   # SPEC 17.6 case 79, /ca audit suspicious heuristics.

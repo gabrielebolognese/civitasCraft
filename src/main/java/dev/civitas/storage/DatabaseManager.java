@@ -16,6 +16,7 @@ import java.util.logging.Logger;
 import com.zaxxer.hikari.HikariConfig;
 import com.zaxxer.hikari.HikariDataSource;
 import dev.civitas.storage.migration.MigrationRunner;
+import dev.civitas.util.Result;
 
 /**
  * Owns the connection pool and the thread pool that all database work runs on.
@@ -106,6 +107,13 @@ public final class DatabaseManager implements AutoCloseable {
      * only one statement. WAL lets readers proceed while the war block logger writes,
      * {@code busy_timeout} turns lock contention into a wait rather than an error, and
      * foreign keys are off by default in SQLite and must be asked for.
+     *
+     * <p>{@code transaction_mode=IMMEDIATE} matters more than it looks. SQLite's default
+     * deferred transaction takes its write lock lazily, so two transactions that both read
+     * and then write race: the second gets {@code SQLITE_BUSY_SNAPSHOT}, which
+     * {@code busy_timeout} does <em>not</em> retry because waiting cannot resolve it. Two
+     * players paying at the same moment is enough to hit it. Taking the write lock up front
+     * turns that into an ordinary wait that the timeout does cover.
      */
     private String buildJdbcUrl() {
         if (settings.dialect() != SqlDialect.SQLITE) {
@@ -114,6 +122,7 @@ public final class DatabaseManager implements AutoCloseable {
         return settings.jdbcUrl()
                 + "?journal_mode=" + settings.journalMode()
                 + "&busy_timeout=" + settings.busyTimeoutMs()
+                + "&transaction_mode=IMMEDIATE"
                 + "&foreign_keys=on";
     }
 
@@ -141,6 +150,13 @@ public final class DatabaseManager implements AutoCloseable {
     /**
      * Runs {@code work} inside a transaction on the database pool. The transaction commits
      * if {@code work} returns and rolls back if it throws.
+     *
+     * <p>It also rolls back when {@code work} returns a {@link Result.Failure}. SPEC 2.3
+     * makes {@code Result} the way a service reports an expected failure instead of throwing,
+     * so without this a service that writes half of a change and then refuses the other half
+     * would commit the half it wrote: a transfer whose credit is refused would debit the
+     * sender and destroy the money. Returning a failure and wanting the writes kept is not a
+     * thing any caller should want, so the rule is unconditional.
      */
     public <R> CompletableFuture<R> transaction(SqlFunction<Connection, R> work) {
         Objects.requireNonNull(work, "work");
@@ -149,7 +165,11 @@ public final class DatabaseManager implements AutoCloseable {
             connection.setAutoCommit(false);
             try {
                 R result = work.apply(connection);
-                connection.commit();
+                if (result instanceof Result.Failure<?>) {
+                    connection.rollback();
+                } else {
+                    connection.commit();
+                }
                 return result;
             } catch (SQLException | RuntimeException e) {
                 try {

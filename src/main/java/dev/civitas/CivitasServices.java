@@ -7,7 +7,10 @@ import dev.civitas.core.claim.BorderRenderer;
 import dev.civitas.core.claim.ClaimMap;
 import dev.civitas.core.claim.ClaimRegistry;
 import dev.civitas.core.claim.ClaimService;
+import dev.civitas.core.economy.EconomyService;
 import dev.civitas.core.economy.PlayerAccountService;
+import dev.civitas.core.economy.TreasuryService;
+import dev.civitas.core.economy.UpkeepCalculator;
 import dev.civitas.core.protection.BlockClassifier;
 import dev.civitas.core.protection.ProtectionGuard;
 import dev.civitas.core.protection.ProtectionService;
@@ -33,6 +36,9 @@ public record CivitasServices(
         ProtectionService protection,
         ProtectionGuard guard,
         BlockClassifier blockClassifier,
+        EconomyService economy,
+        TreasuryService treasury,
+        UpkeepCalculator upkeep,
         PlayerAccountService accounts,
         PlayerLookup lookup) {
 }

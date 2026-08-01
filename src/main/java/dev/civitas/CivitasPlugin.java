@@ -3,10 +3,13 @@ package dev.civitas;
 import java.io.File;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.BooleanSupplier;
 import java.util.logging.Level;
 
 import dev.civitas.command.CommandRegistry;
 import dev.civitas.command.city.CityCommand;
+import dev.civitas.command.player.MoneyCommand;
+import dev.civitas.command.player.PayCommand;
 import dev.civitas.config.ConfigFile;
 import dev.civitas.config.ConfigManager;
 import dev.civitas.core.city.CityNameValidator;
@@ -18,9 +21,12 @@ import dev.civitas.core.claim.ClaimCostEngine;
 import dev.civitas.core.claim.ClaimMap;
 import dev.civitas.core.claim.ClaimRegistry;
 import dev.civitas.core.claim.ClaimService;
-import dev.civitas.core.economy.Funds;
 import dev.civitas.core.economy.PlayerAccountService;
-import dev.civitas.core.economy.StorageFunds;
+import dev.civitas.core.economy.EconomyService;
+import dev.civitas.core.economy.InflationTracker;
+import dev.civitas.core.economy.TreasuryService;
+import dev.civitas.core.economy.UpkeepCalculator;
+import dev.civitas.core.economy.UpkeepTask;
 import dev.civitas.core.protection.BlockClassifier;
 import dev.civitas.core.protection.ProtectionGuard;
 import dev.civitas.core.protection.ProtectionService;
@@ -38,6 +44,8 @@ import dev.civitas.listener.PlayerAccountListener;
 import dev.civitas.storage.BackupService;
 import dev.civitas.storage.DatabaseManager;
 import dev.civitas.storage.DatabaseSettings;
+import dev.civitas.integration.PlaceholderApiHook;
+import dev.civitas.integration.VaultEconomyProvider;
 import dev.civitas.storage.dao.DaoRegistry;
 import dev.civitas.util.EventBus;
 import dev.civitas.util.PlayerLookup;
@@ -80,7 +88,10 @@ public final class CivitasPlugin extends JavaPlugin {
 
         Scheduler scheduler = Scheduler.bukkit(this);
         CityCommand cityCommand = new CityCommand(services::get, lang, scheduler, getLogger());
-        new CommandRegistry(this, lang).registerAll(List.of(cityCommand.build()));
+        MoneyCommand moneyCommand = new MoneyCommand(services::get, lang, scheduler, getLogger());
+        PayCommand payCommand = new PayCommand(services::get, lang, scheduler, getLogger());
+        new CommandRegistry(this, lang).registerAll(
+                List.of(cityCommand.build(), moneyCommand.build(), payCommand.build()));
 
         warnIfRollbackDisabled();
         openDatabaseAsync(scheduler);
@@ -184,7 +195,14 @@ public final class CivitasPlugin extends JavaPlugin {
         this.daos = loadedDaos;
         this.backups = new BackupService(getLogger(), manager, new File(getDataFolder(), "backups"));
 
-        Funds funds = new StorageFunds(loadedDaos.players(), loadedDaos.ledger(), configs);
+        EconomyService economyService = new EconomyService(manager, loadedDaos.players(),
+                loadedDaos.ledger(), configs, getLogger());
+        economyService.loadAll().thenAccept(loaded ->
+                getLogger().info(() -> "Loaded " + loaded + " balances into the cache."));
+
+        TreasuryService treasuryService = new TreasuryService(manager, loadedDaos,
+                economyService, configs, scheduler);
+        UpkeepCalculator upkeepCalculator = new UpkeepCalculator(configs);
         PlayerAccountService accounts =
                 new PlayerAccountService(manager, loadedDaos.players(), loadedDaos.ledger(), configs);
         ClaimCostEngine costEngine = new ClaimCostEngine(configs);
@@ -193,7 +211,7 @@ public final class CivitasPlugin extends JavaPlugin {
         claimService.loadActiveMembers();
 
         CityService cityService = new CityService(manager, loadedDaos, cityRegistry, configs,
-                new CityNameValidator(configs), funds, claimService, accounts, scheduler,
+                new CityNameValidator(configs), economyService, claimService, accounts, scheduler,
                 EventBus.bukkit());
         RankService rankService = new RankService(manager, loadedDaos, scheduler, EventBus.bukkit());
         ClaimMap claimMap = new ClaimMap(claimRegistry, cityRegistry, configs, lang);
@@ -210,7 +228,8 @@ public final class CivitasPlugin extends JavaPlugin {
 
         services.set(new CivitasServices(cityRegistry, cityService, rankService, claimRegistry,
                 claimService, claimMap, borderRenderer, protection, protectionGuard,
-                blockClassifier, accounts, lookup));
+                blockClassifier, economyService, treasuryService, upkeepCalculator,
+                accounts, lookup));
 
         getServer().getPluginManager().registerEvents(
                 new PlayerAccountListener(accounts, getLogger()), this);
@@ -229,6 +248,10 @@ public final class CivitasPlugin extends JavaPlugin {
             accounts.onJoin(online.getUniqueId(), online.getName(), now);
         }
 
+        scheduleEconomy(manager, loadedDaos, cityRegistry, claimService, economyService,
+                treasuryService, upkeepCalculator, scheduler);
+        registerIntegrations(economyService);
+
         getLogger().info(() -> "Storage ready on " + settings.dialect() + ".");
         scheduleBackups(settings);
     }
@@ -244,6 +267,75 @@ public final class CivitasPlugin extends JavaPlugin {
         manager.registerEvents(new ExplosionProtectionListener(protection), this);
         manager.registerEvents(new FireAndFluidListener(protection, guard), this);
         manager.registerEvents(new PistonProtectionListener(protection), this);
+    }
+
+    /**
+     * The two economy timers: the SPEC 4.3 daily upkeep sweep and the SPEC 4.8 hourly
+     * circulation reading.
+     *
+     * <p>Both run asynchronously. The upkeep sweep is checked far more often than it charges,
+     * because a city becomes due at a wall-clock hour and the server may have been offline
+     * when it passed; the sweep itself does nothing for a city that is not yet due.
+     */
+    private void scheduleEconomy(DatabaseManager manager, DaoRegistry loadedDaos,
+                                 CityRegistry cityRegistry, ClaimService claimService,
+                                 EconomyService economyService, TreasuryService treasuryService,
+                                 UpkeepCalculator upkeepCalculator, Scheduler scheduler) {
+
+        UpkeepTask upkeep = new UpkeepTask(manager, loadedDaos, cityRegistry, claimService,
+                treasuryService, upkeepCalculator, UpkeepTask.Notifier.online(lang), scheduler,
+                getLogger(),
+                java.time.ZoneId.systemDefault());
+
+        long checkTicks = configs.get(ConfigFile.CITIES)
+                .getLong("upkeep.check-interval-minutes", 10) * 60L * 20L;
+        Bukkit.getScheduler().runTaskTimerAsynchronously(this, upkeep, checkTicks, checkTicks);
+
+        if (!configs.get(ConfigFile.ECONOMY).getBoolean("inflation.enabled", true)) {
+            return;
+        }
+        InflationTracker inflation = new InflationTracker(economyService, treasuryService,
+                loadedDaos.economySnapshots(), configs, getLogger());
+        long inflationTicks = configs.get(ConfigFile.ECONOMY)
+                .getLong("inflation.log-interval-minutes", 60) * 60L * 20L;
+        Bukkit.getScheduler().runTaskTimerAsynchronously(this, () -> {
+            long now = System.currentTimeMillis();
+            inflation.record(now).thenCompose(ignored -> inflation.prune(now));
+        }, inflationTicks, inflationTicks);
+    }
+
+    /**
+     * SPEC 20 decision 7. Both are optional and neither is required to be installed.
+     *
+     * <p>The "is it installed" test lives here rather than inside each hook, and that is not
+     * cosmetic. Both hook classes extend a type from the plugin they integrate with, so
+     * merely calling a static method on one loads its superclass and throws
+     * {@link NoClassDefFoundError} on a server without it. Short-circuiting here means the
+     * class is never touched unless the plugin is really there.
+     */
+    private void registerIntegrations(EconomyService economyService) {
+        if (hasPlugin("PlaceholderAPI") && registerQuietly("PlaceholderAPI",
+                () -> PlaceholderApiHook.register(this, services::get, configs))) {
+            getLogger().info("Registered PlaceholderAPI placeholders under %civitas_...%.");
+        }
+        if (hasPlugin("Vault") && registerQuietly("Vault",
+                () -> VaultEconomyProvider.register(this, economyService, configs))) {
+            getLogger().info("Registered as Vault's economy provider.");
+        }
+    }
+
+    private boolean hasPlugin(String name) {
+        return getServer().getPluginManager().getPlugin(name) != null;
+    }
+
+    /** An integration whose API has moved costs that integration, never the whole plugin. */
+    private boolean registerQuietly(String name, BooleanSupplier registration) {
+        try {
+            return registration.getAsBoolean();
+        } catch (LinkageError | RuntimeException e) {
+            getLogger().warning("Could not hook into " + name + ": " + e);
+            return false;
+        }
     }
 
     private void scheduleBackups(DatabaseSettings settings) {

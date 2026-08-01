@@ -21,10 +21,18 @@ repositories {
     mavenCentral()
     maven("https://repo.papermc.io/repository/maven-public/")
     maven("https://oss.sonatype.org/content/groups/public/")
+    // SPEC 20 decision 7: PlaceholderAPI and an optional Vault economy provider.
+    maven("https://repo.extendedclip.com/releases")
+    maven("https://jitpack.io")
 }
 
 dependencies {
     compileOnly("io.papermc.paper:paper-api:$paperApiVersion")
+
+    // Soft dependencies. Both are compileOnly and guarded by a runtime presence check, so
+    // the plugin works on a server that has neither installed.
+    compileOnly("me.clip:placeholderapi:2.12.3")
+    compileOnly("com.github.MilkBowl:VaultAPI:1.7.1") { isTransitive = false }
 
     // shaded into the jar
     implementation("com.zaxxer:HikariCP:5.1.0")

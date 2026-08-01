@@ -49,6 +49,12 @@ upkeep:
   delinquent-unclaim-per-day: 3  # outermost chunks first
   # SPEC 17.3 case 31: cap on missed cycles charged after downtime.
   max-catchup-cycles: 7
+  # Hours between charges. Lower it only for testing; the charge is anchored to
+  # charge-hour, so a city is billed once a day whatever this is set to.
+  charge-interval-hours: 24
+  # How often the sweep looks for cities that have come due. Cheap: a city that is
+  # not yet due costs one comparison.
+  check-interval-minutes: 10
 
 members:
   base-cap: 10
@@ -56,8 +62,10 @@ members:
   invite-expiry-minutes: 5
   # SPEC 5.3: seconds the target has to accept a mayorship transfer.
   transfer-accept-seconds: 60
-  # SPEC 8.5 / 17.6 case 71: non-mayor treasury withdrawal cap.
+  # SPEC 8.5 / 17.6 case 71: non-mayor treasury withdrawal cap, and the rolling
+  # window it is measured over.
   withdraw-percent-per-day: 25
+  withdraw-window-hours: 24
 
 spawn:
   # SPEC 5.6

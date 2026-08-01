@@ -4,6 +4,43 @@ All notable changes to CivitasCraft. One section per milestone from `PLAN.md`.
 
 ## [Unreleased]
 
+### M5, Economy core
+
+Added:
+- `EconomyService`: personal balances over a write-through cache, per-player locking, and
+  `/pay` moving both halves in one transaction. Replaces the `StorageFunds` placeholder M2
+  shipped behind the `Funds` interface.
+- `Money`: one place for reading and rounding amounts. Plain decimals only, floored rather
+  than rounded (SPEC 17.3 case 26), a configurable ceiling (case 27), and scientific
+  notation and negatives refused (SPEC 17.5 case 68).
+- `TreasuryService`: deposit, withdraw, and the SPEC 8.5 25%-per-day cap for non-mayors.
+  The cap needs no counter: it is derived from the ledger, so the limit and the audit trail
+  can never disagree.
+- `UpkeepCalculator` and `UpkeepTask`: the SPEC 4.3 daily charge, idempotent per cycle
+  (SPEC 17.3 case 33), capped catch-up after downtime (case 31), and delinquency with grace
+  warnings then auto-unclaim of the outermost chunks, three a day, retrying the charge from
+  the refunds (case 32). The core chunk is never sold.
+- `InflationTracker` and the V3 `economy_snapshots` table: hourly circulation readings and
+  the SPEC 4.8 week-over-week warning.
+- Commands: `/money`, `/balance`, `/pay`, `/city deposit`, `/city withdraw`.
+- Integrations, SPEC 20 decision 7: PlaceholderAPI placeholders under `%civitas_...%` and an
+  optional Vault economy provider.
+- Tests: the SPEC 18.1 upkeep figures for cities of 8, 50 and 200 claims; the SPEC 18.2
+  treasury deposit, withdraw and cap flow; and cases 24 to 27, 31 to 34, 68 and 71.
+
+Fixed:
+- `DatabaseManager.transaction` now rolls back when the work returns a `Result.Failure`, not
+  only when it throws. A transfer whose credit was refused was debiting the sender and
+  destroying the money.
+- SQLite connections open transactions as `IMMEDIATE`. The default deferred transaction
+  takes its write lock lazily, so two concurrent read-then-write transactions raced to
+  `SQLITE_BUSY_SNAPSHOT`, which `busy_timeout` cannot retry. Two players paying at the same
+  moment was enough to hit it.
+- The PlaceholderAPI and Vault hooks are now presence-checked by the caller. Both classes
+  extend a type from the plugin they integrate with, so calling a static method on one was
+  enough to load its superclass and throw `NoClassDefFoundError` on a server without it,
+  which aborted the rest of the startup sequence.
+
 ### M4, Land protection
 
 Added:

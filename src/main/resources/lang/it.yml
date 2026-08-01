@@ -31,6 +31,18 @@ economy:
   insufficient-funds: "<red>Ti servono <white><required> C</white> ma hai solo <white><balance> C</white>. Ti mancano <white><short> C</white>."
   amount-not-positive: "<red>L'importo deve essere maggiore di zero."
   max-balance: "<red>Il saldo supererebbe il limite del server di <white><max> C</white>."
+  amount-invalid: "<red>Non e un importo valido. Usa numeri semplici, come <white>1500</white> o <white>1500.50</white>."
+  pay-self: "<red>Non puoi pagare te stesso."
+  balance-self: "<gray>Saldo: <white><amount>"
+  balance-other: "<gray>Saldo di <player>: <white><amount>"
+  pay-sent: "<green>Hai pagato <white><amount></white> a <white><player></white>. Ora hai <white><balance></white>."
+  pay-received: "<green><player> ti ha pagato <white><amount></white>."
+  upkeep:
+    failed: "<red>La tua citta non ha potuto pagare il mantenimento di <white><amount> C</white>. Il territorio verra venduto se la situazione continua."
+    grace: "<yellow>La tua citta deve il mantenimento. Il territorio inizera a essere venduto tra <white><days></white> giorni."
+    land-sold: "<red><count> chunk sono stati venduti per coprire il mantenimento non pagato."
+    nothing-to-sell: "<red>La tua citta deve il mantenimento e non ha piu territorio da vendere. Resta solo il centro."
+    debt-cleared: "<green>La vendita del territorio ha coperto il mantenimento. Il debito e saldato."
 
 city:
   none: "<gray>Non fai parte di nessuna citta. Usa <white>/city create <nome></white> per fondarne una."
@@ -112,6 +124,9 @@ city:
 
   treasury:
     insufficient: "<red>Il tesoro necessita di <white><required> C</white> ma contiene <white><balance> C</white>."
+    deposited: "<green>Hai depositato <white><amount></white>. Il tesoro contiene ora <white><treasury></white>."
+    withdrawn: "<green>Hai prelevato <white><amount></white>. Il tesoro contiene ora <white><treasury></white>."
+    cap: "<red>Puoi prelevare al massimo il <white><percent>%</white> del tesoro al giorno, cioe <white><limit> C</white>. Hai gia prelevato <white><taken> C</white>, restano <white><remaining> C</white>."
 
   settings:
     motd-set: "<green>Messaggio del giorno aggiornato."

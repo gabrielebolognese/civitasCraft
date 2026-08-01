@@ -234,3 +234,47 @@ Format:
   M4's deliverable. *Implemented default:* M4 provides the protection-side half, a dormancy
   check in the decision path. The sweep that *sets* dormancy is still unowned and needs a
   home in a later milestone. *Date:* 2026-08-01
+
+- **[M5]** SPEC 8.5 caps a non-mayor at "25% of the treasury per 24 hours" without saying 25%
+  of *which* treasury: what it held when the window opened, or what it holds at each
+  withdrawal. *Implemented default:* of the treasury at the moment of each withdrawal.
+  Measuring against the opening balance would let a member take a quarter, wait for a large
+  deposit, and take a quarter of the larger figure, which is exactly the drain SPEC 17.6 case
+  71 exists to stop. A consequence worth knowing: taking the allowance in small bites gets
+  strictly less than taking it in one, because the allowance shrinks with the treasury it
+  measures. *Date:* 2026-08-01
+
+- **[M5]** SPEC 4.8 requires circulation to be compared week over week, but SPEC 3 defines no
+  table to keep the readings in, so there is nothing to compare against after a restart.
+  *Implemented default:* V3 adds `economy_snapshots` (timestamp, wallets, treasuries), written
+  hourly per `economy.inflation.log-interval-minutes` and pruned to
+  `economy.inflation.keep-days`. *Date:* 2026-08-01
+
+- **[M5]** SPEC 4.3's worked example, "roughly 22,700 C upkeep for a mature 100-chunk,
+  10-member city", only holds if that city bought its land at solo prices. A real 10-member
+  city pays the SPEC 6.2 member-divided price, so its land value, and therefore its 0.4%
+  upkeep, is about 2.6x lower, around 8,650 C. *Implemented default:* the formula follows SPEC
+  4.3 literally (0.4% of what the land actually cost) and both figures are asserted in
+  `UpkeepCalculatorTest`, so whichever the developer intended is visible. The margin in SPEC
+  4.3's design note is therefore wider than it reads. *Date:* 2026-08-01
+
+- **[M5]** SPEC 17.3 case 32 orders the outermost chunks auto-unclaimed for debt, but SPEC 6.1
+  forbids any unclaim that would split the city. The two can conflict: the furthest chunk may
+  be the one holding the rest together. *Implemented default:* contiguity wins. The candidate
+  list is filtered to chunks that may legally go, sorted furthest-first, and re-asked after
+  every release, because removing the furthest chunk often makes the next-furthest safe. A
+  city whose shape leaves nothing releasable simply stays in debt. *Date:* 2026-08-01
+
+- **[M5]** SPEC 4.6 lists `UPKEEP_FAILED` as a ledger type, but a failed charge moves no money
+  and SPEC 3.6 gives `ledger.amount` no nullable case. *Implemented default:* the row records
+  the amount that *would* have been taken, negative, with the treasury unchanged in
+  `balance_after` and `{"reason":"insufficient_treasury"}` in the metadata. An admin reading
+  the ledger can see what was owed, not merely that something failed. *Date:* 2026-08-01
+
+- **[M5]** SPEC 9.1 lists `/money` and `/balance` as aliases of one command, and SPEC 20
+  decision 7 wants a Vault economy provider, but Vault's `Economy` interface is synchronous
+  and SPEC 2.1 forbids database access on the server thread. *Implemented default:* Vault
+  reads are served from the in-memory balance cache and Vault writes are dispatched async and
+  reported as succeeding. Documented prominently on the class: a plugin that reads a balance
+  back immediately after writing may see the old value for a tick. *Date:* 2026-08-01
+

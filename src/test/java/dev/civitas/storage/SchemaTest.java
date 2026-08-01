@@ -92,6 +92,9 @@ class SchemaTest {
                 "spawn_z", "upkeep", "active"));
         schema.put("audit_log", List.of("id", "timestamp", "actor_uuid", "action", "target",
                 "reason", "metadata"));
+        // Added by V3: SPEC 4.8 needs circulation history that SPEC 3 does not define.
+        schema.put("economy_snapshots", List.of("id", "timestamp", "player_total",
+                "treasury_total"));
         return schema;
     }
 

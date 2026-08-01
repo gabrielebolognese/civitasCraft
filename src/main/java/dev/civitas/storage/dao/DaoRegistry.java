@@ -23,6 +23,7 @@ public final class DaoRegistry {
     private final ClaimDao claims;
     private final OutpostDao outposts;
     private final LedgerDao ledger;
+    private final EconomySnapshotDao economySnapshots;
     private final WarDao wars;
     private final WarBlockLogDao warBlockLog;
     private final WarContainerLogDao warContainerLog;
@@ -50,6 +51,7 @@ public final class DaoRegistry {
         this.claims = new ClaimDao(db);
         this.outposts = new OutpostDao(db);
         this.ledger = new LedgerDao(db);
+        this.economySnapshots = new EconomySnapshotDao(db);
         this.wars = new WarDao(db);
         this.warBlockLog = new WarBlockLogDao(db);
         this.warContainerLog = new WarContainerLogDao(db);
@@ -101,6 +103,10 @@ public final class DaoRegistry {
 
     public LedgerDao ledger() {
         return ledger;
+    }
+
+    public EconomySnapshotDao economySnapshots() {
+        return economySnapshots;
     }
 
     public WarDao wars() {
@@ -166,7 +172,7 @@ public final class DaoRegistry {
     /** Every DAO, in no particular order. Used by tests that assert across the whole set. */
     public List<Dao<?>> all() {
         return List.of(players, cities, cityRanks, cityMembers, cityInvites, cityBans, claims, outposts,
-                ledger, wars, warBlockLog, warContainerLog, warParticipants, warKills, alliances,
+                ledger, economySnapshots, wars, warBlockLog, warContainerLog, warParticipants, warKills, alliances,
                 truces, marketStock, playerQuests, contests, contestEntries, contestVotes,
                 cityUpgrades, defenseUnits, auditLog);
     }

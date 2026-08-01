@@ -171,7 +171,8 @@ public final class City {
         return upkeepDue;
     }
 
-    void setUpkeepDue(long upkeepDue) {
+    /** See {@link #setTreasury}: service-only, and public so the upkeep sweep can advance it. */
+    public void setUpkeepDue(long upkeepDue) {
         this.upkeepDue = upkeepDue;
     }
 
