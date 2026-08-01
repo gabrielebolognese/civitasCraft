@@ -210,5 +210,17 @@ claim:
       wilderness: "<white>-"
       self: "<gold><bold>@</bold></gold>"
 
+protection:
+  denied:
+    build: "<red>You cannot build in <white><city></white>."
+    container: "<red>You cannot open containers in <white><city></white>."
+    container-take: "<red>You may look inside, but not take from, containers in <white><city></white>."
+    interact: "<red>You cannot use that in <white><city></white>."
+    bucket: "<red>You cannot use buckets in <white><city></white>."
+    entity: "<red>You cannot harm that in <white><city></white>."
+    trample: "<red>You cannot trample crops in <white><city></white>."
+    villager: "<red>You cannot trade in <white><city></white>."
+    pvp: "<red>Combat is disabled in <white><city></white> outside of war."
+
 chat:
   city-format: "<gray>[<white><tag></white><gray>] "

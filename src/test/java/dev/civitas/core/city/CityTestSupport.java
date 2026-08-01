@@ -16,6 +16,7 @@ import dev.civitas.core.claim.ClaimService;
 import dev.civitas.core.economy.Funds;
 import dev.civitas.core.economy.PlayerAccountService;
 import dev.civitas.core.economy.StorageFunds;
+import dev.civitas.core.protection.ProtectionService;
 import dev.civitas.storage.DatabaseManager;
 import dev.civitas.storage.DatabaseSettings;
 import dev.civitas.storage.SqlDialect;
@@ -45,6 +46,7 @@ public final class CityTestSupport implements AutoCloseable {
     public final ClaimRegistry claimRegistry;
     public final ClaimCostEngine costs;
     public final ClaimService claims;
+    public final ProtectionService protection;
     public final PlayerAccountService accounts;
     public final Funds funds;
 
@@ -72,6 +74,7 @@ public final class CityTestSupport implements AutoCloseable {
         this.cities = new CityService(db, daos, registry, configs,
                 new CityNameValidator(configs), funds, claims, accounts, Scheduler.direct(), events);
         this.ranks = new RankService(db, daos, Scheduler.direct(), events);
+        this.protection = new ProtectionService(claimRegistry, registry, configs);
     }
 
     public static CityTestSupport open(Path directory) {

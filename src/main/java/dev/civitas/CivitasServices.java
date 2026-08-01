@@ -8,6 +8,9 @@ import dev.civitas.core.claim.ClaimMap;
 import dev.civitas.core.claim.ClaimRegistry;
 import dev.civitas.core.claim.ClaimService;
 import dev.civitas.core.economy.PlayerAccountService;
+import dev.civitas.core.protection.BlockClassifier;
+import dev.civitas.core.protection.ProtectionGuard;
+import dev.civitas.core.protection.ProtectionService;
 import dev.civitas.util.PlayerLookup;
 
 /**
@@ -27,6 +30,9 @@ public record CivitasServices(
         ClaimService claims,
         ClaimMap map,
         BorderRenderer borders,
+        ProtectionService protection,
+        ProtectionGuard guard,
+        BlockClassifier blockClassifier,
         PlayerAccountService accounts,
         PlayerLookup lookup) {
 }

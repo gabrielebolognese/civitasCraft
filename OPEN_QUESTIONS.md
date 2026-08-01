@@ -187,3 +187,50 @@ Format:
   slot 16). *Implemented default:* retargeted to M8. M3 still owns the claim-side half:
   unclaiming is refused on the spawn chunk, and SPEC 17.2 case 22 resets a stranded spawn to
   the core. *Date:* 2026-07-31
+
+- **[M4]** SPEC 5.5 enumerates the protected containers and interactables by name, but a
+  hand-written list of `Material` constants stops protecting new wood types the day they
+  ship. *Implemented default:* classified through Bukkit's own tags (`Tag.DOORS`,
+  `Tag.BUTTONS`, `Tag.PRESSURE_PLATES`, `Tag.BEDS`, `Tag.SHULKER_BOXES` and so on) plus the
+  explicit SPEC list where no tag exists, with `protection.extra-containers`,
+  `protection.extra-interactables` and `protection.unprotected` for operator overrides in
+  either direction. Ender chests are deliberately unprotected: SPEC 5.5 does not list them
+  and opening one shows the viewer their own inventory, so there is nothing to steal.
+  *Date:* 2026-08-01
+
+- **[M4]** SPEC 5.5 lists the protected actions but not which SPEC 5.4 flag each maps to.
+  *Implemented default:* buckets, farmland trampling and entity damage are all gated on
+  `BUILD`, because each destroys or changes what the city built; doors, plates and the rest
+  on `INTERACT`; containers on `CONTAINER`, with `CONTAINER_READONLY` sufficient to open but
+  not to take. The mapping lives in one enum so it can be read and changed in one place.
+  *Date:* 2026-08-01
+
+- **[M4]** SPEC 5.4 defines `CONTAINER_READONLY` as "open but not remove items", which cannot
+  be enforced by allowing or denying the open alone. *Implemented default:* every
+  `InventoryClickEvent` that would take from the container is checked against `CONTAINER`
+  separately, covering pickups, shift-moves, hotbar swaps, drops and the double-click sweep.
+  Depositing is left alone, since SPEC says "remove". *Date:* 2026-08-01
+
+- **[M4]** SPEC 5.5 says an explosion is "fully disabled" inside claims, which could mean
+  cancelling the event or removing the protected blocks from it. *Implemented default:*
+  filtered the block list. An explosion straddling a border still flattens the wilderness
+  half; cancelling outright would let a city's edge act as a shield for the land outside it.
+  *Date:* 2026-08-01
+
+- **[M4]** A claim whose city cannot be found is a state the game does not produce, since
+  disbanding deletes the claims with the city. *Implemented default:* it reads as
+  wilderness. Failing closed would freeze that land permanently with nobody able to release
+  it; failing open lets an admin or a player clear it up. *Date:* 2026-08-01
+
+- **[M4]** SPEC 5.5's four "except in war" clauses, and SPEC 17.1 case 2's dormant cities,
+  both need systems that do not exist (M19 and the inactivity sweep). *Implemented default:*
+  three named methods on `ProtectionService` that always answer "no war, not dormant", so
+  the branches already exist and the milestone that adds either changes one method rather
+  than auditing eight listeners. *Date:* 2026-08-01
+
+- **[M4]** M2 deferred SPEC 17.1 cases 1 to 3, the inactivity sweeps, to M4 on the grounds
+  that cases 2 and 3 turn on claims becoming unprotected. Delivering them needs a V3
+  migration for a dormancy column and a scheduled maintenance task, neither of which is in
+  M4's deliverable. *Implemented default:* M4 provides the protection-side half, a dormancy
+  check in the decision path. The sweep that *sets* dormancy is still unowned and needs a
+  home in a later milestone. *Date:* 2026-08-01

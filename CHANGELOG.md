@@ -4,6 +4,32 @@ All notable changes to CivitasCraft. One section per milestone from `PLAN.md`.
 
 ## [Unreleased]
 
+### M4, Land protection
+
+Added:
+- `ProtectionService`: every rule in SPEC 5.5 as pure functions over the claim and city
+  caches, taking no Bukkit types. Bypass, then wilderness, then dormancy, then war, then
+  membership; each is a reason the answer is yes before membership is consulted.
+- `ProtectionAction`: the mapping from SPEC 5.5's prose to SPEC 5.4's flags, in one enum.
+- `BlockClassifier`: which blocks are containers and which are interactables, built from
+  Bukkit's own tags so a new wood type is protected the day it ships, with config overrides
+  in both directions.
+- `ProtectionGuard`: the bridge from events to the service, resolving `civitas.bypass.claim`
+  and throttling refusals so holding down left-click does not print twenty lines a second.
+- Eight listeners covering block break and place, multi-block placement, containers, the
+  read-only take distinction, interaction, item frames, armor stands, hanging entities,
+  buckets, entity damage, PvP, explosions, fire, fluid flow, ignition and pistons.
+- `civitas.bypass.claim` is enforced, having been declared since M0 and honoured nowhere.
+- Config: `protection.deny-message-cooldown-ms`, `protection.extra-containers`,
+  `protection.extra-interactables`, `protection.unprotected`.
+- Tests: the full SPEC 5.5 decision matrix without a server, the block classification, and
+  end-to-end listener checks under MockBukkit, including the SPEC 18.2 requirement that a
+  rank's permissions are enforced on a block break.
+
+Changed:
+- `PlayerInteractEvent` refusals deny the block rather than cancelling the whole event, so a
+  player can still eat an apple while looking at someone else's door.
+
 ### M3, Claim system
 
 Added:

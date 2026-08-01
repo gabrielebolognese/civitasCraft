@@ -146,6 +146,16 @@ upgrades:
 protection:
   # SPEC 5.5. Villager trading inside claims is a toggle, default allowed.
   allow-villager-trading: true
+  # How long to wait before repeating a refusal to the same player, in milliseconds.
+  # Holding down left-click inside a claim would otherwise print one line per tick.
+  deny-message-cooldown-ms: 2000
+  # Blocks protected in addition to the SPEC 5.5 list. Most blocks are classified
+  # from Bukkit's own tags, so doors and buttons of any wood are already covered;
+  # these lists exist for anything a particular server wants to add or exempt.
+  extra-containers: []
+  extra-interactables: []
+  # Blocks left unprotected even though the rules above would cover them.
+  unprotected: []
 
 chat:
   # SPEC 20 decision 6: prefix chat with the city tag via a low-priority handler.

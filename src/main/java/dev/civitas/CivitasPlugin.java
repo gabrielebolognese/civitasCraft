@@ -21,9 +21,19 @@ import dev.civitas.core.claim.ClaimService;
 import dev.civitas.core.economy.Funds;
 import dev.civitas.core.economy.PlayerAccountService;
 import dev.civitas.core.economy.StorageFunds;
+import dev.civitas.core.protection.BlockClassifier;
+import dev.civitas.core.protection.ProtectionGuard;
+import dev.civitas.core.protection.ProtectionService;
 import dev.civitas.lang.LangManager;
+import dev.civitas.listener.BlockProtectionListener;
 import dev.civitas.listener.CityChatListener;
 import dev.civitas.listener.ClaimBoundaryListener;
+import dev.civitas.listener.ContainerProtectionListener;
+import dev.civitas.listener.EntityProtectionListener;
+import dev.civitas.listener.ExplosionProtectionListener;
+import dev.civitas.listener.FireAndFluidListener;
+import dev.civitas.listener.InteractionProtectionListener;
+import dev.civitas.listener.PistonProtectionListener;
 import dev.civitas.listener.PlayerAccountListener;
 import dev.civitas.storage.BackupService;
 import dev.civitas.storage.DatabaseManager;
@@ -191,10 +201,16 @@ public final class CivitasPlugin extends JavaPlugin {
                 new BorderRenderer(this, claimRegistry, configs, getLogger());
         PlayerLookup lookup = new PlayerLookup(loadedDaos.players());
 
+        ProtectionService protection =
+                new ProtectionService(claimRegistry, cityRegistry, configs);
+        ProtectionGuard protectionGuard = new ProtectionGuard(protection, lang);
+        BlockClassifier blockClassifier = new BlockClassifier(configs, getLogger());
+
         this.borders = borderRenderer;
 
         services.set(new CivitasServices(cityRegistry, cityService, rankService, claimRegistry,
-                claimService, claimMap, borderRenderer, accounts, lookup));
+                claimService, claimMap, borderRenderer, protection, protectionGuard,
+                blockClassifier, accounts, lookup));
 
         getServer().getPluginManager().registerEvents(
                 new PlayerAccountListener(accounts, getLogger()), this);
@@ -202,6 +218,10 @@ public final class CivitasPlugin extends JavaPlugin {
                 new CityChatListener(cityRegistry, configs, lang), this);
         getServer().getPluginManager().registerEvents(
                 new ClaimBoundaryListener(cityRegistry, claimService, borderRenderer, lang), this);
+
+        // SPEC 5.5, the land protection listeners. Registered together so it is obvious at a
+        // glance which events the plugin guards.
+        registerProtection(protectionGuard, protection, blockClassifier);
 
         // Anyone already online, on a /reload, never fired a join event for us.
         long now = System.currentTimeMillis();
@@ -211,6 +231,19 @@ public final class CivitasPlugin extends JavaPlugin {
 
         getLogger().info(() -> "Storage ready on " + settings.dialect() + ".");
         scheduleBackups(settings);
+    }
+
+    /** Every SPEC 5.5 listener. */
+    private void registerProtection(ProtectionGuard guard, ProtectionService protection,
+                                    BlockClassifier blocks) {
+        var manager = getServer().getPluginManager();
+        manager.registerEvents(new BlockProtectionListener(guard), this);
+        manager.registerEvents(new ContainerProtectionListener(guard, blocks), this);
+        manager.registerEvents(new InteractionProtectionListener(guard, blocks), this);
+        manager.registerEvents(new EntityProtectionListener(guard), this);
+        manager.registerEvents(new ExplosionProtectionListener(protection), this);
+        manager.registerEvents(new FireAndFluidListener(protection, guard), this);
+        manager.registerEvents(new PistonProtectionListener(protection), this);
     }
 
     private void scheduleBackups(DatabaseSettings settings) {

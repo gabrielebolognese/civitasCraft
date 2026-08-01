@@ -5,7 +5,7 @@
 
 ## Current session focus
 
-**Next milestone:** M4, Land protection
+**Next milestone:** M5, Economy core
 
 ## Session protocol
 
@@ -27,7 +27,7 @@
 | 1 | Storage layer | M0 | DONE | Hikari, migration runner, all SPEC 3 tables, 23 DAOs, async guard, backups. 136 tests. MySQL path untested locally. |
 | 2 | Core city model | M1 | DONE | Entities, registry, CityService, RankService, 22-flag bitmask, events, /city tree, chat tag. V2 migration. 275 tests. |
 | 3 | Claim system | M2 | DONE | Cost engine, adjacency, contiguity, claim/unclaim/radius, packed-key cache, map, borders. 397 tests. |
-| 4 | Land protection | M3 | TODO | |
+| 4 | Land protection | M3 | DONE | All SPEC 5.5 listeners behind one pure ProtectionService. Bypass enforced. 487 tests. |
 | 5 | Economy core | M2 | TODO | |
 | 6 | Market and player shops | M5 | TODO | |
 | 7 | GUI framework | M2 | TODO | |
