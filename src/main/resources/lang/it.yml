@@ -289,3 +289,17 @@ shop:
   sold: "<green>Hai venduto <white><amount>x <item></white> per <white><price></white>. Saldo: <white><balance></white>."
   owner-sold: "<gray><player> ha comprato <white><amount>x <item></white> dal tuo negozio per <white><price></white>."
   owner-bought: "<gray><player> ha venduto <white><amount>x <item></white> al tuo negozio per <white><price></white>."
+
+gui:
+  back: "<gray>Indietro"
+  close: "<red>Chiudi"
+  confirm: "<green>Conferma"
+  cancel: "<red>Annulla"
+  previous-page: "<gray>Pagina precedente <dark_gray>(<page>)"
+  next-page: "<gray>Pagina successiva <dark_gray>(<page>)"
+  no-permission: "<red>Ti serve <white><permission></white> nella tua citta per usare questo."
+  input:
+    how-to-cancel: "<gray>Scrivi l'importo in chat, oppure <white><word></white> per annullare."
+    cancelled: "<gray>Annullato."
+    timed-out: "<gray>Hai impiegato troppo tempo; non e stato cambiato nulla."
+    amount: "<yellow>Scrivi un importo in chat."

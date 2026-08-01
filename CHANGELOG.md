@@ -4,6 +4,40 @@ All notable changes to CivitasCraft. One section per milestone from `PLAN.md`.
 
 ## [Unreleased]
 
+### M7, GUI framework
+
+Added:
+- `Menu`: the base screen. Owns the inventory, the SPEC 8.2 furniture, and the rule that a
+  click is dispatched only after the button's own permission test has been asked again.
+- `Button`: an icon, a label, and a permission that is a function rather than a flag, so
+  SPEC 17.5 case 59 (revoked while the menu is open) is answered by construction. A button
+  the viewer may not use renders as a barrier carrying the reason, SPEC 8.2.
+- `MenuListener`: cancels every click and drag in a menu before reading anything about it,
+  then dispatches. Shift-clicks, number-key swaps, offhand swaps, double-click sweeps and
+  drops from the player's own inventory are refused; ordinary clicks on their own items are
+  not. Cases 61 to 63.
+- `PaginatedMenu`: previous on 48, next on 50, 28 entries a page, and the page clamped on
+  every draw so a list that shrinks under an open menu still lands somewhere real (case 64).
+- `ConfirmationMenu`: Confirm on 29, Cancel on 33, decided exactly once, and closing the
+  window is a cancel (case 66).
+- `MenuManager`: open sessions, the SPEC 8.2 20-tick refresh for menus showing live data, and
+  force-closing by predicate for SPEC 17.1 case 11 and SPEC 17.5 case 60.
+- `LayoutLoader` and `MenuLayout`: the YAML layouts SPEC 8 requires. The file owns appearance
+  and position, Java owns behaviour. A bad entry costs that button and is logged with the
+  file and key that caused it; it never costs the screen.
+- `AmountInput`: the SPEC 8.5 custom-amount prompt, parsing strictly through `Money`, so
+  letters, negatives and scientific notation are refused and the prompt repeats (cases 67
+  and 68).
+- `Icons`: one place that builds an item from a component, with the italics Minecraft adds to
+  custom names turned off.
+- `gui/common.yml`: the SPEC 8.2 constants in one file, copied out on first run.
+- Tests: one per SPEC 17.5 case 59 to 68, plus the SPEC 18.2 click-validation-with-a-revoked-
+  permission requirement, the layout loader against malformed files, and pagination against
+  a list that changes size while open.
+
+Note: M7 ships no screens. Nothing player-visible changes until M8 builds the menus in SPEC
+Section 8 on top of this.
+
 ### M6, Market and player shops
 
 Added:

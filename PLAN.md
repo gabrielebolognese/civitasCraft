@@ -5,7 +5,7 @@
 
 ## Current session focus
 
-**Next milestone:** M7, GUI framework
+**Next milestone:** M8, All GUI screens
 
 ## Session protocol
 
@@ -30,7 +30,7 @@
 | 4 | Land protection | M3 | DONE | All SPEC 5.5 listeners behind one pure ProtectionService. Bypass enforced. 487 tests. |
 | 5 | Economy core | M2 | DONE | Balances, treasury with the 25% cap, ledger, /pay, upkeep sweep with delinquency and auto-unclaim, inflation tracking, PlaceholderAPI and Vault. |
 | 6 | Market and player shops | M5 | DONE | Dynamic pricing, /shop /sell /worth, chest shops, V4 migration. /shop is chat until M8 gives it a menu. |
-| 7 | GUI framework | M2 | TODO | |
+| 7 | GUI framework | M2 | DONE | Menu, Button, pagination, confirmations, YAML layouts, click hardening for cases 59 to 68. No screens: those are M8. |
 | 8 | All GUI screens | M7, M3, M5 | TODO | |
 | 9 | Income systems | M5 | TODO | |
 | 10 | Outposts | M3, M5 | TODO | |

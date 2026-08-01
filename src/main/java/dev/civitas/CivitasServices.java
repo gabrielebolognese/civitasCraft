@@ -17,6 +17,9 @@ import dev.civitas.core.protection.BlockClassifier;
 import dev.civitas.core.protection.ProtectionGuard;
 import dev.civitas.core.protection.ProtectionService;
 import dev.civitas.core.shop.PlayerShopService;
+import dev.civitas.gui.framework.AmountInput;
+import dev.civitas.gui.framework.LayoutLoader;
+import dev.civitas.gui.framework.MenuManager;
 import dev.civitas.util.PlayerLookup;
 
 /**
@@ -45,6 +48,9 @@ public record CivitasServices(
         MarketService market,
         MarketItemFilter marketFilter,
         PlayerShopService shops,
+        MenuManager menus,
+        LayoutLoader layouts,
+        AmountInput amountInput,
         PlayerAccountService accounts,
         PlayerLookup lookup) {
 }

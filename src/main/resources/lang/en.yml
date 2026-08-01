@@ -289,3 +289,17 @@ shop:
   sold: "<green>Sold <white><amount>x <item></white> for <white><price></white>. Balance: <white><balance></white>."
   owner-sold: "<gray><player> bought <white><amount>x <item></white> from your shop for <white><price></white>."
   owner-bought: "<gray><player> sold <white><amount>x <item></white> to your shop for <white><price></white>."
+
+gui:
+  back: "<gray>Back"
+  close: "<red>Close"
+  confirm: "<green>Confirm"
+  cancel: "<red>Cancel"
+  previous-page: "<gray>Previous page <dark_gray>(<page>)"
+  next-page: "<gray>Next page <dark_gray>(<page>)"
+  no-permission: "<red>You need <white><permission></white> in your city to use this."
+  input:
+    how-to-cancel: "<gray>Type the amount in chat, or <white><word></white> to stop."
+    cancelled: "<gray>Cancelled."
+    timed-out: "<gray>You took too long; nothing was changed."
+    amount: "<yellow>Type an amount in chat."

@@ -17,7 +17,9 @@ public enum ConfigFile {
     /** The defense unit catalogue and its placement and behaviour rules. SPEC 12. */
     DEFENSE("defense.yml"),
     /** Scheduled server events and the building contest cycle. SPEC 13.4 and 13.5. */
-    EVENTS("events.yml");
+    EVENTS("events.yml"),
+    /** Shared GUI furniture: the slots and icons SPEC 8.2 fixes for every menu. */
+    GUI("gui/common.yml");
 
     private final String fileName;
 

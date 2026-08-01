@@ -40,6 +40,10 @@ import dev.civitas.core.protection.ProtectionGuard;
 import dev.civitas.core.protection.ProtectionService;
 import dev.civitas.core.shop.PlayerShopService;
 import dev.civitas.core.shop.ShopSign;
+import dev.civitas.gui.framework.AmountInput;
+import dev.civitas.gui.framework.LayoutLoader;
+import dev.civitas.gui.framework.MenuListener;
+import dev.civitas.gui.framework.MenuManager;
 import dev.civitas.lang.LangManager;
 import dev.civitas.listener.BlockProtectionListener;
 import dev.civitas.listener.CityChatListener;
@@ -87,6 +91,7 @@ public final class CivitasPlugin extends JavaPlugin {
     private DaoRegistry daos;
     private BackupService backups;
     private BorderRenderer borders;
+    private MenuManager menus;
 
     private final AtomicReference<CivitasServices> services = new AtomicReference<>();
 
@@ -123,6 +128,11 @@ public final class CivitasPlugin extends JavaPlugin {
         CivitasServices current = services.getAndSet(null);
         if (current != null) {
             current.accounts().clearSessions();
+        }
+        if (menus != null) {
+            // Nobody should be left holding a window into a plugin that is gone.
+            menus.closeAll();
+            menus = null;
         }
         if (borders != null) {
             borders.stopAll();
@@ -249,6 +259,11 @@ public final class CivitasPlugin extends JavaPlugin {
                 marketRegistry, pricing, economyService, configs);
         MarketItemFilter marketFilter = new MarketItemFilter(configs);
 
+        MenuManager menuManager = new MenuManager(configs, lang);
+        LayoutLoader layoutLoader = new LayoutLoader(dev.civitas.config.PluginResources.of(this));
+        AmountInput amountInput = new AmountInput(menuManager, lang, scheduler);
+        this.menus = menuManager;
+
         PlayerShopService shopService =
                 new PlayerShopService(loadedDaos.playerShops(), economyService);
         shopService.loadAll().thenAccept(loaded ->
@@ -259,7 +274,8 @@ public final class CivitasPlugin extends JavaPlugin {
         services.set(new CivitasServices(cityRegistry, cityService, rankService, claimRegistry,
                 claimService, claimMap, borderRenderer, protection, protectionGuard,
                 blockClassifier, economyService, treasuryService, upkeepCalculator,
-                marketService, marketFilter, shopService, accounts, lookup));
+                marketService, marketFilter, shopService, menuManager, layoutLoader,
+                amountInput, accounts, lookup));
 
         getServer().getPluginManager().registerEvents(
                 new PlayerAccountListener(accounts, getLogger()), this);
@@ -279,6 +295,12 @@ public final class CivitasPlugin extends JavaPlugin {
                 new ShopInteractListener(shopService, configs, lang, scheduler, getLogger()), this);
 
         scheduleMarketDecay(marketRegistry, pricing, loadedDaos);
+
+        // SPEC 8.2, the GUI framework. Registered before any screen exists so that M8 adds
+        // menus rather than plumbing.
+        getServer().getPluginManager().registerEvents(new MenuListener(menuManager), this);
+        getServer().getPluginManager().registerEvents(amountInput, this);
+        scheduleMenuRefresh(menuManager);
 
         // Anyone already online, on a /reload, never fired a join event for us.
         long now = System.currentTimeMillis();
@@ -396,6 +418,17 @@ public final class CivitasPlugin extends JavaPlugin {
         StockDecayTask decay = new StockDecayTask(marketRegistry, pricing,
                 loadedDaos.marketStock(), getLogger());
         Bukkit.getScheduler().runTaskTimerAsynchronously(this, decay, ticks, ticks);
+    }
+
+    /**
+     * The SPEC 8.2 refresh tick: every open menu showing live data is redrawn on a timer.
+     *
+     * <p>On the server thread, because it writes to inventories, and cheap: menus that do not
+     * declare themselves live are skipped, and a server with none open does nothing at all.
+     */
+    private void scheduleMenuRefresh(MenuManager menuManager) {
+        long ticks = Math.max(1L, menuManager.refreshTicks());
+        Bukkit.getScheduler().runTaskTimer(this, menuManager::refreshLive, ticks, ticks);
     }
 
     private void scheduleBackups(DatabaseSettings settings) {

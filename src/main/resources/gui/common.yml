@@ -1,0 +1,48 @@
+# Shared GUI furniture, SPEC 8.2.
+#
+# Every menu in SPEC Section 8 sits on this. The slots below are the ones SPEC 8.2 fixes by
+# number, so changing them here changes them everywhere at once rather than in twelve screen
+# files. The refresh rate lives in config.yml under performance.gui-refresh-ticks, because
+# it is a performance knob rather than a layout one.
+
+# 6 rows of 9, SPEC 8.2. Menus may use fewer, never more.
+size: 54
+
+border:
+  enabled: true
+  # A single space for the name and no lore, SPEC 8.2, so the pane reads as furniture.
+  material: GRAY_STAINED_GLASS_PANE
+
+navigation:
+  back-slot: 45
+  back-material: ARROW
+  close-slot: 49
+  close-material: BARRIER
+
+pagination:
+  previous-slot: 48
+  next-slot: 50
+  arrow-material: SPECTRAL_ARROW
+
+confirmation:
+  confirm-slot: 29
+  confirm-material: LIME_CONCRETE
+  cancel-slot: 33
+  cancel-material: RED_CONCRETE
+  # SPEC 17.5 case 66: closing the window is a cancel, never a confirm.
+  close-is-cancel: true
+
+denied:
+  # SPEC 8.2: a button the viewer may not use renders as a barrier explaining why, and
+  # clicking it does nothing but play this sound.
+  material: BARRIER
+  sound: BLOCK_NOTE_BLOCK_BASS
+  volume: 1.0
+  pitch: 1.0
+
+input:
+  # SPEC 8.5 asks for a prompt when a player types their own amount. Typing it in chat needs
+  # no client mod and no fake anvil, and it is the only form that cannot be desynchronised
+  # by a lag spike mid-edit.
+  timeout-seconds: 30
+  cancel-word: cancel

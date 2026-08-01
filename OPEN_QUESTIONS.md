@@ -317,3 +317,41 @@ Format:
   method returning 0, so everyone pays the full rate until the upgrade exists. Likewise the
   SPEC 11.9 winner's +10% sell bonus is a method returning 1 until M19. Nobody receives a
   discount they have not bought. *Date:* 2026-08-01
+
+- **[M7]** SPEC 8.5 asks for "sign-input or anvil-input" when a player types their own amount,
+  but both mean showing a second fake window: an anvil prompt is a real anvil inventory whose
+  rename field is read, and a sign prompt is a sign the client is told to edit. Both can
+  desynchronise, and neither is a thing SPEC describes the behaviour of. *Implemented
+  default:* the prompt closes the menu and asks in chat, with a configurable cancel word and
+  timeout. SPEC 17.5 cases 67 and 68 are questions about parsing rather than about the
+  widget, and are answered identically either way. If the developer wants the anvil, it
+  replaces one class and no caller. *Date:* 2026-08-01
+
+- **[M7]** SPEC 8 requires every menu to be defined in YAML "so layouts can be changed without
+  recompiling", but does not say how much of a menu lives in the file. Putting the click
+  actions there would let an operator wire the Disband button to something else by editing a
+  text file. *Implemented default:* the file owns appearance and position, Java owns
+  behaviour. A layout entry names a slot, a material, a label key and lore keys; nothing in
+  it names an action. Entries are looked up by key, so moving a button in the file does not
+  move it in the code. *Date:* 2026-08-01
+
+- **[M7]** SPEC 17.5 case 61 says every click and drag in a plugin GUI is "cancelled
+  unconditionally", which read literally would also cancel a player rearranging their own
+  hotbar while a menu happens to be open. *Implemented default:* unconditional inside the
+  menu itself, and inside the player's own inventory only for the click types that can move
+  an item into the menu (shift-click, number key, offhand swap, double-click, drop). A plain
+  click on their own items is left alone, because their items are their own.
+  *Date:* 2026-08-01
+
+- **[M7]** SPEC 8.2 fixes Back on slot 45 and Close on 49, and SPEC 8.2 also puts the
+  pagination arrows on 48 and 50, all of which sit on the bottom border row. *Implemented
+  default:* the border is drawn first and buttons paint over it, so a page with no next page
+  shows the border pane rather than a hole. A missing arrow is therefore invisible rather
+  than greyed out, which SPEC does not specify but is the only option that leaves the row
+  looking deliberate. *Date:* 2026-08-01
+
+- **[M7]** SPEC 19 gives M7 no screens, so nothing in the framework would ever have been run
+  before M8. *Implemented default:* two minimal menus in the *test* sources only, driving the
+  listener tests against real inventories. No screen, no command and no layout file beyond
+  the shared `gui/common.yml` ships in M7, because SPEC 8's screens are M8's deliverable.
+  *Date:* 2026-08-01
