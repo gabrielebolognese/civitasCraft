@@ -4,6 +4,38 @@ All notable changes to CivitasCraft. One section per milestone from `PLAN.md`.
 
 ## [Unreleased]
 
+### M6, Market and player shops
+
+Added:
+- `MarketPricing`: the SPEC 4.4 curve, pure and config-driven, with the clamp that keeps a
+  flooded item from falling to nothing and a bought-out one from costing unbounded money.
+  Batches walk the curve unit by unit rather than being priced once at the opening price.
+- `MarketRegistry`: the catalogue from `economy.yml` and live stock in memory, written
+  through to `market_stock` as SQL arithmetic so two sales in a tick cannot lose each other.
+  A config reload keeps stock, because a reload must not hand players a price reset.
+- `MarketService`: buy, sell and quote. Items are taken from the inventory before the sale
+  and put back if it fails, never the other way round. The SPEC 4.3 sale tax is written to
+  the ledger as its own row and credited to nobody, because it is deleted from circulation.
+- `MarketItemFilter`: SPEC 17.3 cases 29 and 30, refusing damaged, enchanted, renamed and
+  filled-container items, each behind its own config toggle.
+- `StockDecayTask`: the SPEC 4.4 drift back toward target, so no item stays permanently dead.
+- `ShopSign`, `ShopTerms`, `PlayerShop`, `PlayerShopService`: SPEC 4.5 chest shops, untaxed
+  by design. Sign parsing refuses a shop that buys higher than it sells, which would
+  otherwise be a money pump anyone could run against the owner.
+- `ShopSignListener` and `ShopInteractListener`: creation on a sign attached to a container
+  where the player may build, right-click to buy, shift-right-click to sell, and removal when
+  either the sign or the chest is destroyed.
+- V4 `player_shops`, which SPEC 3 lists no table for and M1 deferred to this milestone.
+- Commands: `/shop`, `/shop buy`, `/sell hand`, `/sell all`, `/worth`.
+- Config: `market.decay-interval-minutes`, `player-shops.max-quantity-per-transaction`.
+- Tests: the SPEC 18.1 price formula at stock 0, at target, at 10x target and at both clamp
+  boundaries, plus cases 28, 29, 30 and 75, the shop sign grammar, and the full trade both
+  ways including what happens when either side cannot complete it.
+
+Changed:
+- `EconomyService.transfer` generalises `pay` over the ledger type, so a shop sale is
+  searchable as `PLAYER_SHOP` rather than hidden among ordinary payments.
+
 ### M5, Economy core
 
 Added:

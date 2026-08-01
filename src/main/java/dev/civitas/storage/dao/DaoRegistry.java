@@ -32,6 +32,7 @@ public final class DaoRegistry {
     private final AllianceDao alliances;
     private final TruceDao truces;
     private final MarketStockDao marketStock;
+    private final PlayerShopDao playerShops;
     private final PlayerQuestDao playerQuests;
     private final ContestDao contests;
     private final ContestEntryDao contestEntries;
@@ -60,6 +61,7 @@ public final class DaoRegistry {
         this.alliances = new AllianceDao(db);
         this.truces = new TruceDao(db);
         this.marketStock = new MarketStockDao(db);
+        this.playerShops = new PlayerShopDao(db);
         this.playerQuests = new PlayerQuestDao(db);
         this.contests = new ContestDao(db);
         this.contestEntries = new ContestEntryDao(db);
@@ -141,6 +143,10 @@ public final class DaoRegistry {
         return marketStock;
     }
 
+    public PlayerShopDao playerShops() {
+        return playerShops;
+    }
+
     public PlayerQuestDao playerQuests() {
         return playerQuests;
     }
@@ -173,7 +179,7 @@ public final class DaoRegistry {
     public List<Dao<?>> all() {
         return List.of(players, cities, cityRanks, cityMembers, cityInvites, cityBans, claims, outposts,
                 ledger, economySnapshots, wars, warBlockLog, warContainerLog, warParticipants, warKills, alliances,
-                truces, marketStock, playerQuests, contests, contestEntries, contestVotes,
+                truces, marketStock, playerShops, playerQuests, contests, contestEntries, contestVotes,
                 cityUpgrades, defenseUnits, auditLog);
     }
 }

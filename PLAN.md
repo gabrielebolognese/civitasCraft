@@ -5,7 +5,7 @@
 
 ## Current session focus
 
-**Next milestone:** M6, Market and player shops
+**Next milestone:** M7, GUI framework
 
 ## Session protocol
 
@@ -29,7 +29,7 @@
 | 3 | Claim system | M2 | DONE | Cost engine, adjacency, contiguity, claim/unclaim/radius, packed-key cache, map, borders. 397 tests. |
 | 4 | Land protection | M3 | DONE | All SPEC 5.5 listeners behind one pure ProtectionService. Bypass enforced. 487 tests. |
 | 5 | Economy core | M2 | DONE | Balances, treasury with the 25% cap, ledger, /pay, upkeep sweep with delinquency and auto-unclaim, inflation tracking, PlaceholderAPI and Vault. |
-| 6 | Market and player shops | M5 | TODO | |
+| 6 | Market and player shops | M5 | DONE | Dynamic pricing, /shop /sell /worth, chest shops, V4 migration. /shop is chat until M8 gives it a menu. |
 | 7 | GUI framework | M2 | TODO | |
 | 8 | All GUI screens | M7, M3, M5 | TODO | |
 | 9 | Income systems | M5 | TODO | |

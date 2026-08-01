@@ -200,4 +200,16 @@ public abstract class Dao<T> {
     protected BigDecimal money(ResultSet resultSet, String column) throws SQLException {
         return dialect().getMoney(resultSet, column);
     }
+
+    /**
+     * Reads a nullable monetary column.
+     *
+     * <p>{@link SqlDialect#getMoney} reads SQL NULL as zero, which is right for a balance
+     * and wrong for a price: a shop that does not buy and a shop that buys for nothing are
+     * different offers.
+     */
+    protected BigDecimal nullableMoney(ResultSet resultSet, String column) throws SQLException {
+        BigDecimal value = money(resultSet, column);
+        return resultSet.wasNull() ? null : value;
+    }
 }

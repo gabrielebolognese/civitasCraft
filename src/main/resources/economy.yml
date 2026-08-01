@@ -63,6 +63,10 @@ market:
   buy-spread: 1.35
   # Stock decays toward target_stock by this fraction each hour, SPEC 4.4.
   stock-decay-percent-per-hour: 2.0
+  # How often the decay above is applied. SPEC 4.4 states the rate per hour, so the
+  # interval matches it: a shorter interval at the same percentage would decay faster
+  # than the documented rate.
+  decay-interval-minutes: 60
   # SPEC 17.3 case 29 and 30: the market only accepts plain vanilla items.
   reject-damaged: true
   reject-enchanted: true
@@ -101,6 +105,9 @@ player-shops:
   tax-percent: 0
   default-limit-per-player: 5
   sign-header: "[Shop]"
+  # An upper bound on the second line of a sign, so a typo cannot ask for a trade nobody
+  # could carry. 2,304 is a full double chest of a stackable item.
+  max-quantity-per-transaction: 2304
 
 bounties:
   enabled: true

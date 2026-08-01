@@ -11,9 +11,12 @@ import dev.civitas.core.economy.EconomyService;
 import dev.civitas.core.economy.PlayerAccountService;
 import dev.civitas.core.economy.TreasuryService;
 import dev.civitas.core.economy.UpkeepCalculator;
+import dev.civitas.core.market.MarketItemFilter;
+import dev.civitas.core.market.MarketService;
 import dev.civitas.core.protection.BlockClassifier;
 import dev.civitas.core.protection.ProtectionGuard;
 import dev.civitas.core.protection.ProtectionService;
+import dev.civitas.core.shop.PlayerShopService;
 import dev.civitas.util.PlayerLookup;
 
 /**
@@ -39,6 +42,9 @@ public record CivitasServices(
         EconomyService economy,
         TreasuryService treasury,
         UpkeepCalculator upkeep,
+        MarketService market,
+        MarketItemFilter marketFilter,
+        PlayerShopService shops,
         PlayerAccountService accounts,
         PlayerLookup lookup) {
 }

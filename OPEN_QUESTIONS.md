@@ -278,3 +278,42 @@ Format:
   reported as succeeding. Documented prominently on the class: a plugin that reads a balance
   back immediately after writing may see the old value for a tick. *Date:* 2026-08-01
 
+- **[M6]** SPEC 9.1 defines `/shop` as "Open the server market GUI", but the GUI framework is
+  M7 and every menu is M8, so at M6 there is nothing to open. *Implemented default:* `/shop`
+  prints the same catalogue and prices in chat, with `/shop buy <item> [amount]` behind it,
+  so the market is usable now. M8 replaces the presentation and keeps every service call
+  underneath it unchanged. *Date:* 2026-08-01
+
+- **[M6]** SPEC 4.4 gives one price per unit at the current stock, which leaves what a *batch*
+  costs undefined: one price for the whole stack, or the curve walked unit by unit.
+  *Implemented default:* walked. Pricing a batch at the opening price would let one player
+  sell ten thousand pumpkins at the first pumpkin's price, which is the opposite of SPEC
+  4.4's stated intent that "the first player to sell pumpkins gets rich and the hundredth
+  does not". A consequence worth knowing: splitting a sale can never beat making it in one
+  go, because both walk the same curve. *Date:* 2026-08-01
+
+- **[M6]** SPEC 4.5 gives a shop sign four lines, of which two carry the quantity and the
+  prices and one the owner, leaving nowhere to name the item being traded. *Implemented
+  default:* the shop trades whatever plain item its chest already holds, read when the sign
+  is written. Stocking the chest first is what a player does anyway, and it removes a line of
+  spelling for every material name in the game. *Date:* 2026-08-01
+
+- **[M6]** SPEC 4.5 gives the sign syntax `B <price>` and `S <price>` without saying whose
+  point of view it is written from. *Implemented default:* the customer's, which is the
+  convention every chest-shop plugin uses: `B 100` means "you may buy this for 100", so the
+  shop pays out on `S` and takes in on `B`. A sign whose `S` price is above its `B` price is
+  refused outright, because anyone could trade it in circles until the owner was bankrupt.
+  *Date:* 2026-08-01
+
+- **[M6]** SPEC 4.4 excludes items obtainable from fully automatic farms from the market but
+  gives no mechanism, and SPEC 9.4.4's `/ca market setprice` implies items can be added at
+  runtime. *Implemented default:* the market trades exactly what `economy.yml` lists, and the
+  shipped list is the SPEC 4.4 table with nothing added. There is no code path that buys an
+  unlisted material, so the exclusion is enforced by absence rather than by a blocklist that
+  a later milestone could forget to check. *Date:* 2026-08-01
+
+- **[M6]** SPEC 4.3 charges a 5% market tax and SPEC 5.7's Market Access upgrade reduces it,
+  but city upgrades are M11, so there is no level to read. *Implemented default:* a named
+  method returning 0, so everyone pays the full rate until the upgrade exists. Likewise the
+  SPEC 11.9 winner's +10% sell bonus is a method returning 1 until M19. Nobody receives a
+  discount they have not bought. *Date:* 2026-08-01

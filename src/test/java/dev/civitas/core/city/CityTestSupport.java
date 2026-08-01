@@ -18,7 +18,12 @@ import dev.civitas.core.economy.PlayerAccountService;
 import dev.civitas.core.economy.EconomyService;
 import dev.civitas.core.economy.TreasuryService;
 import dev.civitas.core.economy.UpkeepCalculator;
+import dev.civitas.core.market.MarketItemFilter;
+import dev.civitas.core.market.MarketPricing;
+import dev.civitas.core.market.MarketRegistry;
+import dev.civitas.core.market.MarketService;
 import dev.civitas.core.protection.ProtectionService;
+import dev.civitas.core.shop.PlayerShopService;
 import dev.civitas.storage.DatabaseManager;
 import dev.civitas.storage.DatabaseSettings;
 import dev.civitas.storage.SqlDialect;
@@ -53,6 +58,11 @@ public final class CityTestSupport implements AutoCloseable {
     public final EconomyService economy;
     public final TreasuryService treasury;
     public final UpkeepCalculator upkeep;
+    public final MarketPricing pricing;
+    public final MarketRegistry marketRegistry;
+    public final MarketService market;
+    public final MarketItemFilter marketFilter;
+    public final PlayerShopService shops;
     public final Funds funds;
 
     private CityTestSupport(Path directory, EventBus events) {
@@ -83,6 +93,13 @@ public final class CityTestSupport implements AutoCloseable {
                 new CityNameValidator(configs), funds, claims, accounts, Scheduler.direct(), events);
         this.ranks = new RankService(db, daos, Scheduler.direct(), events);
         this.protection = new ProtectionService(claimRegistry, registry, configs);
+        this.pricing = new MarketPricing(configs);
+        this.marketRegistry = new MarketRegistry(daos.marketStock(), configs, quietLogger());
+        await(marketRegistry.loadAll());
+        this.market = new MarketService(db, daos.ledger(), marketRegistry, pricing, economy,
+                configs);
+        this.marketFilter = new MarketItemFilter(configs);
+        this.shops = new PlayerShopService(daos.playerShops(), economy);
     }
 
     public static CityTestSupport open(Path directory) {

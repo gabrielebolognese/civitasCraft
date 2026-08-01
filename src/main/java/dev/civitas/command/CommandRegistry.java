@@ -46,11 +46,6 @@ public final class CommandRegistry {
             // (SPEC 4.7), so the payout half needs the war system.
             CommandSpec.of("bounty", "civitas.bounty.use", 19, "Place and list bounties."),
 
-            // SPEC 9.1, market.
-            CommandSpec.of("shop", "civitas.market.use", 6, "Open the server market."),
-            CommandSpec.of("sell", "civitas.market.use", 6, "Sell items to the server market."),
-            CommandSpec.of("worth", "civitas.market.use", 6, "Look up a market price."),
-
             // SPEC 9.1, progression.
             CommandSpec.of("quests", "civitas.quests.use", 9, "Daily quests."),
             CommandSpec.of("challenges", "civitas.quests.use", 9, "Weekly challenges."),

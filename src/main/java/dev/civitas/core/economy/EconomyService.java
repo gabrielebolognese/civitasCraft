@@ -188,6 +188,22 @@ public final class EconomyService implements Funds {
      * transaction: money must never exist in neither wallet, nor in both.
      */
     public CompletableFuture<Result<BigDecimal>> pay(UUID from, UUID to, BigDecimal amount) {
+        return transfer(from, to, amount, TransactionType.PLAYER_PAY, null);
+    }
+
+    /**
+     * Moves money between two players under a given ledger type.
+     *
+     * <p>The same guarantees as {@link #pay}: one transaction, both locks taken in UUID
+     * order. The type is a parameter because a player shop sale is a transfer too (SPEC 4.5)
+     * and must be searchable as {@code PLAYER_SHOP} rather than hidden among ordinary
+     * payments.
+     *
+     * @param context extra metadata merged into both ledger rows, or null
+     * @return the sender's balance afterwards
+     */
+    public CompletableFuture<Result<BigDecimal>> transfer(UUID from, UUID to, BigDecimal amount,
+                                                          TransactionType type, String context) {
         if (from.equals(to)) {
             // SPEC 17.3 case 25.
             return CompletableFuture.completedFuture(
@@ -201,12 +217,12 @@ public final class EconomyService implements Funds {
             synchronized (lockFor(first)) {
                 synchronized (lockFor(second)) {
                     Result<BigDecimal> taken = withdrawLocked(connection, from, amount,
-                            TransactionType.PLAYER_PAY, null, metadataFor(to));
+                            type, null, metadataFor(to, context));
                     if (taken instanceof Result.Failure<BigDecimal> failure) {
                         return Result.<BigDecimal>propagate(failure);
                     }
                     Result<BigDecimal> given = depositLocked(connection, to, amount,
-                            TransactionType.PLAYER_PAY, null, metadataFor(from));
+                            type, null, metadataFor(from, context));
                     if (given instanceof Result.Failure<BigDecimal> failure) {
                         // Rolls back the withdrawal too, because both are one transaction.
                         return Result.<BigDecimal>propagate(failure);
@@ -292,7 +308,15 @@ public final class EconomyService implements Funds {
                 player, null, cityId, signedAmount, balanceAfter, metadata));
     }
 
-    private static String metadataFor(UUID counterparty) {
-        return "{\"counterparty\":\"" + counterparty + "\"}";
+    /**
+     * The JSON metadata both sides of a transfer carry.
+     *
+     * @param context a caller-supplied JSON body such as {@code "item":"WHEAT"}, or null
+     */
+    private static String metadataFor(UUID counterparty, String context) {
+        String counterpartyField = "\"counterparty\":\"" + counterparty + "\"";
+        return context == null || context.isBlank()
+                ? "{" + counterpartyField + "}"
+                : "{" + counterpartyField + "," + context + "}";
     }
 }

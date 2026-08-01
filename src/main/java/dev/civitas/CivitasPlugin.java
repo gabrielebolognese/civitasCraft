@@ -10,6 +10,9 @@ import dev.civitas.command.CommandRegistry;
 import dev.civitas.command.city.CityCommand;
 import dev.civitas.command.player.MoneyCommand;
 import dev.civitas.command.player.PayCommand;
+import dev.civitas.command.player.SellCommand;
+import dev.civitas.command.player.ShopCommand;
+import dev.civitas.command.player.WorthCommand;
 import dev.civitas.config.ConfigFile;
 import dev.civitas.config.ConfigManager;
 import dev.civitas.core.city.CityNameValidator;
@@ -27,9 +30,16 @@ import dev.civitas.core.economy.InflationTracker;
 import dev.civitas.core.economy.TreasuryService;
 import dev.civitas.core.economy.UpkeepCalculator;
 import dev.civitas.core.economy.UpkeepTask;
+import dev.civitas.core.market.MarketItemFilter;
+import dev.civitas.core.market.MarketPricing;
+import dev.civitas.core.market.MarketRegistry;
+import dev.civitas.core.market.MarketService;
+import dev.civitas.core.market.StockDecayTask;
 import dev.civitas.core.protection.BlockClassifier;
 import dev.civitas.core.protection.ProtectionGuard;
 import dev.civitas.core.protection.ProtectionService;
+import dev.civitas.core.shop.PlayerShopService;
+import dev.civitas.core.shop.ShopSign;
 import dev.civitas.lang.LangManager;
 import dev.civitas.listener.BlockProtectionListener;
 import dev.civitas.listener.CityChatListener;
@@ -41,6 +51,8 @@ import dev.civitas.listener.FireAndFluidListener;
 import dev.civitas.listener.InteractionProtectionListener;
 import dev.civitas.listener.PistonProtectionListener;
 import dev.civitas.listener.PlayerAccountListener;
+import dev.civitas.listener.ShopInteractListener;
+import dev.civitas.listener.ShopSignListener;
 import dev.civitas.storage.BackupService;
 import dev.civitas.storage.DatabaseManager;
 import dev.civitas.storage.DatabaseSettings;
@@ -90,8 +102,12 @@ public final class CivitasPlugin extends JavaPlugin {
         CityCommand cityCommand = new CityCommand(services::get, lang, scheduler, getLogger());
         MoneyCommand moneyCommand = new MoneyCommand(services::get, lang, scheduler, getLogger());
         PayCommand payCommand = new PayCommand(services::get, lang, scheduler, getLogger());
+        ShopCommand shopCommand = new ShopCommand(services::get, lang, scheduler, getLogger());
+        SellCommand sellCommand = new SellCommand(services::get, lang, scheduler, getLogger());
+        WorthCommand worthCommand = new WorthCommand(services::get, lang);
         new CommandRegistry(this, lang).registerAll(
-                List.of(cityCommand.build(), moneyCommand.build(), payCommand.build()));
+                List.of(cityCommand.build(), moneyCommand.build(), payCommand.build(),
+                        shopCommand.build(), sellCommand.build(), worthCommand.build()));
 
         warnIfRollbackDisabled();
         openDatabaseAsync(scheduler);
@@ -224,12 +240,26 @@ public final class CivitasPlugin extends JavaPlugin {
         ProtectionGuard protectionGuard = new ProtectionGuard(protection, lang);
         BlockClassifier blockClassifier = new BlockClassifier(configs, getLogger());
 
+        MarketPricing pricing = new MarketPricing(configs);
+        MarketRegistry marketRegistry =
+                new MarketRegistry(loadedDaos.marketStock(), configs, getLogger());
+        marketRegistry.loadAll().thenAccept(loaded ->
+                getLogger().info(() -> "Market trades " + loaded + " items."));
+        MarketService marketService = new MarketService(manager, loadedDaos.ledger(),
+                marketRegistry, pricing, economyService, configs);
+        MarketItemFilter marketFilter = new MarketItemFilter(configs);
+
+        PlayerShopService shopService =
+                new PlayerShopService(loadedDaos.playerShops(), economyService);
+        shopService.loadAll().thenAccept(loaded ->
+                getLogger().info(() -> "Loaded " + loaded + " player shops."));
+
         this.borders = borderRenderer;
 
         services.set(new CivitasServices(cityRegistry, cityService, rankService, claimRegistry,
                 claimService, claimMap, borderRenderer, protection, protectionGuard,
                 blockClassifier, economyService, treasuryService, upkeepCalculator,
-                accounts, lookup));
+                marketService, marketFilter, shopService, accounts, lookup));
 
         getServer().getPluginManager().registerEvents(
                 new PlayerAccountListener(accounts, getLogger()), this);
@@ -241,6 +271,14 @@ public final class CivitasPlugin extends JavaPlugin {
         // SPEC 5.5, the land protection listeners. Registered together so it is obvious at a
         // glance which events the plugin guards.
         registerProtection(protectionGuard, protection, blockClassifier);
+
+        // SPEC 4.5, chest shops.
+        getServer().getPluginManager().registerEvents(new ShopSignListener(shopService,
+                new ShopSign(configs), protectionGuard, configs, lang, scheduler, getLogger()), this);
+        getServer().getPluginManager().registerEvents(
+                new ShopInteractListener(shopService, configs, lang, scheduler, getLogger()), this);
+
+        scheduleMarketDecay(marketRegistry, pricing, loadedDaos);
 
         // Anyone already online, on a /reload, never fired a join event for us.
         long now = System.currentTimeMillis();
@@ -336,6 +374,28 @@ public final class CivitasPlugin extends JavaPlugin {
             getLogger().warning("Could not hook into " + name + ": " + e);
             return false;
         }
+    }
+
+    /**
+     * The SPEC 4.4 stock drift back toward target.
+     *
+     * <p>Hourly by default, because SPEC 4.4 states the rate per hour. Running it more often
+     * with a proportionally smaller step would be smoother but would also make the rate a
+     * lie, and an operator reading 2% per hour should get 2% per hour.
+     */
+    private void scheduleMarketDecay(MarketRegistry marketRegistry, MarketPricing pricing,
+                                     DaoRegistry loadedDaos) {
+        if (!configs.get(ConfigFile.ECONOMY).getBoolean("market.enabled", true)) {
+            return;
+        }
+        long ticks = configs.get(ConfigFile.ECONOMY)
+                .getLong("market.decay-interval-minutes", 60) * 60L * 20L;
+        if (ticks <= 0) {
+            return;
+        }
+        StockDecayTask decay = new StockDecayTask(marketRegistry, pricing,
+                loadedDaos.marketStock(), getLogger());
+        Bukkit.getScheduler().runTaskTimerAsynchronously(this, decay, ticks, ticks);
     }
 
     private void scheduleBackups(DatabaseSettings settings) {

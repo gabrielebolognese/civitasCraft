@@ -81,6 +81,10 @@ class SchemaTest {
         schema.put("war_kills", List.of("id", "war_id", "killer_uuid", "victim_uuid", "timestamp",
                 "location"));
         schema.put("market_stock", List.of("material", "current_stock", "target_stock", "base_price"));
+        // V4, SPEC 4.5: player chest shops, which SPEC 3 lists no table for.
+        schema.put("player_shops", List.of("id", "owner_uuid", "world", "sign_x", "sign_y",
+                "sign_z", "chest_x", "chest_y", "chest_z", "material", "quantity", "buy_price",
+                "sell_price", "created_at"));
         schema.put("player_quests", List.of("id", "uuid", "quest_id", "progress", "assigned_at",
                 "completed_at"));
         schema.put("contests", List.of("id", "theme", "starts_at", "ends_at", "state"));
