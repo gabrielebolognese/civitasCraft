@@ -5,7 +5,7 @@
 
 ## Current session focus
 
-**Next milestone:** M12, Custom mobs
+**Next milestone:** M13, Diplomacy
 
 ## Session protocol
 
@@ -35,7 +35,7 @@
 | 9 | Income systems | M5 | DONE | Stipend with the SPEC 4.2.1 filter, daily login streaks, quests, city challenges. V5 migration. Replaces M2's unfiltered playtime placeholder. |
 | 10 | Outposts | M3, M5 | DONE | SPEC 7 in full, including the 7.4 auto-conversion. Upkeep counts outposts now. Slot cap still reads the base until M11 builds Outpost Range. |
 | 11 | City upgrades | M5, M8 | DONE | Six tracks, the vault, V6 migration. Fills the Population, Treasury Interest, Outpost Range and Market Access seams. **Fortification is stored but unread until M12, and SPEC 5.7 and 12.4 disagree on what it grants.** |
-| 12 | Custom mobs | M5, M8 | TODO | |
+| 12 | Custom mobs | M5, M8 | DONE | Eight units, placement by egg, SPEC 12.3 behaviour, upkeep and deactivation. Fortification resolved at 2 units a level (SPEC 12.4 over 5.7). The leash is written and tested but unticked until M19. |
 | 13 | Diplomacy | M2 | TODO | |
 | 14 | Leaderboards | M5 | TODO | |
 | 15 | Contests | M14, M8 | TODO | |

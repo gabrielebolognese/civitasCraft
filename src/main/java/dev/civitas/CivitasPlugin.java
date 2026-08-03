@@ -44,6 +44,11 @@ import dev.civitas.core.income.StipendTask;
 import dev.civitas.core.outpost.OutpostRegistry;
 import dev.civitas.core.outpost.OutpostService;
 import dev.civitas.core.outpost.OutpostTeleport;
+import dev.civitas.core.defense.DefenseBehaviour;
+import dev.civitas.core.defense.DefenseCatalogue;
+import dev.civitas.core.defense.DefenseRegistry;
+import dev.civitas.core.defense.DefenseService;
+import dev.civitas.core.defense.DefenseSpawner;
 import dev.civitas.core.upgrade.UpgradeService;
 import dev.civitas.core.vault.VaultService;
 import dev.civitas.core.vault.VaultView;
@@ -76,6 +81,7 @@ import dev.civitas.listener.InteractionProtectionListener;
 import dev.civitas.listener.PistonProtectionListener;
 import dev.civitas.listener.PlayerAccountListener;
 import dev.civitas.listener.TeleportWarmupListener;
+import dev.civitas.listener.DefenseListener;
 import dev.civitas.listener.VaultListener;
 import dev.civitas.listener.ShopInteractListener;
 import dev.civitas.listener.ShopSignListener;
@@ -383,6 +389,19 @@ public final class CivitasPlugin extends JavaPlugin {
                 .thenAccept(converted -> converted.forEach(outpost -> scheduler.runOnMain(() ->
                         notifyMayor(city, outpost.name())))));
 
+        // SPEC 12, defense units.
+        DefenseCatalogue defenseCatalogue = new DefenseCatalogue(configs, getLogger());
+        getLogger().info(() -> "Defense catalogue: " + defenseCatalogue.load() + " units.");
+        DefenseRegistry defenseRegistry = new DefenseRegistry(loadedDaos.defenseUnits());
+        defenseRegistry.loadAll().thenAccept(loaded ->
+                getLogger().info(() -> "Loaded " + loaded + " defense units."));
+        DefenseSpawner defenseSpawner = new DefenseSpawner(this, defenseCatalogue, lang);
+        DefenseService defenseService = new DefenseService(this, manager,
+                loadedDaos.defenseUnits(), defenseRegistry, defenseCatalogue, defenseSpawner,
+                cityRegistry, claimRegistry, treasuryService, upgradeService, lang, scheduler);
+        DefenseBehaviour defenseBehaviour = new DefenseBehaviour(defenseCatalogue, cityRegistry);
+        upkeepTask.useDefense(defenseRegistry, defenseService);
+
         MenuManager menuManager = new MenuManager(configs, lang);
         LayoutLoader layoutLoader = new LayoutLoader(dev.civitas.config.PluginResources.of(this));
         AmountInput amountInput = new AmountInput(menuManager, lang, scheduler);
@@ -400,7 +419,7 @@ public final class CivitasPlugin extends JavaPlugin {
                 blockClassifier, economyService, treasuryService, upkeepCalculator,
                 upkeepTask, marketService, marketFilter, shopService, questService,
                 challengeService, outpostService, outpostTeleport, upgradeService,
-                vaultService, vaultView, menuManager, layoutLoader,
+                defenseService, vaultService, vaultView, menuManager, layoutLoader,
                 amountInput, spawnService, cityHall, accounts, lookup, scheduler));
 
         getServer().getPluginManager().registerEvents(
@@ -426,6 +445,8 @@ public final class CivitasPlugin extends JavaPlugin {
         getServer().getPluginManager().registerEvents(
                 new TeleportWarmupListener(spawnService, outpostTeleport), this);
         getServer().getPluginManager().registerEvents(new VaultListener(vaultView), this);
+        getServer().getPluginManager().registerEvents(new DefenseListener(this, defenseService,
+                defenseBehaviour, cityRegistry, lang, getLogger()), this);
         getServer().getPluginManager().registerEvents(
                 new ActivityListener(activityTracker, questService, challengeService), this);
         getServer().getPluginManager().registerEvents(new IncomeJoinListener(questService,

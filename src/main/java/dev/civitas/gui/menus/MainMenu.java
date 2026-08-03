@@ -88,7 +88,16 @@ public final class MainMenu extends CityMenu {
                         .build());
 
         // SPEC 8.3 slots 20 to 34, the systems later milestones build.
-        putUnavailable("defense", 20, Material.IRON_GOLEM_SPAWN_EGG, "gui.main.defense");
+        put("defense", 20, Material.IRON_GOLEM_SPAWN_EGG, "gui.main.defense", entry ->
+                Button.of(entry.material(), text(entry.labelKey()))
+                        .lore(text("gui.main.defense.lore",
+                                "active", String.valueOf(services.defense().registry()
+                                        .activeCount(city.id())),
+                                "upkeep", money(services.defense().registry()
+                                        .dailyUpkeep(city.id()))))
+                        .onClick(context -> new DefenseMenu(manager, services, viewer, city,
+                                this).open())
+                        .build());
         putUnavailable("wars", 22, Material.NETHERITE_SWORD, "gui.main.wars");
         putUnavailable("diplomacy", 24, Material.WRITTEN_BOOK, "gui.main.diplomacy");
         put("upgrades", 28, Material.ANVIL, "gui.main.upgrades", entry ->

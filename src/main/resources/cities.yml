@@ -144,7 +144,11 @@ upgrades:
   fortification:
     display-name: Fortification
     effect-per-level: 5.0        # +5% defense unit health
-    units-per-level: 1
+    # How many extra units a level allows is configured in defense.yml, under
+    # placement.units-per-fortification-level, because placement is defense's business.
+    # SPEC 5.7 says +1 and SPEC 12.4 says +2; SPEC 12.4 wins, because its stated range of
+    # "5 to 15" is only arithmetic at +2. Keeping the number in one file means the two
+    # cannot disagree the way the specification does.
     costs: [50000, 110000, 240000, 500000, 1100000]
   market-access:
     display-name: Market Access

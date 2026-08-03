@@ -18,6 +18,7 @@ import dev.civitas.core.income.ChallengeService;
 import dev.civitas.core.income.QuestService;
 import dev.civitas.core.outpost.OutpostService;
 import dev.civitas.core.outpost.OutpostTeleport;
+import dev.civitas.core.defense.DefenseService;
 import dev.civitas.core.upgrade.UpgradeService;
 import dev.civitas.core.vault.VaultService;
 import dev.civitas.core.vault.VaultView;
@@ -65,6 +66,7 @@ public record CivitasServices(
         OutpostService outposts,
         OutpostTeleport outpostTeleport,
         UpgradeService upgrades,
+        DefenseService defense,
         VaultService vaults,
         VaultView vaultView,
         MenuManager menus,

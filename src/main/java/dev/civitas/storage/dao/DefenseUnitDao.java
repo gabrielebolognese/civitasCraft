@@ -46,6 +46,11 @@ public final class DefenseUnitDao extends Dao<DefenseUnitRow> {
                 rs.getBoolean("active"));
     }
 
+    /** Every unit on the server, active or not, for the startup cache. */
+    public CompletableFuture<List<DefenseUnitRow>> findAll() {
+        return queryList("SELECT " + COLUMNS + " FROM defense_units ORDER BY id");
+    }
+
     public CompletableFuture<Optional<DefenseUnitRow>> findById(int id) {
         return db.call(connection -> queryOneSync(connection,
                 "SELECT " + COLUMNS + " FROM defense_units WHERE id = ?", this::map, id));

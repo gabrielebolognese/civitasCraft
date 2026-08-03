@@ -18,6 +18,11 @@ import dev.civitas.core.income.QuestService;
 import dev.civitas.core.outpost.OutpostRegistry;
 import dev.civitas.core.outpost.OutpostService;
 import dev.civitas.core.outpost.OutpostTeleport;
+import dev.civitas.core.defense.DefenseBehaviour;
+import dev.civitas.core.defense.DefenseCatalogue;
+import dev.civitas.core.defense.DefenseRegistry;
+import dev.civitas.core.defense.DefenseService;
+import dev.civitas.core.defense.DefenseSpawner;
 import dev.civitas.core.upgrade.UpgradeService;
 import dev.civitas.core.vault.VaultService;
 import dev.civitas.core.vault.VaultView;
@@ -88,6 +93,14 @@ final class MenuTestSupport implements AutoCloseable {
         OutpostTeleport outpostTeleport = new OutpostTeleport(plugin, outposts, cities.economy,
                 cities.configs, lang);
 
+        DefenseCatalogue defenseCatalogue = new DefenseCatalogue(cities.configs, quiet());
+        defenseCatalogue.load();
+        DefenseRegistry defenseRegistry = new DefenseRegistry(cities.daos.defenseUnits());
+        DefenseService defenseService = new DefenseService(plugin, cities.db,
+                cities.daos.defenseUnits(), defenseRegistry, defenseCatalogue,
+                new DefenseSpawner(plugin, defenseCatalogue, lang), cities.registry,
+                cities.claimRegistry, cities.treasury, upgradeService, lang, Scheduler.direct());
+
         SpawnService spawns = new SpawnService(plugin, cities.registry, cities.configs, lang);
         CityHall halls = new CityHall(plugin, cities.configs, lang);
 
@@ -95,7 +108,8 @@ final class MenuTestSupport implements AutoCloseable {
                 cities.claimRegistry, cities.claims, null, null, cities.protection, null, null,
                 cities.economy, cities.treasury, cities.upkeep, upkeep, cities.market,
                 cities.marketFilter, cities.shops, quests, challenges, outposts,
-                outpostTeleport, upgradeService, vaultService, vaultView, menus, layouts,
+                outpostTeleport, upgradeService, defenseService, vaultService,
+                vaultView, menus, layouts,
                 input, spawns, halls,
                 cities.accounts, new PlayerLookup(cities.daos.players()), Scheduler.direct());
     }

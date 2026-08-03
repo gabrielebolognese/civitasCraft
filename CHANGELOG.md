@@ -4,6 +4,32 @@ All notable changes to CivitasCraft. One section per milestone from `PLAN.md`.
 
 ## [Unreleased]
 
+### M12, Custom mobs
+
+Added:
+- `DefenseCatalogue`: the eight SPEC 12.2 units, read from `defense.yml` by full path so a
+  server whose config predates a new unit still loads it, which is the bug M9 shipped once.
+- `DefenseSpawner`: vanilla mobs with attribute modifiers, equipment at zero drop chance, a
+  city-tagged name and the SPEC 12.5 persistent-data stamp. No NMS, as SPEC 12.5 requires.
+- `DefenseService`: purchase, the spawn egg SPEC 12.4 asks for, the placement rules, death,
+  dismissal, and the SPEC 12.3 deactivation that despawns a delinquent city's units while
+  keeping their rows.
+- `DefenseBehaviour`: the SPEC 12.3 table as pure decisions. The first row is the one that
+  matters: a visitor in peacetime is ignored completely, at any distance, which is what keeps
+  a defended city somewhere people can walk through.
+- `DefenseListener`: placement from an egg, drops cleared on death, targeting filtered through
+  the table, and SPEC 12.5's respawn-on-chunk-load for a unit lost to `/kill` or corruption.
+- `DefenseMenu` (SPEC 8.9) and `/city defense`, with the hub button now opening rather than
+  refusing.
+- Tests: the SPEC 12.2 stat table, the SPEC 12.4 placement rules, SPEC 17.4 case 56, and one
+  test per row of SPEC 12.3.
+
+Changed:
+- `UpkeepTask.defenseUpkeep` is no longer a seam, and a city that falls into delinquency now
+  loses its garrison until it pays, per SPEC 12.3.
+- The Fortification contradiction between SPEC 5.7 and SPEC 12.4 is resolved in favour of
+  12.4: two units per level, so 5 to 15. The number lives only in `defense.yml` now.
+
 ### M11, City upgrades
 
 Added:

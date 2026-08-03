@@ -172,6 +172,9 @@ class LangKeyUsageTest {
         return key.startsWith("quest.")
                 || key.startsWith("challenge.")
                 // An upgrade's description key is built from its enum, UpgradeType.messageKey.
-                || key.startsWith("upgrade.");
+                || key.startsWith("upgrade.")
+                // A unit's description key is built from its catalogue entry,
+                // DefenseUnitType.messageKey.
+                || key.startsWith("defense.unit.");
     }
 }

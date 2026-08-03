@@ -137,7 +137,13 @@ public final class UpkeepTask implements Runnable {
         }
 
         if (city.isDelinquent()) {
+            // SPEC 12.3: units deactivate while the bill goes unpaid. They despawn, their
+            // rows survive, and the city gets its army back when it settles up rather than
+            // having to buy it again.
+            setDefenseActive(city, false);
             handleDelinquency(city, now);
+        } else {
+            setDefenseActive(city, true);
         }
     }
 
@@ -305,6 +311,23 @@ public final class UpkeepTask implements Runnable {
     // Helpers
     // ==================================================================================
 
+    /**
+     * Turns a city's units off while it is in debt, and back on when it is not.
+     *
+     * <p>Only acts when the answer would change, so a solvent city is not rewritten every
+     * sweep and a city in debt does not despawn units it has already despawned.
+     */
+    private void setDefenseActive(City city, boolean active) {
+        if (defense == null || defenseService == null) {
+            return;
+        }
+        boolean anyDiffer = defense.of(city.id()).stream()
+                .anyMatch(unit -> unit.active() != active);
+        if (anyDiffer) {
+            defenseService.setActive(city, active);
+        }
+    }
+
     /** What this city owes today. */
     public BigDecimal amountFor(City city) {
         BigDecimal landValue = ClaimCostEngine.landValue(claims.registry().claimsOf(city.id()));
@@ -332,10 +355,20 @@ public final class UpkeepTask implements Runnable {
 
     private dev.civitas.core.outpost.OutpostRegistry outposts;
 
-    /** SPEC 12.2, once defense units exist in M12. */
+    /** SPEC 12.2: every standing unit costs its city a flat fee a day. */
     private BigDecimal defenseUpkeep(City city) {
-        return SqlDialect.zero();
+        return defense == null ? SqlDialect.zero() : defense.dailyUpkeep(city.id());
     }
+
+    /** Told about defense units once they exist. */
+    public void useDefense(dev.civitas.core.defense.DefenseRegistry registry,
+                           dev.civitas.core.defense.DefenseService service) {
+        this.defense = registry;
+        this.defenseService = service;
+    }
+
+    private dev.civitas.core.defense.DefenseRegistry defense;
+    private dev.civitas.core.defense.DefenseService defenseService;
 
     /** SPEC 5.7: Treasury Interest takes a slice off the daily bill. */
     private int treasuryInterestLevel(City city) {

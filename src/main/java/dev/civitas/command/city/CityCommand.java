@@ -139,7 +139,7 @@ public final class CityCommand {
                 .then(new OutpostCommands(services, lang, scheduler, logger).build())
                 .then(upgradeCommands().upgrade())
                 .then(upgradeCommands().vault())
-                .then(notYet("defense", 12))
+                .then(new DefenseCommands(services, lang, scheduler, logger).build())
                 .then(hall())
                 .build();
     }

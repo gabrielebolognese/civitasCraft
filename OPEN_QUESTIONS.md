@@ -506,3 +506,32 @@ Format:
   screen is untouched. A page is one shared inventory rather than one per viewer, because two
   members each holding a copy would duplicate whatever the second one closed over.
   *Date:* 2026-08-03
+
+- **[M12]** SPEC 5.7 and SPEC 12.4 contradict each other on how many extra units a
+  Fortification level allows: SPEC 5.7's upgrade table says "+1 max unit", SPEC 12.4 says
+  "5 + (2 per Fortification level), so 5 to 15". *Resolved in favour of SPEC 12.4*, on the
+  developer's instruction: 12.4's stated range is only arithmetic at +2, which makes 5.7's
+  "+1" the typo of the two. A maxed city fields 15 units. The number now lives in exactly one
+  place, `defense.yml`'s `placement.units-per-fortification-level`; the duplicate in
+  `cities.yml` was removed, because shipping the contradiction in two config files was worse
+  than having it in the specification. *Date:* 2026-08-03
+
+- **[M12]** SPEC 12.4 says a purchase gives a spawn egg to be placed by hand, but does not say
+  what happens if the buyer never places it. *Implemented default:* the money is gone and the
+  egg is an ordinary item they keep. Refunding an unplaced egg would make the SPEC 12.4
+  wartime double-price meaningless, since a city could buy at peacetime rates and hold the
+  eggs. The egg carries the city id, so it cannot be given to another city and placed there.
+  *Date:* 2026-08-03
+
+- **[M12]** SPEC 12.3 says a unit is "teleported back if it wanders more than 8 blocks past
+  the claim border", which needs a live tick to enforce. *Implemented default:* the rule and
+  its distance are in `DefenseBehaviour.shouldReturn` and tested, but nothing calls it yet:
+  units are given no wander goal and the Sentry has zero movement speed, so in practice they
+  stay put. The leash matters when a unit is chasing something, which only happens in war, so
+  the tick belongs with M19 where there is something to chase. *Date:* 2026-08-03
+
+- **[M12]** SPEC 12.5 says units "must not count toward the mob cap", with the qualifier
+  "where possible". *Implemented default:* not attempted. Paper offers no supported way to
+  exclude a specific entity from spawn calculations without NMS, and SPEC 2.1 forbids NMS
+  unless unavoidable. `setPersistent(true)` already stops them despawning, which is the part
+  that would actually lose a city its money. *Date:* 2026-08-03
