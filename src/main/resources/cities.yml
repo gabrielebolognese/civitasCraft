@@ -168,3 +168,20 @@ protection:
 chat:
   # SPEC 20 decision 6: prefix chat with the city tag via a low-priority handler.
   city-tag-prefix-enabled: true
+
+# The City Hall block, SPEC 8.1.
+city-hall:
+  material: LODESTONE
+  # SPEC 8.1: "cannot be broken by anyone below Co-Mayor", expressed as the rank weight
+  # rather than the rank name, because ranks are editable and a city may have renamed it.
+  min-break-weight: 80
+
+# City spawn, SPEC 5.6.
+spawn:
+  warmup-seconds: 5
+  cooldown-seconds: 30
+  # SPEC 11.6 lengthens the warmup for a city that is at war.
+  war-warmup-seconds: 15
+  # How far a player may drift before the warmup counts as movement. Small enough that
+  # walking cancels it, large enough that standing still on a boat does not.
+  warmup-move-tolerance-blocks: 0.5

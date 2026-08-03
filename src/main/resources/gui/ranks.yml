@@ -1,0 +1,5 @@
+# Ranks and the permission editor, SPEC 8.7. One row per rank, laid out in code.
+
+title: "gui.ranks.title"
+size: 54
+border: true

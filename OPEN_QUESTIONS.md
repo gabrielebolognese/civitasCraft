@@ -355,3 +355,50 @@ Format:
   listener tests against real inventories. No screen, no command and no layout file beyond
   the shared `gui/common.yml` ships in M7, because SPEC 8's screens are M8's deliverable.
   *Date:* 2026-08-01
+
+- **[M8]** SPEC 8.3's hub names thirteen screens, and seven of them (Defense, Wars, Diplomacy,
+  Upgrades, Vault, Outposts, Contests) belong to milestones PLAN.md orders *after* M8. A Wars
+  menu with no war system would mean inventing behaviour. *Implemented default:* those seven
+  keep their SPEC slots and icons and render through the framework's refusal path, with lore
+  saying the system is not available on this server yet. M10 to M19 each replace one line in
+  `MainMenu` rather than rearranging the hub. **SPEC 8.8 (Wars) and 8.9 (Defense) therefore
+  have no screen at all after M8**, which is recorded in PLAN.md's note rather than hidden.
+  *Date:* 2026-08-03
+
+- **[M8]** SPEC 8.4's Claims menu puts a live 3x3 minimap on the bottom row, and SPEC 8.2 fixes
+  Back on slot 45 and Close on 49 - both inside that row. *Implemented default:* the minimap
+  owns slots 45 to 53, and Back and Close move to 53 and 44. The alternative, overlapping
+  them, would put a Close button in the middle of the map. This is the one screen that does
+  not use the framework's automatic navigation. *Date:* 2026-08-03
+
+- **[M8]** SPEC 8.5 shows a member their withdrawal allowance, but the SPEC 8.5 cap is derived
+  from the ledger, which is a database read and may not happen on the server thread while a
+  menu is being drawn. *Implemented default:* the screen draws the figure it was last told
+  and asks for a fresh one; being a live screen, the new number appears a tick later. The cap
+  itself is enforced by the service, so a label one tick old cannot let anyone past it.
+  *Date:* 2026-08-03
+
+- **[M8]** SPEC 8.1 says the City Hall "cannot be broken by anyone below Co-Mayor", but ranks
+  are fully editable (SPEC 5.4) and a city may well have renamed or deleted the rank called
+  Co-Mayor. *Implemented default:* the rule is a rank *weight* from `cities.yml`
+  (`city-hall.min-break-weight`, default 80, which is Co-Mayor's default weight). A city that
+  restructures its ranks keeps a working rule. *Date:* 2026-08-03
+
+- **[M8]** SPEC 8.1 gives the mayor one free City Hall replacement "if somehow destroyed", but
+  nothing can prove it was destroyed. *Implemented default:* `/city hall` gives the mayor the
+  item whenever they ask. The block opens a menu that `/city` opens anyway, so a spare one
+  grants nothing; policing a limit would cost more than the thing being policed.
+  *Date:* 2026-08-03
+
+- **[M8]** SPEC 5.4 forbids editing a rank whose weight is at or above your own, which means
+  the Mayor rank is not editable by the mayor either. *Implemented default:* left exactly as
+  SPEC says. The Mayor rank holds ALL permissions by SPEC 5.4, so there is nothing to edit,
+  and the alternative (a special case letting the mayor edit their own rank) would be the one
+  hole in the rule. The permission editor shows that rank as read-only with the reason.
+  *Date:* 2026-08-03
+
+- **[M8]** SPEC 8.10 asks for a "double confirmation, type-name-to-confirm" on disband.
+  *Implemented default:* both, in that order: the framework's confirmation dialog, then the
+  city's name typed in chat and compared case-insensitively. The dialog catches a misclick;
+  the typed name catches the player who clicks through dialogs without reading them.
+  *Date:* 2026-08-03

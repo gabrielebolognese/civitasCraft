@@ -2,7 +2,9 @@ package dev.civitas;
 
 import dev.civitas.core.city.CityRegistry;
 import dev.civitas.core.city.CityService;
+import dev.civitas.core.city.CityHall;
 import dev.civitas.core.city.RankService;
+import dev.civitas.core.city.SpawnService;
 import dev.civitas.core.claim.BorderRenderer;
 import dev.civitas.core.claim.ClaimMap;
 import dev.civitas.core.claim.ClaimRegistry;
@@ -11,6 +13,7 @@ import dev.civitas.core.economy.EconomyService;
 import dev.civitas.core.economy.PlayerAccountService;
 import dev.civitas.core.economy.TreasuryService;
 import dev.civitas.core.economy.UpkeepCalculator;
+import dev.civitas.core.economy.UpkeepTask;
 import dev.civitas.core.market.MarketItemFilter;
 import dev.civitas.core.market.MarketService;
 import dev.civitas.core.protection.BlockClassifier;
@@ -21,6 +24,7 @@ import dev.civitas.gui.framework.AmountInput;
 import dev.civitas.gui.framework.LayoutLoader;
 import dev.civitas.gui.framework.MenuManager;
 import dev.civitas.util.PlayerLookup;
+import dev.civitas.util.Scheduler;
 
 /**
  * The services that exist only once storage is open.
@@ -45,12 +49,16 @@ public record CivitasServices(
         EconomyService economy,
         TreasuryService treasury,
         UpkeepCalculator upkeep,
+        UpkeepTask upkeepTask,
         MarketService market,
         MarketItemFilter marketFilter,
         PlayerShopService shops,
         MenuManager menus,
         LayoutLoader layouts,
         AmountInput amountInput,
+        SpawnService spawns,
+        CityHall cityHall,
         PlayerAccountService accounts,
-        PlayerLookup lookup) {
+        PlayerLookup lookup,
+        Scheduler scheduler) {
 }

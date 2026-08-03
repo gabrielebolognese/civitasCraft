@@ -1,0 +1,10 @@
+# Land management, SPEC 8.4.
+#
+# The bottom row is the live 3x3 minimap and is drawn in code, so it is not listed here.
+
+title: "gui.claims.title"
+size: 54
+border: true
+
+buttons:
+  outposts: { slot: 24, material: FILLED_MAP, label: "gui.claims.outposts" }

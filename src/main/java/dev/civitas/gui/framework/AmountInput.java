@@ -29,6 +29,10 @@ import org.bukkit.event.player.PlayerQuitEvent;
  * to SPEC 17.5 cases 67 and 68 are identical either way, because they are questions about
  * parsing rather than about the widget.
  *
+ * <p>{@link #askText} is the same prompt without the parsing, for the places SPEC 8 asks a
+ * player to type a name or a sentence rather than a number: a name is not a number and must
+ * not be pushed through a money parser to find that out.
+ *
  * <h2>What gets refused</h2>
  * Everything that is not a plain positive decimal, through {@link Money#parse}: letters,
  * empty input, negatives, and scientific notation, which {@link BigDecimal} would otherwise
@@ -68,7 +72,27 @@ public final class AmountInput implements Listener {
 
         menus.close(player);
         pending.put(player.getUniqueId(),
-                new Pending(promptKey, onAmount, onCancel, System.currentTimeMillis()));
+                new Pending(promptKey, onAmount, null, onCancel, System.currentTimeMillis()));
+
+        lang.send(player, promptKey);
+        lang.send(player, "gui.input.how-to-cancel",
+                LangManager.placeholder("word", cancelWord()));
+    }
+
+    /**
+     * Asks for a line of text rather than an amount.
+     *
+     * <p>Used for a player name, a MOTD or a city name. The text is trimmed and handed over
+     * as typed; whatever validates it is the service that receives it, which already has to
+     * validate the same string arriving from a command.
+     */
+    public void askText(Player player, String promptKey, Consumer<String> onText,
+                        Runnable onCancel) {
+        Objects.requireNonNull(onText, "onText");
+
+        menus.close(player);
+        pending.put(player.getUniqueId(),
+                new Pending(promptKey, null, onText, onCancel, System.currentTimeMillis()));
 
         lang.send(player, promptKey);
         lang.send(player, "gui.input.how-to-cancel",
@@ -126,6 +150,14 @@ public final class AmountInput implements Listener {
             return;
         }
 
+        if (waiting.onText() != null) {
+            // A free-text prompt: nothing to parse, so nothing to refuse.
+            pending.remove(player.getUniqueId());
+            String answer = typed;
+            scheduler.runOnMain(() -> waiting.onText().accept(answer));
+            return;
+        }
+
         Result<BigDecimal> parsed = Money.parse(typed);
         if (parsed instanceof Result.Failure<BigDecimal> failure) {
             // SPEC 17.5 cases 67 and 68: refused, with the prompt repeated rather than the
@@ -167,8 +199,8 @@ public final class AmountInput implements Listener {
         return menus.configs().get(ConfigFile.GUI).getString("input.cancel-word", "cancel");
     }
 
-    private record Pending(String promptKey, Consumer<BigDecimal> onAmount, Runnable onCancel,
-                           long askedAt) {
+    private record Pending(String promptKey, Consumer<BigDecimal> onAmount,
+                           Consumer<String> onText, Runnable onCancel, long askedAt) {
 
         void runCancel() {
             if (onCancel != null) {

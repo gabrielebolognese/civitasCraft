@@ -116,7 +116,11 @@ public final class CityTestSupport implements AutoCloseable {
     }
 
     public UUID givenPlayer(String name, BigDecimal balance, long activePlaytimeMs) {
-        UUID uuid = UUID.randomUUID();
+        return givenPlayer(UUID.randomUUID(), name, balance, activePlaytimeMs);
+    }
+
+    /** For tests that already have a UUID, such as one a mock server handed out. */
+    public UUID givenPlayer(UUID uuid, String name, BigDecimal balance, long activePlaytimeMs) {
         await(daos.players().insert(new PlayerRow(uuid, name, balance, null, null,
                 1_000L, System.currentTimeMillis(), activePlaytimeMs, activePlaytimeMs,
                 0, 0L, 0L, false, 0L, 0L)));

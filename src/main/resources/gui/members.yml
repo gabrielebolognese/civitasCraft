@@ -1,0 +1,5 @@
+# The member list, SPEC 8.6. Paginated, so the entries themselves are placed by the framework.
+
+title: "gui.members.title"
+size: 54
+border: true

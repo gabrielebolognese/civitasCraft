@@ -4,6 +4,45 @@ All notable changes to CivitasCraft. One section per milestone from `PLAN.md`.
 
 ## [Unreleased]
 
+### M8, GUI screens
+
+Added:
+- `MainMenu`: the SPEC 8.3 hub, on the slots the specification gives it. Seven of the
+  thirteen buttons open systems later milestones build; those render, say so, and refuse the
+  click rather than being invented.
+- `OverviewMenu`, `ClaimsMenu`, `TreasuryMenu`, `TransactionHistoryMenu`, `ContributionMenu`,
+  `MembersMenu`, `MemberActionsMenu`, `RankPickerMenu`, `BanListMenu`, `RanksMenu`,
+  `PermissionEditorMenu`, `SettingsMenu`: SPEC 8.4 to 8.10.
+- `CityMenu`: the base every screen sits on. The city is re-read on every draw, and a viewer
+  who has been kicked, or whose city has gone, has the window taken away rather than left as
+  a stale door into it (SPEC 17.1 case 11, SPEC 17.5 case 60).
+- The SPEC 8.4 cost breakdown: base, distance multiplier, member divisor and total, so the
+  SPEC 6.2 formula is visible rather than experienced as an arbitrary price.
+- The SPEC 8.4 live 3x3 minimap on the bottom row, in the SPEC 6.5 map's colours.
+- `CityHall`: the SPEC 8.1 Lodestone carrying `civitas:city_hall`, with the break rule as a
+  configurable rank weight, plus `CityHallListener` and `/city hall`.
+- `SpawnService` and `TeleportWarmupListener`: SPEC 5.6's five-second warmup cancelled by
+  movement or damage and thirty-second cooldown, which M3 parked here. `/city spawn` and
+  `/city setspawn` are no longer stubs.
+- `CityService.setSpawn`, gated on `SET_SPAWN` and refusing a position outside the city's
+  own claims.
+- `AmountInput.askText`, the same chat prompt without the money parsing, for the places SPEC
+  8 asks for a name or a sentence.
+- `TreasuryService.history`, so the SPEC 8.5 history screen reads the ledger through a
+  service rather than a DAO.
+- Layouts: `gui/main.yml`, `claims.yml`, `treasury.yml`, `members.yml`, `ranks.yml`,
+  `settings.yml`, all copied out on first boot rather than on first use.
+- Config: `city-hall.material`, `city-hall.min-break-weight`, `spawn.warmup-seconds`,
+  `spawn.cooldown-seconds`, `spawn.war-warmup-seconds`,
+  `spawn.warmup-move-tolerance-blocks`, `gui.members.*`, `gui.history.entries`.
+- Tests: the SPEC 18.2 revoked-permission requirement on the real treasury screen, SPEC 17.1
+  case 11, SPEC 17.5 cases 59, 60 and 65, both SPEC 5.4 rules in the permission editor, the
+  City Hall stamp and break rule, and the spawn warmup and cooldown. Plus a guard that every
+  new message key resolves through `getString` rather than only appearing in `getKeys`.
+
+Changed:
+- `/city` with no arguments opens the Main Menu, per SPEC 8.3, instead of printing city info.
+
 ### M7, GUI framework
 
 Added:

@@ -1,0 +1,5 @@
+# City settings, SPEC 8.10.
+
+title: "gui.settings.title"
+size: 54
+border: true

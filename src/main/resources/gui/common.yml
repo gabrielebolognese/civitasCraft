@@ -46,3 +46,12 @@ input:
   # by a lag spike mid-edit.
   timeout-seconds: 30
   cancel-word: cancel
+
+members:
+  # SPEC 8.6 puts Invite on 45 and the ban list on 46, on the paginated screen's bottom row.
+  invite-slot: 45
+  ban-slot: 46
+
+history:
+  # SPEC 8.5: the last hundred city transactions.
+  entries: 100

@@ -127,8 +127,8 @@ public final class CityCommand {
                 .then(setMotd())
                 .then(open())
                 .then(rename())
-                .then(notYet("spawn", 8))
-                .then(notYet("setspawn", 8))
+                .then(spawn())
+                .then(setSpawn())
                 .then(claim())
                 .then(unclaim())
                 .then(mapCommand())
@@ -140,7 +140,7 @@ public final class CityCommand {
                 .then(notYet("upgrade", 11))
                 .then(notYet("vault", 11))
                 .then(notYet("defense", 12))
-                .then(notYet("hall", 8))
+                .then(hall())
                 .build();
     }
 
@@ -688,8 +688,95 @@ public final class CityCommand {
             lang.send(audience, "city.none");
             return Command.SINGLE_SUCCESS;
         }
-        sendInfo(audience, city.get());
+        // SPEC 8.3: "/city (no arguments) also opens the Main Menu from anywhere".
+        new dev.civitas.gui.menus.MainMenu(services.get().menus(), services.get(), player,
+                city.get()).open();
         return Command.SINGLE_SUCCESS;
+    }
+
+    // ==================================================================================
+    // Spawn, SPEC 5.6
+    // ==================================================================================
+
+    private ArgumentBuilder<CommandSourceStack, ?> spawn() {
+        return Commands.literal("spawn")
+                .executes(context -> {
+                    Audience audience = context.getSource().getSender();
+                    if (notReady(audience)) {
+                        return Command.SINGLE_SUCCESS;
+                    }
+                    if (!(context.getSource().getSender() instanceof Player player)) {
+                        lang.send(audience, Msg.COMMAND_PLAYER_ONLY);
+                        return Command.SINGLE_SUCCESS;
+                    }
+                    Result<Long> started = services.get().spawns().requestTeleport(player);
+                    if (started instanceof Result.Failure<Long> failure) {
+                        Replies.sendFailure(player, lang, failure);
+                    }
+                    return Command.SINGLE_SUCCESS;
+                });
+    }
+
+    private ArgumentBuilder<CommandSourceStack, ?> setSpawn() {
+        return Commands.literal("setspawn")
+                .executes(context -> {
+                    Audience audience = context.getSource().getSender();
+                    if (notReady(audience)) {
+                        return Command.SINGLE_SUCCESS;
+                    }
+                    if (!(context.getSource().getSender() instanceof Player player)) {
+                        lang.send(audience, Msg.COMMAND_PLAYER_ONLY);
+                        return Command.SINGLE_SUCCESS;
+                    }
+                    Optional<City> city = cities().registry().cityOf(player.getUniqueId());
+                    if (city.isEmpty()) {
+                        lang.send(audience, "city.none");
+                        return Command.SINGLE_SUCCESS;
+                    }
+                    var at = player.getLocation();
+                    Replies.reply(cities().setSpawn(player.getUniqueId(), city.get(),
+                                    at.getWorld().getName(), at.getX(), at.getY(), at.getZ(),
+                                    at.getYaw(), at.getPitch()),
+                            audience, lang, scheduler, logger,
+                            updated -> lang.send(audience, "gui.settings.spawn-set"));
+                    return Command.SINGLE_SUCCESS;
+                });
+    }
+
+    /**
+     * {@code /city hall}, SPEC 8.1.
+     *
+     * <p>SPEC 8.1 allows one free replacement if the block was somehow destroyed. There is no
+     * way to prove it was, so this simply gives the mayor the item: the block does nothing on
+     * its own that {@code /city} does not, so a spare one costs the server nothing.
+     */
+    private ArgumentBuilder<CommandSourceStack, ?> hall() {
+        return Commands.literal("hall")
+                .executes(context -> {
+                    Audience audience = context.getSource().getSender();
+                    if (notReady(audience)) {
+                        return Command.SINGLE_SUCCESS;
+                    }
+                    if (!(context.getSource().getSender() instanceof Player player)) {
+                        lang.send(audience, Msg.COMMAND_PLAYER_ONLY);
+                        return Command.SINGLE_SUCCESS;
+                    }
+                    Optional<City> city = cities().registry().cityOf(player.getUniqueId());
+                    if (city.isEmpty()) {
+                        lang.send(audience, "city.none");
+                        return Command.SINGLE_SUCCESS;
+                    }
+                    if (!city.get().isMayor(player.getUniqueId())) {
+                        lang.send(audience, "city.hall.mayor-only");
+                        return Command.SINGLE_SUCCESS;
+                    }
+                    player.getInventory().addItem(services.get().cityHall().item(city.get()))
+                            .values()
+                            .forEach(left -> player.getWorld()
+                                    .dropItemNaturally(player.getLocation(), left));
+                    lang.send(audience, "city.hall.given");
+                    return Command.SINGLE_SUCCESS;
+                });
     }
 
     private void sendInfo(Audience audience, City city) {

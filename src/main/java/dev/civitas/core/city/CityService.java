@@ -810,6 +810,49 @@ public final class CityService {
                 row.deletedAt()), updated -> updated.setOpenJoin(openJoin));
     }
 
+    /**
+     * Moves the city spawn, SPEC 5.6 and SPEC 8.10 slot 16.
+     *
+     * <p>Gated on {@code SET_SPAWN} rather than {@code EDIT_SETTINGS}, because SPEC 5.4 gives
+     * the Architect rank the first and not the second: moving where everyone arrives is a
+     * building decision, not an administrative one.
+     *
+     * <p>The position must be inside a claim of this city. SPEC 5.6 requires it, and the
+     * alternative is a spawn that the SPEC 17.2 case 22 sweep would immediately move back.
+     */
+    public CompletableFuture<Result<City>> setSpawn(UUID actor, City city, String world,
+                                                    double x, double y, double z,
+                                                    float yaw, float pitch) {
+        Result<Void> guard = requirePermission(city, actor, CityPermission.SET_SPAWN);
+        if (guard instanceof Result.Failure<Void> failure) {
+            return completed(Result.propagate(failure));
+        }
+        if (city.isFrozen()) {
+            return completed(Result.failure("CITY_FROZEN", "city.frozen"));
+        }
+
+        if (claims.registry().atBlock(world, (int) Math.floor(x), (int) Math.floor(z))
+                .filter(claim -> claim.cityId() == city.id())
+                .isEmpty()) {
+            return completed(Result.failure("SPAWN_OUTSIDE_CLAIMS", "city.spawn.outside-claims"));
+        }
+
+        return db.transaction(connection -> {
+            Optional<CityRow> current = daos.cities().findById(connection, city.id());
+            if (current.isEmpty()) {
+                return Result.<City>failure("CITY_GONE", "city.unknown");
+            }
+            CityRow row = current.get();
+            daos.cities().update(connection, new CityRow(row.id(), row.name(), row.displayName(),
+                    row.tag(), row.mayorUuid(), row.foundedAt(), row.treasury(), row.coreWorld(),
+                    row.coreChunkX(), row.coreChunkZ(), x, y, z, yaw, pitch, row.openJoin(),
+                    row.motd(), row.upkeepDue(), row.delinquentSince(), row.warProtectionUntil(),
+                    row.frozen(), row.deletedAt()));
+            return Result.success(city);
+        }).thenApply(result -> applyOnMain(result,
+                updated -> updated.setSpawn(x, y, z, yaw, pitch)));
+    }
+
     private CompletableFuture<Result<City>> updateSettings(
             UUID actor, City city,
             java.util.function.UnaryOperator<CityRow> change,

@@ -1,0 +1,26 @@
+# The City Hall hub, SPEC 8.3.
+#
+# Slots and icons only. What each button does is fixed in code, so an operator may rearrange
+# this screen or restyle it, and cannot rewire it.
+#
+# Buttons whose systems a later milestone builds are listed here so their slots are reserved:
+# they render, explain that the system is not available, and refuse the click.
+
+title: "gui.main.title"
+size: 54
+border: true
+
+buttons:
+  overview:   { slot: 10, material: BEACON,                label: "gui.main.overview" }
+  claims:     { slot: 12, material: GRASS_BLOCK,           label: "gui.main.claims" }
+  treasury:   { slot: 14, material: GOLD_INGOT,            label: "gui.main.treasury" }
+  members:    { slot: 16, material: PLAYER_HEAD,           label: "gui.main.members" }
+  defense:    { slot: 20, material: IRON_GOLEM_SPAWN_EGG,  label: "gui.main.defense" }
+  wars:       { slot: 22, material: NETHERITE_SWORD,       label: "gui.main.wars" }
+  diplomacy:  { slot: 24, material: WRITTEN_BOOK,          label: "gui.main.diplomacy" }
+  upgrades:   { slot: 28, material: ANVIL,                 label: "gui.main.upgrades" }
+  vault:      { slot: 30, material: ENDER_CHEST,           label: "gui.main.vault" }
+  outposts:   { slot: 32, material: FILLED_MAP,            label: "gui.main.outposts" }
+  contests:   { slot: 34, material: PAINTING,              label: "gui.main.contests" }
+  spawn:      { slot: 40, material: ENDER_PEARL,           label: "gui.main.spawn" }
+  settings:   { slot: 42, material: COMPARATOR,            label: "gui.main.settings" }

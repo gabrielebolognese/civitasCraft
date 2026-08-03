@@ -1,0 +1,8 @@
+# The treasury, SPEC 8.5.
+#
+# The deposit and withdraw amounts are fixed by SPEC 8.5 and live in code; this file carries
+# the title and the border.
+
+title: "gui.treasury.title"
+size: 54
+border: true

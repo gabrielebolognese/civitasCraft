@@ -80,7 +80,8 @@ public final class MenuManager {
         return Optional.ofNullable(open.get(player.getUniqueId()));
     }
 
-    void forget(Player player) {
+    /** Drops a session without closing the window; the caller has already closed it. */
+    public void forget(Player player) {
         open.remove(player.getUniqueId());
     }
 

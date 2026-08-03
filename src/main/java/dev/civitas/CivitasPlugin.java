@@ -17,7 +17,9 @@ import dev.civitas.config.ConfigFile;
 import dev.civitas.config.ConfigManager;
 import dev.civitas.core.city.CityNameValidator;
 import dev.civitas.core.city.CityRegistry;
+import dev.civitas.core.city.CityHall;
 import dev.civitas.core.city.CityService;
+import dev.civitas.core.city.SpawnService;
 import dev.civitas.core.city.RankService;
 import dev.civitas.core.claim.BorderRenderer;
 import dev.civitas.core.claim.ClaimCostEngine;
@@ -47,6 +49,7 @@ import dev.civitas.gui.framework.MenuManager;
 import dev.civitas.lang.LangManager;
 import dev.civitas.listener.BlockProtectionListener;
 import dev.civitas.listener.CityChatListener;
+import dev.civitas.listener.CityHallListener;
 import dev.civitas.listener.ClaimBoundaryListener;
 import dev.civitas.listener.ContainerProtectionListener;
 import dev.civitas.listener.EntityProtectionListener;
@@ -55,6 +58,7 @@ import dev.civitas.listener.FireAndFluidListener;
 import dev.civitas.listener.InteractionProtectionListener;
 import dev.civitas.listener.PistonProtectionListener;
 import dev.civitas.listener.PlayerAccountListener;
+import dev.civitas.listener.TeleportWarmupListener;
 import dev.civitas.listener.ShopInteractListener;
 import dev.civitas.listener.ShopSignListener;
 import dev.civitas.storage.BackupService;
@@ -92,6 +96,7 @@ public final class CivitasPlugin extends JavaPlugin {
     private BackupService backups;
     private BorderRenderer borders;
     private MenuManager menus;
+    private SpawnService spawns;
 
     private final AtomicReference<CivitasServices> services = new AtomicReference<>();
 
@@ -128,6 +133,10 @@ public final class CivitasPlugin extends JavaPlugin {
         CivitasServices current = services.getAndSet(null);
         if (current != null) {
             current.accounts().clearSessions();
+        }
+        if (spawns != null) {
+            spawns.stopAll();
+            spawns = null;
         }
         if (menus != null) {
             // Nobody should be left holding a window into a plugin that is gone.
@@ -259,6 +268,14 @@ public final class CivitasPlugin extends JavaPlugin {
                 marketRegistry, pricing, economyService, configs);
         MarketItemFilter marketFilter = new MarketItemFilter(configs);
 
+        SpawnService spawnService = new SpawnService(this, cityRegistry, configs, lang);
+        CityHall cityHall = new CityHall(this, configs, lang);
+        this.spawns = spawnService;
+
+        UpkeepTask upkeepTask = new UpkeepTask(manager, loadedDaos, cityRegistry, claimService,
+                treasuryService, upkeepCalculator, UpkeepTask.Notifier.online(lang), scheduler,
+                getLogger(), java.time.ZoneId.systemDefault());
+
         MenuManager menuManager = new MenuManager(configs, lang);
         LayoutLoader layoutLoader = new LayoutLoader(dev.civitas.config.PluginResources.of(this));
         AmountInput amountInput = new AmountInput(menuManager, lang, scheduler);
@@ -274,8 +291,8 @@ public final class CivitasPlugin extends JavaPlugin {
         services.set(new CivitasServices(cityRegistry, cityService, rankService, claimRegistry,
                 claimService, claimMap, borderRenderer, protection, protectionGuard,
                 blockClassifier, economyService, treasuryService, upkeepCalculator,
-                marketService, marketFilter, shopService, menuManager, layoutLoader,
-                amountInput, accounts, lookup));
+                upkeepTask, marketService, marketFilter, shopService, menuManager, layoutLoader,
+                amountInput, spawnService, cityHall, accounts, lookup, scheduler));
 
         getServer().getPluginManager().registerEvents(
                 new PlayerAccountListener(accounts, getLogger()), this);
@@ -294,6 +311,12 @@ public final class CivitasPlugin extends JavaPlugin {
         getServer().getPluginManager().registerEvents(
                 new ShopInteractListener(shopService, configs, lang, scheduler, getLogger()), this);
 
+        // SPEC 8.1 and 5.6.
+        getServer().getPluginManager().registerEvents(
+                new CityHallListener(services::get, cityHall, lang), this);
+        getServer().getPluginManager().registerEvents(
+                new TeleportWarmupListener(spawnService), this);
+
         scheduleMarketDecay(marketRegistry, pricing, loadedDaos);
 
         // SPEC 8.2, the GUI framework. Registered before any screen exists so that M8 adds
@@ -301,6 +324,7 @@ public final class CivitasPlugin extends JavaPlugin {
         getServer().getPluginManager().registerEvents(new MenuListener(menuManager), this);
         getServer().getPluginManager().registerEvents(amountInput, this);
         scheduleMenuRefresh(menuManager);
+        warmLayouts(layoutLoader);
 
         // Anyone already online, on a /reload, never fired a join event for us.
         long now = System.currentTimeMillis();
@@ -308,8 +332,7 @@ public final class CivitasPlugin extends JavaPlugin {
             accounts.onJoin(online.getUniqueId(), online.getName(), now);
         }
 
-        scheduleEconomy(manager, loadedDaos, cityRegistry, claimService, economyService,
-                treasuryService, upkeepCalculator, scheduler);
+        scheduleEconomy(loadedDaos, economyService, treasuryService, upkeepTask);
         registerIntegrations(economyService);
 
         getLogger().info(() -> "Storage ready on " + settings.dialect() + ".");
@@ -337,16 +360,8 @@ public final class CivitasPlugin extends JavaPlugin {
      * because a city becomes due at a wall-clock hour and the server may have been offline
      * when it passed; the sweep itself does nothing for a city that is not yet due.
      */
-    private void scheduleEconomy(DatabaseManager manager, DaoRegistry loadedDaos,
-                                 CityRegistry cityRegistry, ClaimService claimService,
-                                 EconomyService economyService, TreasuryService treasuryService,
-                                 UpkeepCalculator upkeepCalculator, Scheduler scheduler) {
-
-        UpkeepTask upkeep = new UpkeepTask(manager, loadedDaos, cityRegistry, claimService,
-                treasuryService, upkeepCalculator, UpkeepTask.Notifier.online(lang), scheduler,
-                getLogger(),
-                java.time.ZoneId.systemDefault());
-
+    private void scheduleEconomy(DaoRegistry loadedDaos, EconomyService economyService,
+                                 TreasuryService treasuryService, UpkeepTask upkeep) {
         long checkTicks = configs.get(ConfigFile.CITIES)
                 .getLong("upkeep.check-interval-minutes", 10) * 60L * 20L;
         Bukkit.getScheduler().runTaskTimerAsynchronously(this, upkeep, checkTicks, checkTicks);
@@ -429,6 +444,23 @@ public final class CivitasPlugin extends JavaPlugin {
     private void scheduleMenuRefresh(MenuManager menuManager) {
         long ticks = Math.max(1L, menuManager.refreshTicks());
         Bukkit.getScheduler().runTaskTimer(this, menuManager::refreshLive, ticks, ticks);
+    }
+
+    /**
+     * Reads every layout once at startup so the files appear on disk.
+     *
+     * <p>{@link LayoutLoader} copies a packaged layout out the first time it is asked for,
+     * which without this would be the first time a player opened that screen. An operator
+     * looking for {@code gui/main.yml} to edit should find it after the first boot, not after
+     * somebody has been in the menu.
+     */
+    private void warmLayouts(LayoutLoader layouts) {
+        layouts.load(dev.civitas.gui.menus.MainMenu.LAYOUT, "gui.main.title", 54);
+        layouts.load(dev.civitas.gui.menus.ClaimsMenu.LAYOUT, "gui.claims.title", 54);
+        layouts.load(dev.civitas.gui.menus.TreasuryMenu.LAYOUT, "gui.treasury.title", 54);
+        layouts.load("members.yml", "gui.members.title", 54);
+        layouts.load(dev.civitas.gui.menus.RanksMenu.LAYOUT, "gui.ranks.title", 54);
+        layouts.load(dev.civitas.gui.menus.SettingsMenu.LAYOUT, "gui.settings.title", 54);
     }
 
     private void scheduleBackups(DatabaseSettings settings) {

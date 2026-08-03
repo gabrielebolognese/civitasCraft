@@ -239,6 +239,16 @@ public final class TreasuryService {
         return Result.success(after);
     }
 
+    /**
+     * A city's recent ledger entries, newest first, for the SPEC 8.5 history screen.
+     *
+     * <p>Here rather than in the GUI because SPEC 2.3 keeps commands and menus off the DAOs,
+     * and because "what counts as this city's history" is a question the treasury owns.
+     */
+    public CompletableFuture<java.util.List<LedgerRow>> history(int cityId, int limit) {
+        return daos.ledger().findByCity(cityId, 0L, limit);
+    }
+
     /** Total money held in treasuries, the other half of SPEC 4.8's circulation figure. */
     public CompletableFuture<BigDecimal> totalInTreasuries() {
         return daos.cities().totalTreasuries();
