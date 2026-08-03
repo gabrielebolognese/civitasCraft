@@ -15,6 +15,9 @@ import dev.civitas.core.income.ChallengeService;
 import dev.civitas.core.income.IncomeMultipliers;
 import dev.civitas.core.income.QuestPool;
 import dev.civitas.core.income.QuestService;
+import dev.civitas.core.outpost.OutpostRegistry;
+import dev.civitas.core.outpost.OutpostService;
+import dev.civitas.core.outpost.OutpostTeleport;
 import dev.civitas.gui.framework.AmountInput;
 import dev.civitas.gui.framework.LayoutLoader;
 import dev.civitas.gui.framework.MenuManager;
@@ -66,13 +69,21 @@ final class MenuTestSupport implements AutoCloseable {
                 cities.daos.cityChallenges(), cities.registry, cities.treasury, challengePool,
                 cities.configs, (player, key, extra) -> { }, java.time.ZoneId.of("UTC"));
 
+        OutpostRegistry outpostRegistry = new OutpostRegistry(cities.daos.outposts());
+        OutpostService outposts = new OutpostService(cities.db, cities.daos, cities.registry,
+                cities.claimRegistry, cities.claims, outpostRegistry, cities.treasury,
+                cities.configs, Scheduler.direct());
+        OutpostTeleport outpostTeleport = new OutpostTeleport(plugin, outposts, cities.economy,
+                cities.configs, lang);
+
         SpawnService spawns = new SpawnService(plugin, cities.registry, cities.configs, lang);
         CityHall halls = new CityHall(plugin, cities.configs, lang);
 
         this.services = new CivitasServices(cities.registry, cities.cities, cities.ranks,
                 cities.claimRegistry, cities.claims, null, null, cities.protection, null, null,
                 cities.economy, cities.treasury, cities.upkeep, upkeep, cities.market,
-                cities.marketFilter, cities.shops, quests, challenges, menus, layouts,
+                cities.marketFilter, cities.shops, quests, challenges, outposts,
+                outpostTeleport, menus, layouts,
                 input, spawns, halls,
                 cities.accounts, new PlayerLookup(cities.daos.players()), Scheduler.direct());
     }

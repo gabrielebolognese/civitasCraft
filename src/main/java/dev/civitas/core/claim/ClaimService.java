@@ -75,6 +75,19 @@ public final class ClaimService {
         this.events = Objects.requireNonNull(events, "events");
     }
 
+    /**
+     * Told after every successful claim, so SPEC 7.4's outpost conversion can run.
+     *
+     * <p>A settable listener rather than a constructor dependency because the outpost service
+     * is built on top of this one: a claim has to be able to happen before outposts exist,
+     * and does, during city creation.
+     */
+    public void onClaimed(java.util.function.BiConsumer<City, Claim> listener) {
+        this.claimListener = Objects.requireNonNull(listener, "listener");
+    }
+
+    private java.util.function.BiConsumer<City, Claim> claimListener = (city, claim) -> { };
+
     public ClaimRegistry registry() {
         return registry;
     }
@@ -122,7 +135,13 @@ public final class ClaimService {
      * playtime <em>and</em> a login inside the active window count, so a city cannot halve
      * its land costs by inviting ten alts that have never played.
      */
-    int activeMemberCount(City city) {
+    /**
+     * How many members count toward the SPEC 6.2 divisor.
+     *
+     * <p>Public because an outpost is priced against what an ordinary chunk would cost
+     * (SPEC 7.2), and that price needs the same divisor.
+     */
+    public int activeMemberCount(City city) {
         FileConfiguration cityConfig = configs.get(ConfigFile.CITIES);
         long window = cityConfig.getLong("claims.active-member-days", 14) * MILLIS_PER_DAY;
         long minPlaytime = cityConfig.getLong("creation.min-playtime-hours", 2) * 3_600_000L;
@@ -194,7 +213,10 @@ public final class ClaimService {
 
         return db.transaction(connection -> writeClaim(connection, actor, city, world,
                         chunkX, chunkZ, cost, ClaimType.NORMAL, null))
-                .thenApply(result -> applyOnMain(result, registry::put));
+                .thenApply(result -> applyOnMain(result, claimed -> {
+                    registry.put(claimed);
+                    claimListener.accept(city, claimed);
+                }));
     }
 
     /**
@@ -358,7 +380,10 @@ public final class ClaimService {
                 pending.add(new Contiguity.Chunk(target[0], target[1]));
             }
             return Result.success(claimed);
-        }).thenApply(result -> applyOnMain(result, list -> list.forEach(registry::put)));
+        }).thenApply(result -> applyOnMain(result, list -> {
+            list.forEach(registry::put);
+            list.stream().findFirst().ifPresent(first -> claimListener.accept(city, first));
+        }));
     }
 
     /**

@@ -3,6 +3,7 @@ package dev.civitas.listener;
 import java.util.Objects;
 
 import dev.civitas.core.city.SpawnService;
+import dev.civitas.core.outpost.OutpostTeleport;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
@@ -21,18 +22,22 @@ import org.bukkit.event.player.PlayerQuitEvent;
 public final class TeleportWarmupListener implements Listener {
 
     private final SpawnService spawns;
+    private final OutpostTeleport outposts;
 
-    public TeleportWarmupListener(SpawnService spawns) {
+    public TeleportWarmupListener(SpawnService spawns, OutpostTeleport outposts) {
         this.spawns = Objects.requireNonNull(spawns, "spawns");
+        this.outposts = Objects.requireNonNull(outposts, "outposts");
     }
 
     @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
     public void onMove(PlayerMoveEvent event) {
-        if (!spawns.isWarmingUp(event.getPlayer())) {
-            return;
-        }
-        if (spawns.hasMovedAway(event.getPlayer(), event.getTo())) {
+        if (spawns.isWarmingUp(event.getPlayer())
+                && spawns.hasMovedAway(event.getPlayer(), event.getTo())) {
             spawns.cancel(event.getPlayer(), "city.spawn.cancelled-move");
+        }
+        if (outposts.isWarmingUp(event.getPlayer())
+                && outposts.hasMovedAway(event.getPlayer(), event.getTo())) {
+            outposts.cancel(event.getPlayer(), "city.spawn.cancelled-move");
         }
     }
 
@@ -42,10 +47,12 @@ public final class TeleportWarmupListener implements Listener {
             return;
         }
         spawns.cancel(player, "city.spawn.cancelled-damage");
+        outposts.cancel(player, "city.spawn.cancelled-damage");
     }
 
     @EventHandler(priority = EventPriority.MONITOR)
     public void onQuit(PlayerQuitEvent event) {
         spawns.forget(event.getPlayer().getUniqueId());
+        outposts.forget(event.getPlayer().getUniqueId());
     }
 }

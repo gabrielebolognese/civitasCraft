@@ -39,6 +39,11 @@ public final class OutpostDao extends Dao<OutpostRow> {
                 rs.getLong("created_at"));
     }
 
+    /** Every outpost on the server, for the startup cache. */
+    public CompletableFuture<List<OutpostRow>> findAll() {
+        return queryList("SELECT " + COLUMNS + " FROM outposts ORDER BY id");
+    }
+
     public CompletableFuture<Optional<OutpostRow>> findById(int id) {
         return db.call(connection ->
                 queryOneSync(connection, "SELECT " + COLUMNS + " FROM outposts WHERE id = ?", this::map, id));
@@ -75,10 +80,14 @@ public final class OutpostDao extends Dao<OutpostRow> {
     }
 
     public CompletableFuture<Integer> update(OutpostRow row) {
-        return db.call(connection -> updateSync(connection,
+        return db.call(connection -> update(connection, row));
+    }
+
+    public int update(Connection connection, OutpostRow row) throws SQLException {
+        return updateSync(connection,
                 "UPDATE outposts SET name = ?, tp_x = ?, tp_y = ?, tp_z = ?, tp_yaw = ?, tp_pitch = ? "
                         + "WHERE id = ?",
-                row.name(), row.tpX(), row.tpY(), row.tpZ(), row.tpYaw(), row.tpPitch(), row.id()));
+                row.name(), row.tpX(), row.tpY(), row.tpZ(), row.tpYaw(), row.tpPitch(), row.id());
     }
 
     public CompletableFuture<Integer> delete(int outpostId) {

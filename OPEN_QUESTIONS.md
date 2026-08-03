@@ -437,3 +437,37 @@ Format:
   targets are not scaled at all; they are city-sized in config instead. Scaling by, say, the
   mayor's playtime would make a challenge harder because one member played more.
   *Date:* 2026-08-03
+
+- **[M10]** SPEC 7.2 checks the 8-chunk minimum from another city only when an outpost is
+  founded, so a city may later expand to within one chunk of somebody else's outpost. SPEC
+  says nothing about what should happen then. *Implemented default:* nothing happens. The
+  outpost stays where it is, and the growing city is not blocked. Inventing either rule (a
+  claim refused because of a foreign outpost, or an outpost pushed out by a neighbour's
+  growth) would be a land-grab mechanic SPEC never asked for. *Date:* 2026-08-03
+
+- **[M10]** SPEC 7.2 measures an outpost's 32-chunk minimum "from own city", which is
+  ambiguous once a city already has outposts: are they part of the city for this purpose?
+  *Implemented default:* no. The distance is measured from non-outpost claims only, so two
+  outposts may sit beside each other. The rule exists to stop outposts being used to step
+  past SPEC 6.1 adjacency, and a cluster of outposts 32 chunks from home does not do that,
+  since none of them is contiguous with anything. *Date:* 2026-08-03
+
+- **[M10]** SPEC 7.4's auto-conversion says the outpost "converts to a normal claim" but not
+  what happens to its `cost_paid`, which is what a later unclaim refunds half of.
+  *Implemented default:* kept as it was, so a converted chunk refunds half of the outpost
+  premium rather than half of an ordinary chunk. The city paid that money; SPEC 7.4 declines
+  to give it back at conversion, and quietly shrinking the refund would take it away twice.
+  *Date:* 2026-08-03
+
+- **[M10]** SPEC 4.6 lists `OUTPOST_CREATE` as a ledger type, but SPEC 7.2 prices an outpost
+  as a chunk purchase, which the claim engine already records as `CHUNK_CLAIM`. Writing both
+  as charges would double the money in an audit. *Implemented default:* the treasury is
+  charged once, under `CHUNK_CLAIM`, and a second `OUTPOST_CREATE` row records the same
+  amount with metadata naming where it was accounted. An admin searching either type finds
+  the event; summing both would double-count, which the metadata says out loud.
+  *Date:* 2026-08-03
+
+- **[M10]** SPEC 7.2 gives outpost teleport a cost, a warmup and a cooldown but does not say
+  when the 100 C is taken. *Implemented default:* on arrival. A player knocked out of the
+  warmup by damage has not travelled and should not have paid, and charging up front would
+  make interrupting somebody a way to take their money. *Date:* 2026-08-03

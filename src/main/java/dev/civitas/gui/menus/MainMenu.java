@@ -93,7 +93,15 @@ public final class MainMenu extends CityMenu {
         putUnavailable("diplomacy", 24, Material.WRITTEN_BOOK, "gui.main.diplomacy");
         putUnavailable("upgrades", 28, Material.ANVIL, "gui.main.upgrades");
         putUnavailable("vault", 30, Material.ENDER_CHEST, "gui.main.vault");
-        putUnavailable("outposts", 32, Material.FILLED_MAP, "gui.main.outposts");
+        put("outposts", 32, Material.FILLED_MAP, "gui.main.outposts", entry ->
+                Button.of(entry.material(), text(entry.labelKey()))
+                        .lore(text("gui.main.outposts.lore",
+                                "used", String.valueOf(services.outposts().registry()
+                                        .countOf(city.id())),
+                                "max", String.valueOf(services.outposts().maxOutposts(city))))
+                        .onClick(context -> new OutpostsMenu(manager, services, viewer, city,
+                                this).open())
+                        .build());
         putUnavailable("contests", 34, Material.PAINTING, "gui.main.contests");
 
         put("spawn", 40, Material.ENDER_PEARL, "gui.main.spawn", entry ->

@@ -161,6 +161,17 @@ public final class ClaimRegistry {
     }
 
     /** Every world this registry has seen a claim in. */
+    /**
+     * Every claim on the server.
+     *
+     * <p>Used by the SPEC 7.2 outpost distance rules, which have to look at the whole map
+     * rather than at one city's land. Returns a copy, so a caller iterating it cannot be
+     * caught by a claim landing mid-sweep.
+     */
+    public Collection<Claim> allClaims() {
+        return List.copyOf(byChunk.values());
+    }
+
     public Set<String> knownWorlds() {
         return Collections.unmodifiableSet(worldIndices.keySet());
     }
@@ -171,13 +182,19 @@ public final class ClaimRegistry {
 
     // --- mutation, called only by ClaimService ----------------------------------------
 
-    void put(Claim claim) {
+    /**
+     * Adds or replaces a claim in the cache.
+     *
+     * <p>Public because SPEC 7.4's outpost conversion rewrites a claim's type from another
+     * package, and a cache the owning service cannot correct is worse than one anybody can.
+     */
+    public void put(Claim claim) {
         long key = ChunkKey.pack(worldIndexOf(claim.world()), claim.chunkX(), claim.chunkZ());
         byChunk.put(key, claim);
         byCity.computeIfAbsent(claim.cityId(), id -> ConcurrentHashMap.newKeySet()).add(key);
     }
 
-    void remove(Claim claim) {
+    public void remove(Claim claim) {
         Integer index = worldIndices.get(key(claim.world()));
         if (index == null) {
             return;

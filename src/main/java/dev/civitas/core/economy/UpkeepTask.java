@@ -315,10 +315,22 @@ public final class UpkeepTask implements Runnable {
                 treasuryInterestLevel(city));
     }
 
-    /** SPEC 7.2, once outposts exist in M10. */
+    /** SPEC 7.2: each outpost costs a flat daily fee on top of the land. */
     private int outpostCount(City city) {
-        return 0;
+        return outposts == null ? 0 : outposts.countOf(city.id());
     }
+
+    /**
+     * Told about outposts once they exist.
+     *
+     * <p>Set rather than injected because the upkeep sweep is built before the outpost
+     * registry and a city with no outposts owes nothing extra either way.
+     */
+    public void useOutposts(dev.civitas.core.outpost.OutpostRegistry registry) {
+        this.outposts = registry;
+    }
+
+    private dev.civitas.core.outpost.OutpostRegistry outposts;
 
     /** SPEC 12.2, once defense units exist in M12. */
     private BigDecimal defenseUpkeep(City city) {

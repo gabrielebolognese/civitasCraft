@@ -41,6 +41,9 @@ import dev.civitas.core.income.IncomeReporter;
 import dev.civitas.core.income.QuestPool;
 import dev.civitas.core.income.QuestService;
 import dev.civitas.core.income.StipendTask;
+import dev.civitas.core.outpost.OutpostRegistry;
+import dev.civitas.core.outpost.OutpostService;
+import dev.civitas.core.outpost.OutpostTeleport;
 import dev.civitas.core.market.MarketItemFilter;
 import dev.civitas.core.market.MarketPricing;
 import dev.civitas.core.market.MarketRegistry;
@@ -114,6 +117,7 @@ public final class CivitasPlugin extends JavaPlugin {
     private MenuManager menus;
     private SpawnService spawns;
     private IncomeSystems income;
+    private OutpostTeleport outposts;
 
     private final AtomicReference<CivitasServices> services = new AtomicReference<>();
 
@@ -152,6 +156,10 @@ public final class CivitasPlugin extends JavaPlugin {
         CivitasServices current = services.getAndSet(null);
         if (current != null) {
             current.accounts().clearSessions();
+        }
+        if (outposts != null) {
+            outposts.stopAll();
+            outposts = null;
         }
         if (income != null) {
             income.activity().clear();
@@ -332,6 +340,22 @@ public final class CivitasPlugin extends JavaPlugin {
             challengeService.report(player, metric, amount);
         });
 
+        // SPEC 7, outposts.
+        OutpostRegistry outpostRegistry = new OutpostRegistry(loadedDaos.outposts());
+        outpostRegistry.loadAll().thenAccept(loaded ->
+                getLogger().info(() -> "Loaded " + loaded + " outposts."));
+        OutpostService outpostService = new OutpostService(manager, loadedDaos, cityRegistry,
+                claimRegistry, claimService, outpostRegistry, treasuryService, configs, scheduler);
+        OutpostTeleport outpostTeleport = new OutpostTeleport(this, outpostService,
+                economyService, configs, lang);
+        this.outposts = outpostTeleport;
+        upkeepTask.useOutposts(outpostRegistry);
+
+        // SPEC 7.4: a claim that reaches an outpost absorbs it.
+        claimService.onClaimed((city, claim) -> outpostService.convertAdjacent(city)
+                .thenAccept(converted -> converted.forEach(outpost -> scheduler.runOnMain(() ->
+                        notifyMayor(city, outpost.name())))));
+
         MenuManager menuManager = new MenuManager(configs, lang);
         LayoutLoader layoutLoader = new LayoutLoader(dev.civitas.config.PluginResources.of(this));
         AmountInput amountInput = new AmountInput(menuManager, lang, scheduler);
@@ -348,7 +372,7 @@ public final class CivitasPlugin extends JavaPlugin {
                 claimService, claimMap, borderRenderer, protection, protectionGuard,
                 blockClassifier, economyService, treasuryService, upkeepCalculator,
                 upkeepTask, marketService, marketFilter, shopService, questService,
-                challengeService, menuManager, layoutLoader,
+                challengeService, outpostService, outpostTeleport, menuManager, layoutLoader,
                 amountInput, spawnService, cityHall, accounts, lookup, scheduler));
 
         getServer().getPluginManager().registerEvents(
@@ -372,7 +396,7 @@ public final class CivitasPlugin extends JavaPlugin {
         getServer().getPluginManager().registerEvents(
                 new CityHallListener(services::get, cityHall, lang), this);
         getServer().getPluginManager().registerEvents(
-                new TeleportWarmupListener(spawnService), this);
+                new TeleportWarmupListener(spawnService, outpostTeleport), this);
         getServer().getPluginManager().registerEvents(
                 new ActivityListener(activityTracker, questService, challengeService), this);
         getServer().getPluginManager().registerEvents(new IncomeJoinListener(questService,
@@ -549,6 +573,15 @@ public final class CivitasPlugin extends JavaPlugin {
         long ticks = configs.get(ConfigFile.ECONOMY)
                 .getLong("income.stipend.interval-minutes", 15) * 60L * 20L;
         Bukkit.getScheduler().runTaskTimerAsynchronously(this, stipend, ticks, ticks);
+    }
+
+    /** SPEC 7.4: the mayor is told when the city has grown into one of its own outposts. */
+    private void notifyMayor(dev.civitas.core.city.City city, String outpostName) {
+        Player mayor = Bukkit.getPlayer(city.mayorUuid());
+        if (mayor != null) {
+            lang.send(mayor, "outpost.converted",
+                    dev.civitas.lang.LangManager.placeholder("name", outpostName));
+        }
     }
 
     private void scheduleBackups(DatabaseSettings settings) {

@@ -106,8 +106,14 @@ public final class ClaimsMenu extends CityMenu {
                 })
                 .build());
 
-        set(24, unavailable(layout.entryOr("outposts", 24, Material.FILLED_MAP,
-                "gui.claims.outposts")));
+        set(24, Button.of(Material.FILLED_MAP, text("gui.claims.outposts"))
+                .lore(text("gui.main.outposts.lore",
+                        "used", String.valueOf(services.outposts().registry()
+                                .countOf(city.id())),
+                        "max", String.valueOf(services.outposts().maxOutposts(city))))
+                .onClick(context -> new OutpostsMenu(manager, services, viewer, city(), this)
+                        .open())
+                .build());
 
         set(31, statistics(city));
 

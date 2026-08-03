@@ -4,6 +4,33 @@ All notable changes to CivitasCraft. One section per milestone from `PLAN.md`.
 
 ## [Unreleased]
 
+### M10, Outposts
+
+Added:
+- `OutpostService`: SPEC 7 in full. The 1-chunk restriction, the 32-chunk minimum from your
+  own land and 8 from anyone else's, the 25,000 C flat fee plus three times the next normal
+  chunk, the slot cap, and the 50% refund on delete.
+- The SPEC 7.4 conversion: when a city grows until its own outpost borders the city body,
+  the outpost becomes an ordinary claim, the slot is freed, and nothing is refunded. Fired
+  from a listener on the claim service, so it happens the moment the claim lands.
+- `OutpostTeleport`: 100 C, an 8-second warmup cancelled by movement or damage, a 3-minute
+  cooldown, and SPEC 7.4's safe landing, which drops a player at the highest safe Y in the
+  chunk rather than into a wall somebody built over the warp point. The fee is charged on
+  arrival, so an interrupted teleport costs nothing.
+- `OutpostRegistry`: outposts in memory, because the upkeep sweep counts them for every city
+  and the Claims menu shows the count on every redraw.
+- `OutpostsMenu` and the six `/city outpost` subcommands from SPEC 7.3.
+- Tests: one per rule in the SPEC 7.2 table and per case in SPEC 7.4, including the diagonal
+  that is not adjacency, the foreign neighbour that converts nothing, and the outpost in
+  another world that growth at home cannot reach.
+
+Changed:
+- `UpkeepTask.outpostCount` is no longer a seam: SPEC 7.2's 2,000 C a day per outpost is now
+  part of what a city owes.
+- The Outposts buttons on the Main and Claims menus open the screen instead of refusing.
+- `ClaimService` gained a claim listener, so a milestone that needs to react to land being
+  taken does not have to be wired into the claim path itself.
+
 ### M9, Income systems
 
 Added:

@@ -136,7 +136,7 @@ public final class CityCommand {
                 .then(border())
                 .then(deposit())
                 .then(withdraw())
-                .then(notYet("outpost", 10))
+                .then(new OutpostCommands(services, lang, scheduler, logger).build())
                 .then(notYet("upgrade", 11))
                 .then(notYet("vault", 11))
                 .then(notYet("defense", 12))
