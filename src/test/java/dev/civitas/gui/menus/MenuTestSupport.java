@@ -18,6 +18,9 @@ import dev.civitas.core.income.QuestService;
 import dev.civitas.core.outpost.OutpostRegistry;
 import dev.civitas.core.outpost.OutpostService;
 import dev.civitas.core.outpost.OutpostTeleport;
+import dev.civitas.core.upgrade.UpgradeService;
+import dev.civitas.core.vault.VaultService;
+import dev.civitas.core.vault.VaultView;
 import dev.civitas.gui.framework.AmountInput;
 import dev.civitas.gui.framework.LayoutLoader;
 import dev.civitas.gui.framework.MenuManager;
@@ -69,10 +72,19 @@ final class MenuTestSupport implements AutoCloseable {
                 cities.daos.cityChallenges(), cities.registry, cities.treasury, challengePool,
                 cities.configs, (player, key, extra) -> { }, java.time.ZoneId.of("UTC"));
 
+        UpgradeService upgradeService = new UpgradeService(cities.db,
+                cities.daos.cityUpgrades(), cities.treasury, cities.configs, Scheduler.direct());
+        VaultService vaultService = new VaultService(cities.daos.cityVault(), upgradeService,
+                cities.configs);
+        VaultView vaultView = new VaultView(plugin, vaultService, lang, quiet());
+        cities.cities.useUpgrades(upgradeService);
+        cities.market.useUpgrades(cities.registry, upgradeService);
+
         OutpostRegistry outpostRegistry = new OutpostRegistry(cities.daos.outposts());
         OutpostService outposts = new OutpostService(cities.db, cities.daos, cities.registry,
                 cities.claimRegistry, cities.claims, outpostRegistry, cities.treasury,
                 cities.configs, Scheduler.direct());
+        outposts.useUpgrades(upgradeService);
         OutpostTeleport outpostTeleport = new OutpostTeleport(plugin, outposts, cities.economy,
                 cities.configs, lang);
 
@@ -83,7 +95,7 @@ final class MenuTestSupport implements AutoCloseable {
                 cities.claimRegistry, cities.claims, null, null, cities.protection, null, null,
                 cities.economy, cities.treasury, cities.upkeep, upkeep, cities.market,
                 cities.marketFilter, cities.shops, quests, challenges, outposts,
-                outpostTeleport, menus, layouts,
+                outpostTeleport, upgradeService, vaultService, vaultView, menus, layouts,
                 input, spawns, halls,
                 cities.accounts, new PlayerLookup(cities.daos.players()), Scheduler.direct());
     }

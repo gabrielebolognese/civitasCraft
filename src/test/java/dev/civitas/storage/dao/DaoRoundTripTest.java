@@ -108,7 +108,7 @@ class DaoRoundTripTest {
     @Test
     @DisplayName("the registry exposes one DAO per table and every table exists")
     void registryCoversEveryTable() {
-        assertEquals(27, daos.all().size(), "a DAO is missing from the registry");
+        assertEquals(28, daos.all().size(), "a DAO is missing from the registry");
 
         for (Dao<?> dao : daos.all()) {
             assertEquals(0L, await(dao.count()), dao.table() + " should start empty");

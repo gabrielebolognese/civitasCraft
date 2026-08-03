@@ -939,10 +939,27 @@ public final class CityService {
     public int memberCap(City city) {
         FileConfiguration cities = configs.get(ConfigFile.CITIES);
         int base = cities.getInt("members.base-cap", 10);
-        // Upgrade levels are M11; until then every city sits at the base cap, which is the
-        // conservative reading and never grants capacity a city has not paid for.
-        return base;
+        if (upgrades == null) {
+            return base;
+        }
+        int perLevel = (int) Math.round(upgrades.effectPerLevel(
+                dev.civitas.core.upgrade.UpgradeType.POPULATION, 5));
+        return base + perLevel * upgrades.levelOf(city,
+                dev.civitas.core.upgrade.UpgradeType.POPULATION);
     }
+
+    /**
+     * Told about upgrades once they exist, so SPEC 5.7's Population track raises the cap.
+     *
+     * <p>Set rather than injected because a city has to be creatable before upgrades are
+     * loaded, and a city with no upgrades sits at the base cap either way.
+     */
+    public void useUpgrades(dev.civitas.core.upgrade.UpgradeService service) {
+        this.upgrades = service;
+    }
+
+    private dev.civitas.core.upgrade.UpgradeService upgrades;
+
 
     /** Checks a city permission, treating the mayor as holding everything. */
     public Result<Void> requirePermission(City city, UUID actor, CityPermission permission) {

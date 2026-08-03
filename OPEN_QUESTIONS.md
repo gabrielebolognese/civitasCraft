@@ -471,3 +471,38 @@ Format:
   when the 100 C is taken. *Implemented default:* on arrival. A player knocked out of the
   warmup by damage has not travelled and should not have paid, and charging up front would
   make interrupting somebody a way to take their money. *Date:* 2026-08-03
+
+- **[M11]** SPEC 5.7 and SPEC 12.4 contradict each other on Fortification. SPEC 5.7's table
+  says "+5% defense unit health, **+1 max unit**"; SPEC 12.4 says "Maximum active units:
+  5 + (**2** per Fortification level), so 5 to 15", and 5 + 2x5 = 15 makes SPEC 12.4
+  internally consistent while SPEC 5.7's "+1" is not. *Implemented default:* M11 only stores
+  the level; nothing reads it until M12. `cities.yml` ships
+  `upgrades.fortification.units-per-level: 1`, following SPEC 5.7's table, and M12 will read
+  that key. **This needs a developer decision before M12**: it is the difference between a
+  maxed city fielding 10 units or 15. *Date:* 2026-08-03
+
+- **[M11]** SPEC 5.7's Outpost Range grants "+1 max outpost" over five levels from a base of
+  2, which reaches 7, but SPEC 7.2 says "2 base, up to 6". *Implemented default:* the ceiling
+  wins. `upgrades.outpost-range.max-total` caps the total at 6, so the fifth level of the
+  track buys nothing. That is the conservative reading, because SPEC 7.2's number is the one
+  a player is promised; the alternative is a seventh outpost SPEC says does not exist.
+  *Date:* 2026-08-03
+
+- **[M11]** SPEC 5.7 grants the vault "+1 shared vault page (27 slots)" per level and states
+  no base. *Implemented default:* a city that has bought nothing has no vault at all, so the
+  first level of the track is what unlocks the feature. Granting a free page would make the
+  30,000 C first level buy a second page rather than the vault, and SPEC 11.7 leans on the
+  vault being something a city chose to have. *Date:* 2026-08-03
+
+- **[M11]** SPEC 5.7 says nothing about buying levels out of order or in bulk. *Implemented
+  default:* one level at a time, in order, at that level's listed price. The total cost of a
+  track is then the sum of its column in SPEC 5.7, which is how the numbers read.
+  *Date:* 2026-08-03
+
+- **[M11]** The vault inverts the GUI framework's central rule. M7's listener cancels every
+  click in a plugin inventory (SPEC 17.5 cases 61 to 63), and a vault is a container where
+  items must move. *Implemented default:* the vault is not a framework menu at all. It uses
+  its own `VaultHolder`, so M7's listener never sees it, and the hardening on every other
+  screen is untouched. A page is one shared inventory rather than one per viewer, because two
+  members each holding a copy would duplicate whatever the second one closed over.
+  *Date:* 2026-08-03

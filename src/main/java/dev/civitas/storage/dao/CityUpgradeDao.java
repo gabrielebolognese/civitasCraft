@@ -37,6 +37,11 @@ public final class CityUpgradeDao extends Dao<CityUpgradeRow> {
      * <p>An upgrade the city has never bought has no row at all, so callers treat a missing
      * key as level 0 rather than expecting a zero row to exist.
      */
+    /** Every upgrade row on the server, for the startup cache. */
+    public CompletableFuture<List<CityUpgradeRow>> findAll() {
+        return queryList("SELECT " + COLUMNS + " FROM city_upgrades ORDER BY city_id");
+    }
+
     public CompletableFuture<List<CityUpgradeRow>> findByCity(int cityId) {
         return db.call(connection -> findByCity(connection, cityId));
     }
@@ -47,9 +52,15 @@ public final class CityUpgradeDao extends Dao<CityUpgradeRow> {
     }
 
     public CompletableFuture<Integer> findLevel(int cityId, String upgradeKey) {
-        return db.call(connection -> queryOneSync(connection,
+        return db.call(connection -> findLevel(connection, cityId, upgradeKey));
+    }
+
+    /** The same read on a caller's connection, so a purchase can re-check inside it. */
+    public int findLevel(Connection connection, int cityId, String upgradeKey)
+            throws SQLException {
+        return queryOneSync(connection,
                 "SELECT level FROM city_upgrades WHERE city_id = ? AND upgrade_key = ?",
-                rs -> rs.getInt("level"), cityId, upgradeKey).orElse(0));
+                rs -> rs.getInt("level"), cityId, upgradeKey).orElse(0);
     }
 
     /** Sets a level, inserting the row on first purchase. */

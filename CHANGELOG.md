@@ -4,6 +4,31 @@ All notable changes to CivitasCraft. One section per milestone from `PLAN.md`.
 
 ## [Unreleased]
 
+### M11, City upgrades
+
+Added:
+- `UpgradeService` and `UpgradeType`: the six SPEC 5.7 tracks, five levels each, bought one
+  at a time in order and paid from the treasury. Levels are cached because four hot paths
+  read them, and re-checked inside the purchase transaction so two officers clicking at once
+  cannot both buy level 3.
+- The four seams other milestones left are now live: Population raises the member cap the
+  join check uses, Treasury Interest lowers the bill the upkeep sweep produces, Outpost Range
+  raises the cap M10 enforces, and Market Access lowers the tax a sale actually pays. Each is
+  tested by asking the consuming system, not the upgrade service, because forgetting to read
+  a stored level is a silent failure.
+- The City Vault, SPEC 5.7 and 9.2: `VaultService`, `VaultView`, `VaultListener`, V6
+  `city_vault`, and `/city vault [page]`. A page is 27 slots, one per Vault level, stored
+  through Paper's own item serialisation.
+- `UpgradesMenu`, and the Upgrades and Vault buttons on the hub now open rather than refuse.
+- Tests: the thirty SPEC 5.7 prices, the five-level ceiling, the four effects asked of their
+  own systems, and the vault's failure modes, including an unreadable page opening empty
+  rather than taking the other pages down with it.
+
+Note on the vault and the GUI framework: the vault is deliberately not a framework menu. M7's
+listener cancels every click in anything it owns, which is right for a menu and wrong for a
+container, so the vault carries its own holder and the framework never sees it. Nothing in
+the SPEC 17.5 hardening was weakened to make this work.
+
 ### M10, Outposts
 
 Added:

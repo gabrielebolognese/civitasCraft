@@ -91,8 +91,32 @@ public final class MainMenu extends CityMenu {
         putUnavailable("defense", 20, Material.IRON_GOLEM_SPAWN_EGG, "gui.main.defense");
         putUnavailable("wars", 22, Material.NETHERITE_SWORD, "gui.main.wars");
         putUnavailable("diplomacy", 24, Material.WRITTEN_BOOK, "gui.main.diplomacy");
-        putUnavailable("upgrades", 28, Material.ANVIL, "gui.main.upgrades");
-        putUnavailable("vault", 30, Material.ENDER_CHEST, "gui.main.vault");
+        put("upgrades", 28, Material.ANVIL, "gui.main.upgrades", entry ->
+                Button.of(entry.material(), text(entry.labelKey()))
+                        .lore(text("gui.main.upgrades.lore",
+                                "bought", String.valueOf(services.upgrades()
+                                        .totalLevels(city.id())),
+                                "total", String.valueOf(
+                                        dev.civitas.core.upgrade.UpgradeType.values().length
+                                                * dev.civitas.core.upgrade.UpgradeType.MAX_LEVEL)))
+                        .onClick(context -> new UpgradesMenu(manager, services, viewer, city,
+                                this).open())
+                        .build());
+        put("vault", 30, Material.ENDER_CHEST, "gui.main.vault", entry ->
+                Button.of(entry.material(), text(entry.labelKey()))
+                        .lore(text("gui.main.vault.lore", "pages",
+                                String.valueOf(services.vaults().pagesOf(city))))
+                        .onClick(context -> {
+                            var allowed = services.vaults().checkAccess(
+                                    context.player().getUniqueId(), city(), 0);
+                            if (allowed instanceof dev.civitas.util.Result.Failure<Integer> f) {
+                                dev.civitas.command.Replies.sendFailure(context.player(),
+                                        manager.lang(), f);
+                                return;
+                            }
+                            services.vaultView().open(context.player(), city(), 0);
+                        })
+                        .build());
         put("outposts", 32, Material.FILLED_MAP, "gui.main.outposts", entry ->
                 Button.of(entry.material(), text(entry.labelKey()))
                         .lore(text("gui.main.outposts.lore",

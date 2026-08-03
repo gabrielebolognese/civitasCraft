@@ -137,8 +137,8 @@ public final class CityCommand {
                 .then(deposit())
                 .then(withdraw())
                 .then(new OutpostCommands(services, lang, scheduler, logger).build())
-                .then(notYet("upgrade", 11))
-                .then(notYet("vault", 11))
+                .then(upgradeCommands().upgrade())
+                .then(upgradeCommands().vault())
                 .then(notYet("defense", 12))
                 .then(hall())
                 .build();
@@ -697,6 +697,10 @@ public final class CityCommand {
     // ==================================================================================
     // Spawn, SPEC 5.6
     // ==================================================================================
+
+    private UpgradeCommands upgradeCommands() {
+        return new UpgradeCommands(services, lang, scheduler, logger);
+    }
 
     private ArgumentBuilder<CommandSourceStack, ?> spawn() {
         return Commands.literal("spawn")

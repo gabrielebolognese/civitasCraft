@@ -218,12 +218,28 @@ public final class MarketService {
     /**
      * The seller's city's Market Access level, SPEC 5.7.
      *
-     * <p>Zero until M11 builds upgrades, so everyone pays the full SPEC 4.3 tax. The
-     * conservative direction: nobody gets a discount they have not bought.
+     * <p>A player with no city pays the full SPEC 4.3 tax, which is the point of the track:
+     * the discount belongs to a city, and a member carries it with them.
      */
     private int marketAccessLevel(UUID seller) {
-        return 0;
+        if (upgrades == null || cities == null) {
+            return 0;
+        }
+        return cities.cityOf(seller)
+                .map(city -> upgrades.levelOf(city,
+                        dev.civitas.core.upgrade.UpgradeType.MARKET_ACCESS))
+                .orElse(0);
     }
+
+    /** Told about cities and upgrades once they exist. */
+    public void useUpgrades(dev.civitas.core.city.CityRegistry registry,
+                            dev.civitas.core.upgrade.UpgradeService service) {
+        this.cities = registry;
+        this.upgrades = service;
+    }
+
+    private dev.civitas.core.city.CityRegistry cities;
+    private dev.civitas.core.upgrade.UpgradeService upgrades;
 
     /**
      * The SPEC 11.9 winner's bonus: +10% sell prices for seven days after winning a war.

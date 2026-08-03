@@ -169,6 +169,9 @@ class LangKeyUsageTest {
      * concatenation belong here.
      */
     private static boolean isBuiltAtRuntime(String key) {
-        return key.startsWith("quest.") || key.startsWith("challenge.");
+        return key.startsWith("quest.")
+                || key.startsWith("challenge.")
+                // An upgrade's description key is built from its enum, UpgradeType.messageKey.
+                || key.startsWith("upgrade.");
     }
 }

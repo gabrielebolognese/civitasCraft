@@ -44,6 +44,9 @@ import dev.civitas.core.income.StipendTask;
 import dev.civitas.core.outpost.OutpostRegistry;
 import dev.civitas.core.outpost.OutpostService;
 import dev.civitas.core.outpost.OutpostTeleport;
+import dev.civitas.core.upgrade.UpgradeService;
+import dev.civitas.core.vault.VaultService;
+import dev.civitas.core.vault.VaultView;
 import dev.civitas.core.market.MarketItemFilter;
 import dev.civitas.core.market.MarketPricing;
 import dev.civitas.core.market.MarketRegistry;
@@ -73,6 +76,7 @@ import dev.civitas.listener.InteractionProtectionListener;
 import dev.civitas.listener.PistonProtectionListener;
 import dev.civitas.listener.PlayerAccountListener;
 import dev.civitas.listener.TeleportWarmupListener;
+import dev.civitas.listener.VaultListener;
 import dev.civitas.listener.ShopInteractListener;
 import dev.civitas.listener.ShopSignListener;
 import dev.civitas.storage.BackupService;
@@ -118,6 +122,7 @@ public final class CivitasPlugin extends JavaPlugin {
     private SpawnService spawns;
     private IncomeSystems income;
     private OutpostTeleport outposts;
+    private VaultView vaults;
 
     private final AtomicReference<CivitasServices> services = new AtomicReference<>();
 
@@ -156,6 +161,12 @@ public final class CivitasPlugin extends JavaPlugin {
         CivitasServices current = services.getAndSet(null);
         if (current != null) {
             current.accounts().clearSessions();
+        }
+        if (vaults != null) {
+            // SPEC 17.7 case 84's reasoning: an unsaved vault page on shutdown is a city's
+            // valuables gone, so this blocks.
+            vaults.saveAndCloseAll();
+            vaults = null;
         }
         if (outposts != null) {
             outposts.stopAll();
@@ -340,6 +351,21 @@ public final class CivitasPlugin extends JavaPlugin {
             challengeService.report(player, metric, amount);
         });
 
+        // SPEC 5.7, upgrades and the vault. Built before the outposts and the menus, because
+        // four systems read a level and would otherwise have to be told about it afterwards.
+        UpgradeService upgradeService = new UpgradeService(manager, loadedDaos.cityUpgrades(),
+                treasuryService, configs, scheduler);
+        upgradeService.loadAll().thenAccept(loaded ->
+                getLogger().info(() -> "Loaded " + loaded + " city upgrades."));
+        VaultService vaultService = new VaultService(loadedDaos.cityVault(), upgradeService,
+                configs);
+        VaultView vaultView = new VaultView(this, vaultService, lang, getLogger());
+        this.vaults = vaultView;
+
+        cityService.useUpgrades(upgradeService);
+        upkeepTask.useUpgrades(upgradeService);
+        marketService.useUpgrades(cityRegistry, upgradeService);
+
         // SPEC 7, outposts.
         OutpostRegistry outpostRegistry = new OutpostRegistry(loadedDaos.outposts());
         outpostRegistry.loadAll().thenAccept(loaded ->
@@ -350,6 +376,7 @@ public final class CivitasPlugin extends JavaPlugin {
                 economyService, configs, lang);
         this.outposts = outpostTeleport;
         upkeepTask.useOutposts(outpostRegistry);
+        outpostService.useUpgrades(upgradeService);
 
         // SPEC 7.4: a claim that reaches an outpost absorbs it.
         claimService.onClaimed((city, claim) -> outpostService.convertAdjacent(city)
@@ -372,7 +399,8 @@ public final class CivitasPlugin extends JavaPlugin {
                 claimService, claimMap, borderRenderer, protection, protectionGuard,
                 blockClassifier, economyService, treasuryService, upkeepCalculator,
                 upkeepTask, marketService, marketFilter, shopService, questService,
-                challengeService, outpostService, outpostTeleport, menuManager, layoutLoader,
+                challengeService, outpostService, outpostTeleport, upgradeService,
+                vaultService, vaultView, menuManager, layoutLoader,
                 amountInput, spawnService, cityHall, accounts, lookup, scheduler));
 
         getServer().getPluginManager().registerEvents(
@@ -397,6 +425,7 @@ public final class CivitasPlugin extends JavaPlugin {
                 new CityHallListener(services::get, cityHall, lang), this);
         getServer().getPluginManager().registerEvents(
                 new TeleportWarmupListener(spawnService, outpostTeleport), this);
+        getServer().getPluginManager().registerEvents(new VaultListener(vaultView), this);
         getServer().getPluginManager().registerEvents(
                 new ActivityListener(activityTracker, questService, challengeService), this);
         getServer().getPluginManager().registerEvents(new IncomeJoinListener(questService,

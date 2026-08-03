@@ -18,6 +18,9 @@ import dev.civitas.core.income.ChallengeService;
 import dev.civitas.core.income.QuestService;
 import dev.civitas.core.outpost.OutpostService;
 import dev.civitas.core.outpost.OutpostTeleport;
+import dev.civitas.core.upgrade.UpgradeService;
+import dev.civitas.core.vault.VaultService;
+import dev.civitas.core.vault.VaultView;
 import dev.civitas.core.market.MarketItemFilter;
 import dev.civitas.core.market.MarketService;
 import dev.civitas.core.protection.BlockClassifier;
@@ -61,6 +64,9 @@ public record CivitasServices(
         ChallengeService challenges,
         OutpostService outposts,
         OutpostTeleport outpostTeleport,
+        UpgradeService upgrades,
+        VaultService vaults,
+        VaultView vaultView,
         MenuManager menus,
         LayoutLoader layouts,
         AmountInput amountInput,

@@ -445,10 +445,35 @@ public final class OutpostService {
         return base + upgradeLevels(city);
     }
 
-    /** SPEC 5.7 Outpost Range, once upgrades exist in M11. */
+    /**
+     * SPEC 5.7 Outpost Range, capped at the SPEC 7.2 ceiling.
+     *
+     * <p>SPEC 7.2 says "2 base, up to 6", and SPEC 5.7 grants one per level over five levels,
+     * which would reach seven. The ceiling wins: {@code outposts.max-total} is what the
+     * specification promises a player.
+     */
     private int upgradeLevels(City city) {
-        return 0;
+        if (upgrades == null) {
+            return 0;
+        }
+        int base = configs.get(ConfigFile.CITIES).getInt("outposts.base-max", 2);
+        int ceiling = configs.get(ConfigFile.CITIES)
+                .getInt(dev.civitas.core.upgrade.UpgradeType.OUTPOST_RANGE.configPath()
+                        + ".max-total", 6);
+        int perLevel = (int) Math.round(upgrades.effectPerLevel(
+                dev.civitas.core.upgrade.UpgradeType.OUTPOST_RANGE, 1));
+        int fromUpgrade = perLevel * upgrades.levelOf(city,
+                dev.civitas.core.upgrade.UpgradeType.OUTPOST_RANGE);
+
+        return Math.max(0, Math.min(fromUpgrade, ceiling - base));
     }
+
+    /** Told about upgrades once they exist. */
+    public void useUpgrades(dev.civitas.core.upgrade.UpgradeService service) {
+        this.upgrades = service;
+    }
+
+    private dev.civitas.core.upgrade.UpgradeService upgrades;
 
     /** SPEC 11.11, once wars exist in M19. */
     private boolean isCityAtWar(City city) {

@@ -5,7 +5,7 @@
 
 ## Current session focus
 
-**Next milestone:** M11, City upgrades
+**Next milestone:** M12, Custom mobs
 
 ## Session protocol
 
@@ -34,7 +34,7 @@
 | 8 | All GUI screens | M7, M3, M5 | DONE | SPEC 8.3 to 8.7 and 8.10, City Hall, spawn. **SPEC 8.8 (Wars) and 8.9 (Defense) have no screen**: their systems are M19 and M12. Their hub buttons refuse the click until then. |
 | 9 | Income systems | M5 | DONE | Stipend with the SPEC 4.2.1 filter, daily login streaks, quests, city challenges. V5 migration. Replaces M2's unfiltered playtime placeholder. |
 | 10 | Outposts | M3, M5 | DONE | SPEC 7 in full, including the 7.4 auto-conversion. Upkeep counts outposts now. Slot cap still reads the base until M11 builds Outpost Range. |
-| 11 | City upgrades | M5, M8 | TODO | |
+| 11 | City upgrades | M5, M8 | DONE | Six tracks, the vault, V6 migration. Fills the Population, Treasury Interest, Outpost Range and Market Access seams. **Fortification is stored but unread until M12, and SPEC 5.7 and 12.4 disagree on what it grants.** |
 | 12 | Custom mobs | M5, M8 | TODO | |
 | 13 | Diplomacy | M2 | TODO | |
 | 14 | Leaderboards | M5 | TODO | |

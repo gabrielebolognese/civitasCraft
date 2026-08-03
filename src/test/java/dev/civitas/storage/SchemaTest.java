@@ -101,6 +101,8 @@ class SchemaTest {
                 "submitted_at", "score"));
         schema.put("contest_votes", List.of("id", "contest_id", "voter_uuid", "entry_id", "score"));
         schema.put("city_upgrades", List.of("city_id", "upgrade_key", "level"));
+        // V6, SPEC 5.7 and 9.2: the shared city vault, which SPEC 3 lists no table for.
+        schema.put("city_vault", List.of("city_id", "page", "contents", "updated_at"));
         schema.put("defense_units", List.of("id", "city_id", "type", "world", "spawn_x", "spawn_y",
                 "spawn_z", "upkeep", "active"));
         schema.put("audit_log", List.of("id", "timestamp", "actor_uuid", "action", "target",

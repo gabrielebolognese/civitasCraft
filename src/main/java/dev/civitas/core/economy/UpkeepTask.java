@@ -337,10 +337,18 @@ public final class UpkeepTask implements Runnable {
         return SqlDialect.zero();
     }
 
-    /** SPEC 5.7, once upgrades exist in M11. */
+    /** SPEC 5.7: Treasury Interest takes a slice off the daily bill. */
     private int treasuryInterestLevel(City city) {
-        return 0;
+        return upgrades == null ? 0
+                : upgrades.levelOf(city, dev.civitas.core.upgrade.UpgradeType.TREASURY_INTEREST);
     }
+
+    /** Told about upgrades once they exist. */
+    public void useUpgrades(dev.civitas.core.upgrade.UpgradeService service) {
+        this.upgrades = service;
+    }
+
+    private dev.civitas.core.upgrade.UpgradeService upgrades;
 
     private static CityRow withUpkeep(CityRow row, long upkeepDue, Long delinquentSince,
                                       BigDecimal treasury) {

@@ -39,6 +39,7 @@ public final class DaoRegistry {
     private final ContestEntryDao contestEntries;
     private final ContestVoteDao contestVotes;
     private final CityUpgradeDao cityUpgrades;
+    private final CityVaultDao cityVault;
     private final DefenseUnitDao defenseUnits;
     private final AuditLogDao auditLog;
 
@@ -69,6 +70,7 @@ public final class DaoRegistry {
         this.contestEntries = new ContestEntryDao(db);
         this.contestVotes = new ContestVoteDao(db);
         this.cityUpgrades = new CityUpgradeDao(db);
+        this.cityVault = new CityVaultDao(db);
         this.defenseUnits = new DefenseUnitDao(db);
         this.auditLog = new AuditLogDao(db);
     }
@@ -173,6 +175,10 @@ public final class DaoRegistry {
         return cityUpgrades;
     }
 
+    public CityVaultDao cityVault() {
+        return cityVault;
+    }
+
     public DefenseUnitDao defenseUnits() {
         return defenseUnits;
     }
@@ -186,6 +192,6 @@ public final class DaoRegistry {
         return List.of(players, cities, cityRanks, cityMembers, cityInvites, cityBans, claims, outposts,
                 ledger, economySnapshots, wars, warBlockLog, warContainerLog, warParticipants, warKills, alliances,
                 truces, marketStock, playerShops, playerQuests, cityChallenges, contests, contestEntries, contestVotes,
-                cityUpgrades, defenseUnits, auditLog);
+                cityUpgrades, cityVault, defenseUnits, auditLog);
     }
 }
