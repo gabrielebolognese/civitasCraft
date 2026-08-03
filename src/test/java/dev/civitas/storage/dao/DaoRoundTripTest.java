@@ -108,7 +108,7 @@ class DaoRoundTripTest {
     @Test
     @DisplayName("the registry exposes one DAO per table and every table exists")
     void registryCoversEveryTable() {
-        assertEquals(26, daos.all().size(), "a DAO is missing from the registry");
+        assertEquals(27, daos.all().size(), "a DAO is missing from the registry");
 
         for (Dao<?> dao : daos.all()) {
             assertEquals(0L, await(dao.count()), dao.table() + " should start empty");
@@ -619,7 +619,8 @@ class DaoRoundTripTest {
         @DisplayName("quest progress accumulates and completion is recorded once")
         void quests() {
             long questRow = await(daos.playerQuests().insert(
-                    new PlayerQuestRow(0, ALICE, "harvest_wheat", 0, 1_000L, null)));
+                    new PlayerQuestRow(0, ALICE, "harvest_wheat", 0, 1_000L, null,
+                            256L, new BigDecimal("450.00"))));
 
             await(daos.playerQuests().addProgress(questRow, 100));
             await(daos.playerQuests().addProgress(questRow, 156));

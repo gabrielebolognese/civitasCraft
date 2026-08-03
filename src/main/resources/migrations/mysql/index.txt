@@ -5,3 +5,4 @@ V1__init.sql
 V2__city_bans_and_cooldowns.sql
 V3__economy_snapshots.sql
 V4__player_shops.sql
+V5__quests_and_challenges.sql

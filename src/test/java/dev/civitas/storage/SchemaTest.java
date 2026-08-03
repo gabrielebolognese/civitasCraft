@@ -85,8 +85,17 @@ class SchemaTest {
         schema.put("player_shops", List.of("id", "owner_uuid", "world", "sign_x", "sign_y",
                 "sign_z", "chest_x", "chest_y", "chest_z", "material", "quantity", "buy_price",
                 "sell_price", "created_at"));
+        // V5, SPEC 13.1: target and reward are stored with the assignment, because SPEC 13.1
+        // scales both with playtime and recomputing them later would move the goalposts.
+        // V5, SPEC 13.1: target and reward are stored with the assignment, because SPEC 13.1
+        // scales both with playtime and recomputing them later would move the goalposts under
+        // a player who is halfway through one.
         schema.put("player_quests", List.of("id", "uuid", "quest_id", "progress", "assigned_at",
-                "completed_at"));
+                "completed_at", "target", "reward"));
+        // V5, SPEC 13.2: weekly challenges, which SPEC 3 lists no table for. Keyed by city
+        // and week because progress is pooled across every member.
+        schema.put("city_challenges", List.of("id", "city_id", "challenge_id", "progress",
+                "target", "reward", "week_start", "completed_at"));
         schema.put("contests", List.of("id", "theme", "starts_at", "ends_at", "state"));
         schema.put("contest_entries", List.of("id", "contest_id", "city_id", "plot_region",
                 "submitted_at", "score"));

@@ -47,8 +47,6 @@ public final class CommandRegistry {
             CommandSpec.of("bounty", "civitas.bounty.use", 19, "Place and list bounties."),
 
             // SPEC 9.1, progression.
-            CommandSpec.of("quests", "civitas.quests.use", 9, "Daily quests."),
-            CommandSpec.of("challenges", "civitas.quests.use", 9, "Weekly challenges."),
             CommandSpec.of("leaderboard", "civitas.use", 14, "Server leaderboards."),
             CommandSpec.of("contest", "civitas.contest.use", 15, "Building contests."),
 

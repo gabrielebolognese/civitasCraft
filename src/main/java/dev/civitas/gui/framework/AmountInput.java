@@ -192,7 +192,10 @@ public final class AmountInput implements Listener {
         }
         long timeout = menus.configs().get(ConfigFile.GUI)
                 .getLong("input.timeout-seconds", 30) * 1000L;
-        return System.currentTimeMillis() - waiting.askedAt() > timeout;
+        // Greater-or-equal, so a timeout of zero means "already expired" rather than
+        // "expires as soon as the clock ticks", which is what an operator turning it off
+        // would expect and what a test setting it to zero is asking for.
+        return System.currentTimeMillis() - waiting.askedAt() >= timeout;
     }
 
     private String cancelWord() {

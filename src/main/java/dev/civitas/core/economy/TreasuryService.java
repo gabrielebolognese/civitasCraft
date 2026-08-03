@@ -13,6 +13,8 @@ import dev.civitas.config.ConfigFile;
 import dev.civitas.config.ConfigManager;
 import dev.civitas.core.city.City;
 import dev.civitas.core.city.CityPermission;
+import dev.civitas.core.income.IncomeReporter;
+import dev.civitas.core.income.QuestMetric;
 import dev.civitas.storage.DatabaseManager;
 import dev.civitas.storage.SqlDialect;
 import dev.civitas.storage.dao.DaoRegistry;
@@ -40,14 +42,21 @@ public final class TreasuryService {
     private final EconomyService economy;
     private final ConfigManager configs;
     private final Scheduler scheduler;
+    private final IncomeReporter reporter;
 
     public TreasuryService(DatabaseManager db, DaoRegistry daos, EconomyService economy,
                            ConfigManager configs, Scheduler scheduler) {
+        this(db, daos, economy, configs, scheduler, IncomeReporter.noop());
+    }
+
+    public TreasuryService(DatabaseManager db, DaoRegistry daos, EconomyService economy,
+                           ConfigManager configs, Scheduler scheduler, IncomeReporter reporter) {
         this.db = Objects.requireNonNull(db, "db");
         this.daos = Objects.requireNonNull(daos, "daos");
         this.economy = Objects.requireNonNull(economy, "economy");
         this.configs = Objects.requireNonNull(configs, "configs");
         this.scheduler = Objects.requireNonNull(scheduler, "scheduler");
+        this.reporter = Objects.requireNonNull(reporter, "reporter");
     }
 
     // ==================================================================================
@@ -95,7 +104,13 @@ public final class TreasuryService {
                     moved, after, null));
 
             return Result.success(after);
-        }).thenApply(result -> applyTreasury(result, city));
+        }).thenApply(result -> {
+            if (result instanceof Result.Success<BigDecimal>) {
+                // SPEC 13.1's Social quests count coins deposited.
+                reporter.report(actor, QuestMetric.TREASURY_DEPOSIT, moved.longValue());
+            }
+            return applyTreasury(result, city);
+        });
     }
 
     // ==================================================================================

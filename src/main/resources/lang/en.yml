@@ -529,3 +529,46 @@ gui:
     disband-prompt: "<red>Type the city's name exactly to confirm."
     disband-name-mismatch: "<red>That is not the city's name. Nothing was changed."
     disbanded: "<gray>The city has been disbanded."
+  quests:
+    title: "<dark_gray>Daily Quests"
+    none: "<gray>No quests today. Try again after midnight."
+    progress: "<gray>Progress: <white><progress></white>/<white><target>"
+    reward: "<gray>Reward: <white><amount>"
+    done: "<green>Complete"
+    in-progress: "<gray>In progress"
+  challenges:
+    title: "<dark_gray>Weekly Challenges <gray>| <gold><city>"
+    none: "<gray>No challenges this week."
+    progress: "<gray>City progress: <white><progress></white>/<white><target>"
+    reward: "<gray>Treasury reward: <white><amount>"
+    done: "<green>Complete"
+    in-progress: "<gray>In progress"
+
+income:
+  too-new: "<gray>New accounts start earning after <white><minutes></white> minutes of play."
+  stipend:
+    paid: "<green>+<amount> C <gray>for staying busy."
+  daily:
+    claimed: "<green>Daily reward: <white><amount> C</white>. Streak: <white><streak></white> days."
+    already: "<gray>You have already claimed today's reward."
+    disabled: "<gray>Daily rewards are turned off on this server."
+  quest:
+    completed: "<green>Quest complete! <white>+<amount> C</white>"
+  challenge:
+    completed: "<green>Your city completed a challenge: <white>+<amount> C</white> to the treasury."
+
+quest:
+  harvest-wheat: "<white>Harvest <target> crops"
+  breed-animals: "<white>Breed <target> animals"
+  place-blocks: "<white>Place <target> blocks"
+  craft-items: "<white>Craft <target> items"
+  mine-ore: "<white>Mine <target> ore"
+  sell-to-market: "<white>Sell <target> C worth to the market"
+  deposit-treasury: "<white>Deposit <target> C to your city"
+  visit-biomes: "<white>Visit <target> different biomes"
+
+challenge:
+  city-harvest: "<white>Harvest <target> crops together"
+  city-build: "<white>Place <target> blocks together"
+  city-market: "<white>Sell <target> C worth to the market together"
+  city-mine: "<white>Mine <target> ore together"

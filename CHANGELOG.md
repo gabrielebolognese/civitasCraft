@@ -4,6 +4,46 @@ All notable changes to CivitasCraft. One section per milestone from `PLAN.md`.
 
 ## [Unreleased]
 
+### M9, Income systems
+
+Added:
+- `ActivityTracker`: the SPEC 4.2.1 anti-AFK check. Three *distinct* kinds of action per
+  interval, not a count of events, which is what makes it undefeatable by leaving a machine
+  running for longer. Movement is a cumulative distance rather than an event, so a boat in
+  flowing water covers nothing.
+- `StipendTask`: the SPEC 4.2 stipend, and the accrual of `active_playtime_ms` behind it.
+  An interval that fails the check pays nothing *and* credits no playtime. The daily cap is
+  derived from the ledger, so a restart cannot reset it.
+- `DailyLoginService`: 250 C plus 125 a day to a 1,000 C ceiling, the streak breaking after
+  48 hours away rather than at midnight, and claimed automatically on join.
+- `QuestPool`, `QuestService`: SPEC 13.1's three daily quests, drawn from a weighted pool
+  with a seed made of the player and the date, so a relog cannot reroll a quest somebody
+  dislikes. Paid the moment the target is met.
+- `ChallengeService`: SPEC 13.2's two weekly challenges, pooled across the city, reset
+  Monday 00:00, paid to the treasury.
+- `IncomeMultipliers`: the SPEC 15.1 newcomer x1.5 and the SPEC 17.6 case 70 floor, in one
+  place so every income source applies them identically.
+- `ActivityListener` and `IncomeJoinListener`, `QuestsMenu` and `ChallengesMenu`,
+  `/quests` and `/challenges`.
+- V5: `target` and `reward` on `player_quests`, and the `city_challenges` table.
+- Config: the whole `income.quests.pool` and `income.challenges.pool`, plus
+  `income.quests.scale-hours` and `max-scale`.
+- Tests: SPEC 4.2.1's own five calibration sentences, one test each, including the water
+  clock, the jump-clicker and the single-key macro; SPEC 17.6 cases 69 and 70; the daily cap;
+  the streak window; and the SPEC 13.1 rule that the effort-to-reward ratio stays flat.
+
+Fixed:
+- `ConfigManager` now writes packaged keys the operator's file has never had. Bukkit's
+  `copyDefaults` makes a nested key read as *set* while still resolving its value against
+  the on-disk tree, so a value added inside a section that already existed arrived empty.
+  The first boot of this milestone on a server with an older `economy.yml` produced a quest
+  pool with no metrics and refused every quest. This affected every future config addition,
+  not only quests.
+- `DailyLoginService` writes only the two columns it changes. A whole-row update after a
+  deposit in the same transaction carried the balance read before it and undid the payment.
+- `PlayerAccountService` no longer credits unfiltered session time to `active_playtime_ms`,
+  the placeholder M2 shipped and documented.
+
 ### M8, GUI screens
 
 Added:

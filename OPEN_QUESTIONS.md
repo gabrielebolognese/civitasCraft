@@ -402,3 +402,38 @@ Format:
   city's name typed in chat and compared case-insensitively. The dialog catches a misclick;
   the typed name catches the player who clicks through dialogs without reading them.
   *Date:* 2026-08-03
+
+- **[M9]** SPEC 13.1 says quest difficulty scales with playtime "so veterans do not trivially
+  clear beginner quests, but rewards scale with it too, so the effort-to-reward ratio stays
+  flat", and gives no formula for either. *Implemented default:* one factor multiplies both
+  the target and the reward, so the ratio is flat by construction rather than by tuning and
+  no later change to the curve can quietly make veteran quests a better or worse deal per
+  unit of work. The curve itself is config: a linear ramp from 1x at no playtime to
+  `income.quests.max-scale` (2.5) at `income.quests.scale-hours` (100), flat after that so a
+  veteran's quests stop growing rather than becoming a second job. *Date:* 2026-08-03
+
+- **[M9]** SPEC 3.9 gives `player_quests` a progress column but no target and no reward, and
+  SPEC 13.2's weekly challenges have no table in SPEC 3 at all. *Implemented default:* V5 adds
+  `target` and `reward` to `player_quests` and creates `city_challenges`. The two columns are
+  stored with the assignment rather than recomputed, because SPEC 13.1 scales them with a
+  playtime that keeps rising: recomputing would move the goalposts under a player who is
+  halfway through a quest. *Date:* 2026-08-03
+
+- **[M9]** SPEC 4.2 lists the daily login as an income source but does not say whether it is
+  claimed or paid. *Implemented default:* paid automatically on join. A daily reward a player
+  has to remember to collect rewards remembering, and SPEC 4.2 lists this beside the playtime
+  stipend rather than beside the quests. A refusal (already claimed, or too new) is silent,
+  because "you already claimed today" on every relog is noise. *Date:* 2026-08-03
+
+- **[M9]** SPEC 4.2.1 defines the anti-AFK check per interval but does not say what happens to
+  `active_playtime_ms` in an interval that fails it. *Implemented default:* it is not
+  credited either. Active playtime is what the SPEC 5.1 founding gate and the SPEC 6.2 member
+  divisor are measured in, so an AFK machine accumulating it would defeat SPEC 17.6 case 69
+  even while earning no money. This replaces the deliberately over-permissive placeholder M2
+  shipped, and tightens both of those gates retroactively. *Date:* 2026-08-03
+
+- **[M9]** SPEC 13.2 pools challenge progress across a city but SPEC 13.1's playtime scale has
+  no meaning for a city, which has no single playtime. *Implemented default:* challenge
+  targets are not scaled at all; they are city-sized in config instead. Scaling by, say, the
+  mayor's playtime would make a challenge harder because one member played more.
+  *Date:* 2026-08-03

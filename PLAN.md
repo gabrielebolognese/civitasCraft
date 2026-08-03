@@ -5,7 +5,7 @@
 
 ## Current session focus
 
-**Next milestone:** M9, Income systems
+**Next milestone:** M10, Outposts
 
 ## Session protocol
 
@@ -32,7 +32,7 @@
 | 6 | Market and player shops | M5 | DONE | Dynamic pricing, /shop /sell /worth, chest shops, V4 migration. /shop is chat until M8 gives it a menu. |
 | 7 | GUI framework | M2 | DONE | Menu, Button, pagination, confirmations, YAML layouts, click hardening for cases 59 to 68. No screens: those are M8. |
 | 8 | All GUI screens | M7, M3, M5 | DONE | SPEC 8.3 to 8.7 and 8.10, City Hall, spawn. **SPEC 8.8 (Wars) and 8.9 (Defense) have no screen**: their systems are M19 and M12. Their hub buttons refuse the click until then. |
-| 9 | Income systems | M5 | TODO | |
+| 9 | Income systems | M5 | DONE | Stipend with the SPEC 4.2.1 filter, daily login streaks, quests, city challenges. V5 migration. Replaces M2's unfiltered playtime placeholder. |
 | 10 | Outposts | M3, M5 | TODO | |
 | 11 | City upgrades | M5, M8 | TODO | |
 | 12 | Custom mobs | M5, M8 | TODO | |

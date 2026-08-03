@@ -78,10 +78,49 @@ public final class ConfigManager {
 
         FileConfiguration config = YamlConfiguration.loadConfiguration(onDisk);
         readDefaultsFromJar(file).ifPresent(defaults -> {
+            // Fill in anything the operator's file has never heard of, before the defaults
+            // are attached: once they are, every key reads as set whether it is or not.
+            writeMissingKeys(config, defaults, onDisk);
             config.setDefaults(defaults);
             config.options().copyDefaults(true);
         });
         loaded.put(file, config);
+    }
+
+    /**
+     * Copies keys the operator's file has never heard of into it, and saves.
+     *
+     * <p>{@code copyDefaults} alone is not enough, and the way it falls short is subtle
+     * enough to have shipped a broken quest pool: a value nested under a section that
+     * <em>does</em> exist on disk resolves its keys from the defaults but its values against
+     * the on-disk tree, where they are absent. Reading such a key gives the fallback rather
+     * than the packaged default, so a plugin update that adds a block inside an existing one
+     * arrives empty.
+     *
+     * <p>Writing the missing keys out fixes it once, for every config, and has the side
+     * benefit that an operator can see and edit what a new version added.
+     */
+    private void writeMissingKeys(FileConfiguration config, YamlConfiguration defaults,
+                                  File onDisk) {
+        boolean changed = false;
+        for (String key : defaults.getKeys(true)) {
+            if (defaults.isConfigurationSection(key) || config.contains(key, true)) {
+                continue;
+            }
+            config.set(key, defaults.get(key));
+            changed = true;
+        }
+        if (!changed) {
+            return;
+        }
+        try {
+            config.save(onDisk);
+        } catch (IOException e) {
+            // Not fatal: the values are correct in memory for this run, and the operator's
+            // file is simply not updated.
+            resources.logger().log(Level.WARNING,
+                    "Could not write new configuration keys into " + onDisk, e);
+        }
     }
 
     /**

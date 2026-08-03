@@ -14,7 +14,7 @@ import dev.civitas.storage.row.PlayerQuestRow;
 public final class PlayerQuestDao extends Dao<PlayerQuestRow> {
 
     private static final String COLUMNS =
-            "id, uuid, quest_id, progress, assigned_at, completed_at";
+            "id, uuid, quest_id, progress, assigned_at, completed_at, target, reward";
 
     public PlayerQuestDao(DatabaseManager db) {
         super(db);
@@ -33,7 +33,9 @@ public final class PlayerQuestDao extends Dao<PlayerQuestRow> {
                 rs.getString("quest_id"),
                 rs.getInt("progress"),
                 rs.getLong("assigned_at"),
-                nullableLong(rs, "completed_at"));
+                nullableLong(rs, "completed_at"),
+                rs.getLong("target"),
+                money(rs, "reward"));
     }
 
     /** Quests assigned to a player at or after {@code assignedAfter}, newest first. */
@@ -42,21 +44,32 @@ public final class PlayerQuestDao extends Dao<PlayerQuestRow> {
                 + "WHERE uuid = ? AND assigned_at >= ? ORDER BY assigned_at DESC", uuid, assignedAfter);
     }
 
+    /** The same query on a caller's connection, so assignment can be one transaction. */
+    public List<PlayerQuestRow> findForPlayer(Connection connection, UUID uuid, long assignedAfter)
+            throws SQLException {
+        return queryListSync(connection, "SELECT " + COLUMNS + " FROM player_quests "
+                + "WHERE uuid = ? AND assigned_at >= ? ORDER BY assigned_at DESC",
+                this::map, uuid, assignedAfter);
+    }
+
     public CompletableFuture<Long> insert(PlayerQuestRow row) {
         return db.call(connection -> insert(connection, row));
     }
 
     public long insert(Connection connection, PlayerQuestRow row) throws SQLException {
         return insertSync(connection,
-                "INSERT INTO player_quests (uuid, quest_id, progress, assigned_at, completed_at) "
-                        + "VALUES (?, ?, ?, ?, ?)",
-                row.uuid(), row.questId(), row.progress(), row.assignedAt(), row.completedAt());
+                "INSERT INTO player_quests "
+                        + "(uuid, quest_id, progress, assigned_at, completed_at, target, reward) "
+                        + "VALUES (?, ?, ?, ?, ?, ?, ?)",
+                row.uuid(), row.questId(), row.progress(), row.assignedAt(), row.completedAt(),
+                row.target(), row.reward());
     }
 
     /** Adds to progress in one statement, so two qualifying actions in the same tick both count. */
     public CompletableFuture<Integer> addProgress(long questRowId, int delta) {
         return db.call(connection -> updateSync(connection,
-                "UPDATE player_quests SET progress = progress + ? WHERE id = ?", delta, questRowId));
+                "UPDATE player_quests SET progress = progress + ? "
+                        + "WHERE id = ? AND completed_at IS NULL", delta, questRowId));
     }
 
     public CompletableFuture<Integer> markCompleted(long questRowId, long completedAt) {

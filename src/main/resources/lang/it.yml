@@ -529,3 +529,46 @@ gui:
     disband-prompt: "<red>Scrivi il nome esatto della citta per confermare."
     disband-name-mismatch: "<red>Quello non e il nome della citta. Nulla e cambiato."
     disbanded: "<gray>La citta e stata sciolta."
+  quests:
+    title: "<dark_gray>Missioni Giornaliere"
+    none: "<gray>Nessuna missione oggi. Riprova dopo mezzanotte."
+    progress: "<gray>Progresso: <white><progress></white>/<white><target>"
+    reward: "<gray>Ricompensa: <white><amount>"
+    done: "<green>Completata"
+    in-progress: "<gray>In corso"
+  challenges:
+    title: "<dark_gray>Sfide Settimanali <gray>| <gold><city>"
+    none: "<gray>Nessuna sfida questa settimana."
+    progress: "<gray>Progresso della citta: <white><progress></white>/<white><target>"
+    reward: "<gray>Ricompensa al tesoro: <white><amount>"
+    done: "<green>Completata"
+    in-progress: "<gray>In corso"
+
+income:
+  too-new: "<gray>I nuovi account iniziano a guadagnare dopo <white><minutes></white> minuti di gioco."
+  stipend:
+    paid: "<green>+<amount> C <gray>per aver giocato attivamente."
+  daily:
+    claimed: "<green>Premio giornaliero: <white><amount> C</white>. Serie: <white><streak></white> giorni."
+    already: "<gray>Hai gia ritirato il premio di oggi."
+    disabled: "<gray>I premi giornalieri sono disattivati su questo server."
+  quest:
+    completed: "<green>Missione completata! <white>+<amount> C</white>"
+  challenge:
+    completed: "<green>La tua citta ha completato una sfida: <white>+<amount> C</white> al tesoro."
+
+quest:
+  harvest-wheat: "<white>Raccogli <target> colture"
+  breed-animals: "<white>Fai riprodurre <target> animali"
+  place-blocks: "<white>Piazza <target> blocchi"
+  craft-items: "<white>Crea <target> oggetti"
+  mine-ore: "<white>Estrai <target> minerali"
+  sell-to-market: "<white>Vendi <target> C di merce al mercato"
+  deposit-treasury: "<white>Deposita <target> C nella tua citta"
+  visit-biomes: "<white>Visita <target> biomi diversi"
+
+challenge:
+  city-harvest: "<white>Raccogliete <target> colture insieme"
+  city-build: "<white>Piazzate <target> blocchi insieme"
+  city-market: "<white>Vendete <target> C di merce al mercato insieme"
+  city-mine: "<white>Estraete <target> minerali insieme"

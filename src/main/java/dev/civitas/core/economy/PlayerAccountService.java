@@ -23,10 +23,12 @@ import dev.civitas.storage.row.PlayerRow;
  * has no balance, and a member cannot be looked up by a name that was never recorded. It is
  * created on first join along with the SPEC 4.2 starting balance and its ledger entry.
  *
- * <p>Playtime is accumulated here from the session clock. SPEC 4.2.1 defines an anti-AFK
- * filter for {@code active_playtime_ms}, but that filter is M9's; until then this credits
- * unfiltered session time to both counters, which is more generous than SPEC intends and
- * never less, so no player is wrongly blocked from founding a city.
+ * <p>Total playtime is accumulated here from the session clock. Active playtime is not:
+ * SPEC 4.2.1 defines it as the anti-AFK-filtered figure, and {@code StipendTask} credits it
+ * one qualifying interval at a time. That split is the point. Active playtime is what the
+ * SPEC 5.1 founding gate and the SPEC 6.2 member divisor are measured in, so an AFK machine
+ * must accumulate none of it, and the only code that can tell whether an interval qualified
+ * is the code that runs the check.
  */
 public final class PlayerAccountService {
 
@@ -95,23 +97,22 @@ public final class PlayerAccountService {
             return players.update(connection, new PlayerRow(row.uuid(), row.lastKnownName(),
                     row.balance(), row.cityId(), row.rankId(), row.firstJoin(), now,
                     row.totalPlaytimeMs() + sessionMillis,
-                    row.activePlaytimeMs() + sessionMillis,
+                    row.activePlaytimeMs(),
                     row.dailyStreak(), row.lastDailyClaim(), row.newcomerUntil(),
                     row.frozen(), row.lastCityLeave(), row.lastCityDisband()));
         });
     }
 
     /**
-     * Active playtime including the session in progress.
+     * Active playtime as it stands.
      *
-     * <p>Without the live session, a player who joins for the first time and plays for three
-     * hours straight still reads as zero until they log out, which would make the SPEC 5.1
-     * playtime precondition impossible to satisfy in one sitting.
+     * <p>No longer adds the live session: since M9 the stipend sweep credits active playtime
+     * every fifteen minutes as it goes, so the stored figure is already current to within one
+     * interval. Adding the session on top would double-count it, and would also hand an AFK
+     * player the playtime the filter had just refused them.
      */
     public long effectiveActivePlaytime(PlayerRow row, long now) {
-        Long started = sessionStart.get(row.uuid());
-        long live = started == null ? 0L : Math.max(0L, now - started);
-        return row.activePlaytimeMs() + live;
+        return row.activePlaytimeMs();
     }
 
     /** Forgets a session without crediting it, for use when the plugin disables. */

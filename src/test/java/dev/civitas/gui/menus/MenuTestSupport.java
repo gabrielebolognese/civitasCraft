@@ -11,6 +11,10 @@ import dev.civitas.core.city.CityHall;
 import dev.civitas.core.city.CityTestSupport;
 import dev.civitas.core.city.SpawnService;
 import dev.civitas.core.economy.UpkeepTask;
+import dev.civitas.core.income.ChallengeService;
+import dev.civitas.core.income.IncomeMultipliers;
+import dev.civitas.core.income.QuestPool;
+import dev.civitas.core.income.QuestService;
 import dev.civitas.gui.framework.AmountInput;
 import dev.civitas.gui.framework.LayoutLoader;
 import dev.civitas.gui.framework.MenuManager;
@@ -50,13 +54,26 @@ final class MenuTestSupport implements AutoCloseable {
         UpkeepTask upkeep = new UpkeepTask(cities.db, cities.daos, cities.registry, cities.claims,
                 cities.treasury, cities.upkeep, (member, key, extra) -> { }, Scheduler.direct(),
                 quiet(), java.time.ZoneId.of("UTC"));
+        IncomeMultipliers multipliers = new IncomeMultipliers(cities.configs);
+        QuestPool questPool = new QuestPool(cities.configs, quiet());
+        questPool.load("income.quests.pool");
+        QuestPool challengePool = new QuestPool(cities.configs, quiet());
+        challengePool.load("income.challenges.pool");
+        QuestService quests = new QuestService(cities.db, cities.daos.playerQuests(),
+                cities.daos.players(), cities.economy, questPool, multipliers, cities.configs,
+                (player, key, extra) -> { }, java.time.ZoneId.of("UTC"));
+        ChallengeService challenges = new ChallengeService(cities.db,
+                cities.daos.cityChallenges(), cities.registry, cities.treasury, challengePool,
+                cities.configs, (player, key, extra) -> { }, java.time.ZoneId.of("UTC"));
+
         SpawnService spawns = new SpawnService(plugin, cities.registry, cities.configs, lang);
         CityHall halls = new CityHall(plugin, cities.configs, lang);
 
         this.services = new CivitasServices(cities.registry, cities.cities, cities.ranks,
                 cities.claimRegistry, cities.claims, null, null, cities.protection, null, null,
                 cities.economy, cities.treasury, cities.upkeep, upkeep, cities.market,
-                cities.marketFilter, cities.shops, menus, layouts, input, spawns, halls,
+                cities.marketFilter, cities.shops, quests, challenges, menus, layouts,
+                input, spawns, halls,
                 cities.accounts, new PlayerLookup(cities.daos.players()), Scheduler.direct());
     }
 

@@ -127,6 +127,41 @@ public final class PlayerDao extends Dao<PlayerRow> {
     }
 
     /**
+     * Sets the daily-login columns in one statement.
+     *
+     * <p>Targeted rather than a whole-row update, because the caller has just moved money in
+     * the same transaction: writing back a row that was read before the deposit would undo
+     * it. A statement that names only the columns it changes cannot have that bug.
+     */
+    public CompletableFuture<Integer> updateDailyClaim(UUID uuid, int streak, long claimedAt) {
+        return db.call(connection -> updateDailyClaim(connection, uuid, streak, claimedAt));
+    }
+
+    public int updateDailyClaim(Connection connection, UUID uuid, int streak, long claimedAt)
+            throws SQLException {
+        return updateSync(connection,
+                "UPDATE players SET daily_streak = ?, last_daily_claim = ? WHERE uuid = ?",
+                streak, claimedAt, uuid);
+    }
+
+    /**
+     * Adds to active playtime in one statement, for the same reason as above.
+     *
+     * <p>SQL arithmetic rather than read-modify-write, so a stipend interval closing at the
+     * same moment as anything else touching the row cannot lose either write.
+     */
+    public CompletableFuture<Integer> addActivePlaytime(UUID uuid, long millis) {
+        return db.call(connection -> addActivePlaytime(connection, uuid, millis));
+    }
+
+    public int addActivePlaytime(Connection connection, UUID uuid, long millis)
+            throws SQLException {
+        return updateSync(connection,
+                "UPDATE players SET active_playtime_ms = active_playtime_ms + ? WHERE uuid = ?",
+                millis, uuid);
+    }
+
+    /**
      * Sets a balance in one statement.
      *
      * <p>Separate from {@link #update} so a balance change never races a concurrent edit to

@@ -146,12 +146,29 @@ class LangKeyUsageTest {
 
         Set<String> orphaned = new TreeSet<>();
         for (String key : english.getKeys(true)) {
-            if (!english.isConfigurationSection(key) && !used.contains(key)) {
-                orphaned.add(key);
+            if (english.isConfigurationSection(key) || used.contains(key)) {
+                continue;
             }
+            if (isBuiltAtRuntime(key)) {
+                continue;
+            }
+            orphaned.add(key);
         }
 
         assertTrue(orphaned.isEmpty(),
                 "en.yml declares messages nothing asks for: " + orphaned);
+    }
+
+    /**
+     * Families whose keys are assembled from data rather than written as literals.
+     *
+     * <p>A quest's description key is {@code "quest." + id} where the id comes from
+     * {@code economy.yml}, so no literal for it exists anywhere in the source and the scanner
+     * cannot see it. The prefix is listed instead. This is a deliberate hole in the orphan
+     * check and the reason it is kept narrow: only families the code demonstrably builds by
+     * concatenation belong here.
+     */
+    private static boolean isBuiltAtRuntime(String key) {
+        return key.startsWith("quest.") || key.startsWith("challenge.");
     }
 }

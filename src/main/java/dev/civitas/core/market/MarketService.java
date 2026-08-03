@@ -12,6 +12,8 @@ import dev.civitas.config.ConfigManager;
 import dev.civitas.core.economy.EconomyService;
 import dev.civitas.core.economy.Money;
 import dev.civitas.core.economy.TransactionType;
+import dev.civitas.core.income.IncomeReporter;
+import dev.civitas.core.income.QuestMetric;
 import dev.civitas.storage.DatabaseManager;
 import dev.civitas.storage.SqlDialect;
 import dev.civitas.storage.dao.LedgerDao;
@@ -41,15 +43,23 @@ public final class MarketService {
     private final MarketPricing pricing;
     private final EconomyService economy;
     private final ConfigManager configs;
+    private final IncomeReporter reporter;
 
     public MarketService(DatabaseManager db, LedgerDao ledger, MarketRegistry registry,
                          MarketPricing pricing, EconomyService economy, ConfigManager configs) {
+        this(db, ledger, registry, pricing, economy, configs, IncomeReporter.noop());
+    }
+
+    public MarketService(DatabaseManager db, LedgerDao ledger, MarketRegistry registry,
+                         MarketPricing pricing, EconomyService economy, ConfigManager configs,
+                         IncomeReporter reporter) {
         this.db = Objects.requireNonNull(db, "db");
         this.ledger = Objects.requireNonNull(ledger, "ledger");
         this.registry = Objects.requireNonNull(registry, "registry");
         this.pricing = Objects.requireNonNull(pricing, "pricing");
         this.economy = Objects.requireNonNull(economy, "economy");
         this.configs = Objects.requireNonNull(configs, "configs");
+        this.reporter = Objects.requireNonNull(reporter, "reporter");
     }
 
     public MarketRegistry registry() {
@@ -148,6 +158,10 @@ public final class MarketService {
             if (result instanceof Result.Failure<Receipt>) {
                 return completed(result);
             }
+            // SPEC 13.1's Trading quests count the value sold, not the number of sales.
+            reporter.report(seller, QuestMetric.MARKET_SELL_VALUE,
+                    result.orElseThrow().gross().longValue());
+
             // Stock moves only once the money has committed, so a failed sale cannot move
             // the price for everyone else.
             return registry.addStock(item.material(), amount).thenApply(ignored -> result);

@@ -29,14 +29,115 @@ income:
     streak-reset-hours: 48
 
   quests:
+    enabled: true
     per-day: 3
     reward-min: 300
     reward-max: 800
+    # SPEC 13.1 scales quest difficulty with playtime "so veterans do not trivially clear
+    # beginner quests, but rewards scale with it too, so the effort-to-reward ratio stays
+    # flat". One factor multiplies both target and reward, so the ratio is flat by
+    # construction. A linear ramp from 1x at no playtime to max-scale at scale-hours,
+    # flat after that so a veteran's quests stop growing rather than becoming a job.
+    scale-hours: 100.0
+    max-scale: 2.5
+    # The SPEC 13.1 pool. Weight is relative: a weight of 2 comes up twice as often as a 1.
+    # Every metric here must exist in QuestMetric, and a line naming one that does not is
+    # logged and skipped rather than handed out as an impossible quest.
+    pool:
+      harvest-wheat:
+        category: farming
+        metric: HARVEST_CROPS
+        target: 256
+        reward-min: 300
+        reward-max: 600
+        weight: 2.0
+      breed-animals:
+        category: farming
+        metric: BREED_ANIMALS
+        target: 20
+        reward-min: 300
+        reward-max: 500
+        weight: 1.5
+      place-blocks:
+        category: building
+        metric: PLACE_BLOCKS
+        target: 512
+        reward-min: 400
+        reward-max: 700
+        weight: 2.0
+      craft-items:
+        category: building
+        metric: CRAFT_ITEMS
+        target: 64
+        reward-min: 350
+        reward-max: 600
+        weight: 1.5
+      mine-ore:
+        category: mining
+        metric: MINE_ORE
+        target: 128
+        reward-min: 400
+        reward-max: 700
+        weight: 2.0
+      sell-to-market:
+        category: trading
+        metric: MARKET_SELL_VALUE
+        target: 5000
+        reward-min: 400
+        reward-max: 800
+        weight: 1.5
+      deposit-treasury:
+        category: social
+        metric: TREASURY_DEPOSIT
+        target: 2000
+        reward-min: 300
+        reward-max: 500
+        weight: 1.0
+      visit-biomes:
+        category: exploration
+        metric: VISIT_BIOMES
+        target: 3
+        reward-min: 350
+        reward-max: 600
+        weight: 1.0
 
   challenges:
+    enabled: true
     per-week: 2
     reward-min: 2500
     reward-max: 8000
+    # SPEC 13.2. Progress is pooled across every member of the city, and the reward goes to
+    # the treasury, so these targets are city-sized rather than player-sized. They are not
+    # scaled by playtime: a city is not one player and has no single playtime to scale by.
+    pool:
+      city-harvest:
+        category: farming
+        metric: HARVEST_CROPS
+        target: 25000
+        reward-min: 2500
+        reward-max: 5000
+        weight: 2.0
+      city-build:
+        category: building
+        metric: PLACE_BLOCKS
+        target: 50000
+        reward-min: 3000
+        reward-max: 6000
+        weight: 2.0
+      city-market:
+        category: trading
+        metric: MARKET_SELL_VALUE
+        target: 500000
+        reward-min: 4000
+        reward-max: 8000
+        weight: 1.5
+      city-mine:
+        category: mining
+        metric: MINE_ORE
+        target: 20000
+        reward-min: 3000
+        reward-max: 6000
+        weight: 1.5
 
   contest-prizes:
     first: 50000

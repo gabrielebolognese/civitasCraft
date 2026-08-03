@@ -14,6 +14,8 @@ import dev.civitas.core.economy.PlayerAccountService;
 import dev.civitas.core.economy.TreasuryService;
 import dev.civitas.core.economy.UpkeepCalculator;
 import dev.civitas.core.economy.UpkeepTask;
+import dev.civitas.core.income.ChallengeService;
+import dev.civitas.core.income.QuestService;
 import dev.civitas.core.market.MarketItemFilter;
 import dev.civitas.core.market.MarketService;
 import dev.civitas.core.protection.BlockClassifier;
@@ -53,6 +55,8 @@ public record CivitasServices(
         MarketService market,
         MarketItemFilter marketFilter,
         PlayerShopService shops,
+        QuestService quests,
+        ChallengeService challenges,
         MenuManager menus,
         LayoutLoader layouts,
         AmountInput amountInput,

@@ -105,6 +105,23 @@ public final class LedgerDao extends Dao<LedgerRow> {
                 .orElse(BigDecimal.ZERO);
     }
 
+    /**
+     * How much one player has been paid under a type since a moment in time.
+     *
+     * <p>What the SPEC 4.2 daily stipend cap is measured with. Like the SPEC 8.5 withdrawal
+     * cap, deriving it from the ledger rather than from a counter means a restart cannot
+     * reset it and the cap cannot disagree with the audit trail.
+     *
+     * @return the summed amount, zero if there is none
+     */
+    public CompletableFuture<BigDecimal> sumByActorAndType(UUID actor, String type, long since) {
+        return db.call(connection -> queryOneSync(connection,
+                "SELECT COALESCE(SUM(amount), 0) AS total FROM ledger "
+                        + "WHERE actor_uuid = ? AND type = ? AND timestamp >= ? AND amount > 0",
+                rs -> money(rs, "total"), actor, type, since)
+                .orElse(BigDecimal.ZERO));
+    }
+
     public CompletableFuture<Long> insert(LedgerRow row) {
         return db.call(connection -> insert(connection, row));
     }

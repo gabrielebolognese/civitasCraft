@@ -10,6 +10,7 @@ import dev.civitas.command.CommandRegistry;
 import dev.civitas.command.city.CityCommand;
 import dev.civitas.command.player.MoneyCommand;
 import dev.civitas.command.player.PayCommand;
+import dev.civitas.command.player.QuestsCommand;
 import dev.civitas.command.player.SellCommand;
 import dev.civitas.command.player.ShopCommand;
 import dev.civitas.command.player.WorthCommand;
@@ -32,6 +33,14 @@ import dev.civitas.core.economy.InflationTracker;
 import dev.civitas.core.economy.TreasuryService;
 import dev.civitas.core.economy.UpkeepCalculator;
 import dev.civitas.core.economy.UpkeepTask;
+import dev.civitas.core.income.ActivityTracker;
+import dev.civitas.core.income.ChallengeService;
+import dev.civitas.core.income.DailyLoginService;
+import dev.civitas.core.income.IncomeMultipliers;
+import dev.civitas.core.income.IncomeReporter;
+import dev.civitas.core.income.QuestPool;
+import dev.civitas.core.income.QuestService;
+import dev.civitas.core.income.StipendTask;
 import dev.civitas.core.market.MarketItemFilter;
 import dev.civitas.core.market.MarketPricing;
 import dev.civitas.core.market.MarketRegistry;
@@ -48,7 +57,9 @@ import dev.civitas.gui.framework.MenuListener;
 import dev.civitas.gui.framework.MenuManager;
 import dev.civitas.lang.LangManager;
 import dev.civitas.listener.BlockProtectionListener;
+import dev.civitas.listener.ActivityListener;
 import dev.civitas.listener.CityChatListener;
+import dev.civitas.listener.IncomeJoinListener;
 import dev.civitas.listener.CityHallListener;
 import dev.civitas.listener.ClaimBoundaryListener;
 import dev.civitas.listener.ContainerProtectionListener;
@@ -89,6 +100,11 @@ public final class CivitasPlugin extends JavaPlugin {
 
     private static final long TICKS_PER_HOUR = 20L * 60L * 60L;
 
+    /** The income pieces the plugin keeps a handle on, so disable can clear them. */
+    private record IncomeSystems(ActivityTracker activity, QuestService quests,
+                                 ChallengeService challenges, DailyLoginService dailyLogin,
+                                 IncomeMultipliers multipliers) { }
+
     private ConfigManager configs;
     private LangManager lang;
     private DatabaseManager database;
@@ -97,6 +113,7 @@ public final class CivitasPlugin extends JavaPlugin {
     private BorderRenderer borders;
     private MenuManager menus;
     private SpawnService spawns;
+    private IncomeSystems income;
 
     private final AtomicReference<CivitasServices> services = new AtomicReference<>();
 
@@ -115,9 +132,11 @@ public final class CivitasPlugin extends JavaPlugin {
         ShopCommand shopCommand = new ShopCommand(services::get, lang, scheduler, getLogger());
         SellCommand sellCommand = new SellCommand(services::get, lang, scheduler, getLogger());
         WorthCommand worthCommand = new WorthCommand(services::get, lang);
+        QuestsCommand questsCommand = new QuestsCommand(services::get, lang, scheduler);
         new CommandRegistry(this, lang).registerAll(
                 List.of(cityCommand.build(), moneyCommand.build(), payCommand.build(),
-                        shopCommand.build(), sellCommand.build(), worthCommand.build()));
+                        shopCommand.build(), sellCommand.build(), worthCommand.build(),
+                        questsCommand.buildQuests(), questsCommand.buildChallenges()));
 
         warnIfRollbackDisabled();
         openDatabaseAsync(scheduler);
@@ -133,6 +152,10 @@ public final class CivitasPlugin extends JavaPlugin {
         CivitasServices current = services.getAndSet(null);
         if (current != null) {
             current.accounts().clearSessions();
+        }
+        if (income != null) {
+            income.activity().clear();
+            income = null;
         }
         if (spawns != null) {
             spawns.stopAll();
@@ -235,8 +258,17 @@ public final class CivitasPlugin extends JavaPlugin {
         economyService.loadAll().thenAccept(loaded ->
                 getLogger().info(() -> "Loaded " + loaded + " balances into the cache."));
 
+        // The market and the treasury report quest progress, but they are built before the
+        // quest service exists. They are handed a forwarder that does nothing until it is
+        // pointed at something, rather than the wiring being reordered around a dependency
+        // that only runs at report time.
+        java.util.concurrent.atomic.AtomicReference<IncomeReporter> reporterRef =
+                new java.util.concurrent.atomic.AtomicReference<>(IncomeReporter.noop());
+        IncomeReporter reporter = (player, metric, amount) ->
+                reporterRef.get().report(player, metric, amount);
+
         TreasuryService treasuryService = new TreasuryService(manager, loadedDaos,
-                economyService, configs, scheduler);
+                economyService, configs, scheduler, reporter);
         UpkeepCalculator upkeepCalculator = new UpkeepCalculator(configs);
         PlayerAccountService accounts =
                 new PlayerAccountService(manager, loadedDaos.players(), loadedDaos.ledger(), configs);
@@ -265,7 +297,7 @@ public final class CivitasPlugin extends JavaPlugin {
         marketRegistry.loadAll().thenAccept(loaded ->
                 getLogger().info(() -> "Market trades " + loaded + " items."));
         MarketService marketService = new MarketService(manager, loadedDaos.ledger(),
-                marketRegistry, pricing, economyService, configs);
+                marketRegistry, pricing, economyService, configs, reporter);
         MarketItemFilter marketFilter = new MarketItemFilter(configs);
 
         SpawnService spawnService = new SpawnService(this, cityRegistry, configs, lang);
@@ -275,6 +307,30 @@ public final class CivitasPlugin extends JavaPlugin {
         UpkeepTask upkeepTask = new UpkeepTask(manager, loadedDaos, cityRegistry, claimService,
                 treasuryService, upkeepCalculator, UpkeepTask.Notifier.online(lang), scheduler,
                 getLogger(), java.time.ZoneId.systemDefault());
+
+        // SPEC 4.2, 13.1 and 13.2, the income systems.
+        ActivityTracker activityTracker = new ActivityTracker(configs);
+        IncomeMultipliers incomeMultipliers = new IncomeMultipliers(configs);
+        QuestPool questPool = new QuestPool(configs, getLogger());
+        questPool.load("income.quests.pool");
+        QuestPool challengePool = new QuestPool(configs, getLogger());
+        challengePool.load("income.challenges.pool");
+
+        QuestService questService = new QuestService(manager, loadedDaos.playerQuests(),
+                loadedDaos.players(), economyService, questPool, incomeMultipliers, configs,
+                StipendTask.Notifier.online(lang), java.time.ZoneId.systemDefault());
+        ChallengeService challengeService = new ChallengeService(manager,
+                loadedDaos.cityChallenges(), cityRegistry, treasuryService, challengePool,
+                configs, StipendTask.Notifier.online(lang), java.time.ZoneId.systemDefault());
+        DailyLoginService dailyLogin = new DailyLoginService(manager, loadedDaos.players(),
+                economyService, incomeMultipliers, configs, java.time.ZoneId.systemDefault());
+        this.income = new IncomeSystems(activityTracker, questService, challengeService,
+                dailyLogin, incomeMultipliers);
+
+        reporterRef.set((player, metric, amount) -> {
+            questService.report(player, metric, amount);
+            challengeService.report(player, metric, amount);
+        });
 
         MenuManager menuManager = new MenuManager(configs, lang);
         LayoutLoader layoutLoader = new LayoutLoader(dev.civitas.config.PluginResources.of(this));
@@ -291,7 +347,8 @@ public final class CivitasPlugin extends JavaPlugin {
         services.set(new CivitasServices(cityRegistry, cityService, rankService, claimRegistry,
                 claimService, claimMap, borderRenderer, protection, protectionGuard,
                 blockClassifier, economyService, treasuryService, upkeepCalculator,
-                upkeepTask, marketService, marketFilter, shopService, menuManager, layoutLoader,
+                upkeepTask, marketService, marketFilter, shopService, questService,
+                challengeService, menuManager, layoutLoader,
                 amountInput, spawnService, cityHall, accounts, lookup, scheduler));
 
         getServer().getPluginManager().registerEvents(
@@ -316,6 +373,12 @@ public final class CivitasPlugin extends JavaPlugin {
                 new CityHallListener(services::get, cityHall, lang), this);
         getServer().getPluginManager().registerEvents(
                 new TeleportWarmupListener(spawnService), this);
+        getServer().getPluginManager().registerEvents(
+                new ActivityListener(activityTracker, questService, challengeService), this);
+        getServer().getPluginManager().registerEvents(new IncomeJoinListener(questService,
+                challengeService, dailyLogin, cityRegistry, lang, scheduler, getLogger()), this);
+
+        scheduleStipend(manager, loadedDaos, economyService, activityTracker, incomeMultipliers);
 
         scheduleMarketDecay(marketRegistry, pricing, loadedDaos);
 
@@ -461,6 +524,31 @@ public final class CivitasPlugin extends JavaPlugin {
         layouts.load("members.yml", "gui.members.title", 54);
         layouts.load(dev.civitas.gui.menus.RanksMenu.LAYOUT, "gui.ranks.title", 54);
         layouts.load(dev.civitas.gui.menus.SettingsMenu.LAYOUT, "gui.settings.title", 54);
+    }
+
+    /**
+     * The SPEC 4.2 stipend sweep.
+     *
+     * <p>Runs on the interval SPEC 4.2.1 defines rather than more often: the check is "did
+     * they do three distinct things in this interval", and an interval that has not finished
+     * cannot answer it.
+     */
+    private void scheduleStipend(DatabaseManager manager, DaoRegistry loadedDaos,
+                                 EconomyService economyService, ActivityTracker activityTracker,
+                                 IncomeMultipliers incomeMultipliers) {
+        if (!configs.get(ConfigFile.ECONOMY).getBoolean("income.stipend.enabled", true)) {
+            return;
+        }
+        StipendTask stipend = new StipendTask(manager, loadedDaos.players(), loadedDaos.ledger(),
+                economyService, activityTracker, incomeMultipliers, configs,
+                () -> Bukkit.getOnlinePlayers().stream()
+                        .map(Player::getUniqueId)
+                        .toList(),
+                StipendTask.Notifier.online(lang), getLogger());
+
+        long ticks = configs.get(ConfigFile.ECONOMY)
+                .getLong("income.stipend.interval-minutes", 15) * 60L * 20L;
+        Bukkit.getScheduler().runTaskTimerAsynchronously(this, stipend, ticks, ticks);
     }
 
     private void scheduleBackups(DatabaseSettings settings) {
