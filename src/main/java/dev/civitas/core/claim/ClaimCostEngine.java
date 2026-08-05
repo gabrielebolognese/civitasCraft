@@ -77,9 +77,27 @@ public final class ClaimCostEngine {
         BigDecimal total = base
                 .multiply(BigDecimal.valueOf(distance))
                 .multiply(BigDecimal.valueOf(newcomer))
+                .multiply(eventMultiplier())
                 .divide(BigDecimal.valueOf(divisor), SqlDialect.MONEY_SCALE, RoundingMode.HALF_UP);
 
         return new Breakdown(chunkIndex, base, distance, newcomer, divisor, total);
+    }
+
+    /**
+     * The SPEC 13.5 Founders' Week discount, once M16 has wired it.
+     *
+     * <p>Multiplied in alongside the SPEC 6.2 factors rather than applied afterwards, so the
+     * breakdown a player is shown before they buy is the price they are actually charged.
+     */
+    private BigDecimal eventMultiplier() {
+        return events == null ? BigDecimal.ONE : events.claimCostMultiplier();
+    }
+
+    private dev.civitas.core.events.EventEffects events;
+
+    /** SPEC 13.5 Founders' Week. */
+    public void useEvents(dev.civitas.core.events.EventEffects effects) {
+        this.events = effects;
     }
 
     /** Convenience for callers that only need the number. */

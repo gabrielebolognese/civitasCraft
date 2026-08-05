@@ -124,6 +124,10 @@ class SchemaTest {
         // V9, SPEC 13.4: a salted hash of the connection address, never the address. It
         // answers "same connection?" for the vote rule and nothing else.
         schema.put("player_logins", List.of("uuid", "login_hash", "updated_at"));
+        // V10, SPEC 13.5: one row per run of a server event. SPEC 3 lists no table, and
+        // without one a restart silently cancels whatever was running.
+        schema.put("server_events", List.of("id", "event_key", "starts_at", "ends_at",
+                "ended_at", "announced"));
         return schema;
     }
 

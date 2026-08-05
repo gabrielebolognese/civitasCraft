@@ -49,6 +49,11 @@ import dev.civitas.core.contest.ContestCycle;
 import dev.civitas.core.contest.ContestService;
 import dev.civitas.core.contest.LoginFingerprint;
 import dev.civitas.core.contest.VoteWeighting;
+import dev.civitas.core.events.BroadcastAnnouncer;
+import dev.civitas.core.events.EventBossBar;
+import dev.civitas.core.events.EventScheduler;
+import dev.civitas.core.events.EventService;
+import dev.civitas.core.events.InvasionWaves;
 import dev.civitas.core.progression.LeaderboardService;
 import dev.civitas.core.progression.StatsService;
 import dev.civitas.core.outpost.OutpostRegistry;
@@ -134,6 +139,7 @@ public final class CivitasPlugin extends JavaPlugin {
     private ConfigManager configs;
     private LangManager lang;
     private StatsService stats;
+    private EventBossBar eventBar;
     private DatabaseManager database;
     private DaoRegistry daos;
     private BackupService backups;
@@ -199,6 +205,12 @@ public final class CivitasPlugin extends JavaPlugin {
         if (outposts != null) {
             outposts.stopAll();
             outposts = null;
+        }
+        if (eventBar != null) {
+            // A bar left on screen outlives the plugin that owns it and tells every player
+            // something false.
+            eventBar.hide();
+            eventBar = null;
         }
         if (stats != null) {
             // Before the pool closes, for the reason SPEC 17.7 case 84 gives: this is the last
@@ -396,6 +408,21 @@ public final class CivitasPlugin extends JavaPlugin {
                 cityRegistry, claimRegistry, claimService, configs, getLogger());
         this.stats = statsService;
 
+        // SPEC 13.5, scheduled server events. Built before the systems it changes, because
+        // each of them takes the effects object in a useEvents call below and a multiplier
+        // handed over after the first sale would be a multiplier that missed one.
+        EventService eventService = new EventService(loadedDaos.serverEvents(), configs);
+        eventService.load(System.currentTimeMillis()).thenAccept(resumed -> resumed.ifPresent(
+                event -> getLogger().info(() -> "Resumed event " + event.type().key()
+                        + ", " + (event.millisRemaining(System.currentTimeMillis()) / 60_000L)
+                        + " minutes left.")));
+
+        pricing.useEvents(eventService.effects());
+        costEngine.useEvents(eventService.effects());
+        cityService.useEvents(eventService.effects());
+        upkeepCalculator.useEvents(eventService.effects());
+        questService.useEvents(eventService.effects());
+
         // SPEC 13.4, building contests. After the leaderboards, because Contest Champions
         // reads the entries this writes, and after the treasury, which the prizes are paid into.
         ContestService contestService = new ContestService(manager, loadedDaos, cityRegistry,
@@ -489,7 +516,7 @@ public final class CivitasPlugin extends JavaPlugin {
                 blockClassifier, economyService, treasuryService, upkeepCalculator,
                 upkeepTask, marketService, marketFilter, shopService, questService,
                 challengeService, leaderboardService, statsService, contestService,
-                outpostService, outpostTeleport, upgradeService,
+                eventService, outpostService, outpostTeleport, upgradeService,
                 defenseService, diplomacyService, vaultService, vaultView,
                 menuManager, layoutLoader,
                 amountInput, spawnService, cityHall, accounts, lookup, scheduler));
@@ -531,6 +558,8 @@ public final class CivitasPlugin extends JavaPlugin {
         scheduleLeaderboards(leaderboardService, statsService);
 
         scheduleContests(contestService, cityRegistry);
+
+        scheduleEvents(eventService, cityRegistry, claimRegistry, treasuryService, manager);
 
         scheduleMarketDecay(marketRegistry, pricing, loadedDaos);
 
@@ -696,6 +725,54 @@ public final class CivitasPlugin extends JavaPlugin {
             new java.security.SecureRandom().nextBytes(temporary);
             return LoginFingerprint.withSalt(temporary);
         }
+    }
+
+    /**
+     * The SPEC 13.5 event system: the scheduler, the boss bar, and the invasion waves.
+     *
+     * <p>Three timers with different jobs and different threads. The scheduler is async and
+     * only touches storage and its own state. The boss bar and the wave spawner are on the
+     * server thread, because both touch the world.
+     */
+    private void scheduleEvents(EventService events, CityRegistry cityRegistry,
+                                ClaimRegistry claimRegistry, TreasuryService treasuryService,
+                                DatabaseManager manager) {
+        if (!events.isEnabled()) {
+            getLogger().info("Server events are disabled in events.yml.");
+            return;
+        }
+
+        InvasionWaves invasion = new InvasionWaves(this, cityRegistry, claimRegistry,
+                events.effects(), getLogger());
+        getServer().getPluginManager().registerEvents(new dev.civitas.listener.EventListener(
+                events.effects(), invasion, cityRegistry, claimRegistry, treasuryService,
+                manager, getLogger()), this);
+
+        EventScheduler scheduler = new EventScheduler(events, new BroadcastAnnouncer(lang),
+                configs, getLogger(), System::currentTimeMillis, Math::random);
+        scheduler.begin(System.currentTimeMillis());
+        long checkTicks = configs.get(ConfigFile.EVENTS)
+                .getLong("events.check-interval-minutes", 5) * 60L * 20L;
+        Bukkit.getScheduler().runTaskTimerAsynchronously(this, scheduler, checkTicks, checkTicks);
+
+        this.eventBar = new EventBossBar(configs, lang);
+        Bukkit.getScheduler().runTaskTimer(this,
+                () -> eventBar.refresh(events.running(), System.currentTimeMillis()), 40L, 40L);
+
+        // The wave timer runs at the shortest interval any invasion could use and does nothing
+        // unless one is actually running, which keeps the schedule out of the event's config.
+        long waveTicks = Math.max(1L, events.effects().invasionWaveIntervalMinutes()) * 60L * 20L;
+        Bukkit.getScheduler().runTaskTimer(this, () -> {
+            if (!events.effects().isInvasionActive()) {
+                return;
+            }
+            events.running().ifPresent(event -> {
+                int spawned = invasion.spawnWave(event);
+                if (spawned > 0) {
+                    getLogger().fine(() -> "Invasion wave: " + spawned + " mobs.");
+                }
+            });
+        }, waveTicks, waveTicks);
     }
 
     /**

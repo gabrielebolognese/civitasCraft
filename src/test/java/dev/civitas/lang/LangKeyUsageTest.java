@@ -184,6 +184,27 @@ class LangKeyUsageTest {
                 // A contest phase name is built from ContestState.messageKey, and a scoring
                 // axis from VoteAxis.messageKey.
                 || key.startsWith("contest.state.")
-                || key.startsWith("contest.axis.");
+                || key.startsWith("contest.axis.")
+                // An event's name and description are built from ServerEventType.nameKey
+                // and .descriptionKey. The keys that are not per-event, such as
+                // event.boss-bar, are literals and stay covered by the scanner.
+                || isPerEventKey(key);
+    }
+
+    /**
+     * {@code event.<one of the eight SPEC 13.5 keys>.name} and {@code .description}.
+     *
+     * <p>Matched against the enum rather than by prefix, so a typo in a key still fails: only
+     * the two suffixes of an event that really exists are excused.
+     */
+    private static boolean isPerEventKey(String key) {
+        for (dev.civitas.core.events.ServerEventType type
+                : dev.civitas.core.events.ServerEventType.all()) {
+            String prefix = "event." + type.key() + ".";
+            if (key.equals(prefix + "name") || key.equals(prefix + "description")) {
+                return true;
+            }
+        }
+        return false;
     }
 }

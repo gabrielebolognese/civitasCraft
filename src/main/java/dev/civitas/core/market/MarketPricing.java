@@ -36,8 +36,30 @@ public final class MarketPricing {
 
     private final ConfigManager configs;
 
+    /**
+     * The SPEC 13.5 market events, once M16 has wired them.
+     *
+     * <p>Neutral until then, and neutral whenever nothing is running, which is the property
+     * that matters: an event multiplier is derived from what is running rather than latched,
+     * so it cannot survive the event that set it.
+     */
+    private dev.civitas.core.events.EventEffects events;
+
     public MarketPricing(ConfigManager configs) {
         this.configs = Objects.requireNonNull(configs, "configs");
+    }
+
+    /** SPEC 13.5 Market Boom, Market Crash and Tax Holiday. */
+    public void useEvents(dev.civitas.core.events.EventEffects effects) {
+        this.events = effects;
+    }
+
+    private BigDecimal eventSellMultiplier() {
+        return events == null ? BigDecimal.ONE : events.sellPriceMultiplier();
+    }
+
+    private BigDecimal eventBuyMultiplier() {
+        return events == null ? BigDecimal.ONE : events.buyPriceMultiplier();
     }
 
     // ==================================================================================
@@ -66,7 +88,8 @@ public final class MarketPricing {
 
     /** What the market pays a player for one unit at this stock level. */
     public BigDecimal unitSellPrice(MarketItem item, int currentStock) {
-        return Money.floor(item.basePrice().multiply(multiplier(item, currentStock)));
+        return Money.floor(item.basePrice().multiply(multiplier(item, currentStock))
+                .multiply(eventSellMultiplier()));
     }
 
     /**
@@ -79,7 +102,7 @@ public final class MarketPricing {
         BigDecimal spread = BigDecimal.valueOf(
                 configs.get(ConfigFile.ECONOMY).getDouble("market.buy-spread", 1.35));
         return Money.floor(item.basePrice().multiply(multiplier(item, currentStock))
-                .multiply(spread));
+                .multiply(spread).multiply(eventBuyMultiplier()));
     }
 
     // ==================================================================================
@@ -118,6 +141,16 @@ public final class MarketPricing {
      * @param marketAccessLevel 0 to 5; each level takes 0.8 percentage points off
      */
     public double taxPercent(int marketAccessLevel) {
+        // SPEC 13.5's Tax Holiday states a rate rather than a multiplier, and overriding
+        // rather than multiplying is what keeps it from silently discarding a Market Access
+        // discount the city already paid for: during the holiday nobody pays tax at all, and
+        // afterwards the bought discount is still there.
+        if (events != null) {
+            java.util.Optional<Double> holiday = events.taxPercentOverride();
+            if (holiday.isPresent()) {
+                return Math.max(0.0, holiday.get());
+            }
+        }
         double base = configs.get(ConfigFile.ECONOMY)
                 .getDouble("sinks.market-sale-tax-percent", 5.0);
         double perLevel = configs.get(ConfigFile.CITIES)

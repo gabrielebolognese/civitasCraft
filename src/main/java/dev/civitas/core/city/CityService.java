@@ -139,7 +139,12 @@ public final class CityService {
         }
 
         FileConfiguration cities = configs.get(ConfigFile.CITIES);
-        BigDecimal cost = money(cities, "creation.cost", "10000");
+        // SPEC 13.5's Founders' Week makes founding free. Read here rather than at the
+        // withdrawal so the preconditions below, including the balance check, see the real
+        // price: during the event nobody is refused for being unable to afford nothing.
+        BigDecimal cost = isCityCreationFree()
+                ? BigDecimal.ZERO
+                : money(cities, "creation.cost", "10000");
         long requiredPlaytime = cities.getLong("creation.min-playtime-hours", 2) * MILLIS_PER_HOUR;
         int minDistance = cities.getInt("creation.min-distance-chunks", 5);
         long disbandCooldown = cities.getLong("creation.disband-cooldown-hours", 24) * MILLIS_PER_HOUR;
@@ -185,10 +190,15 @@ public final class CityService {
                         Map.of("chunks", String.valueOf(minDistance)));
             }
 
-            Result<BigDecimal> payment = funds.withdraw(connection, founder, cost,
-                    TransactionType.CITY_CREATE_FEE, null, null);
-            if (payment instanceof Result.Failure<BigDecimal> failure) {
-                return Result.<City>propagate(failure);
+            // A free founding takes no payment at all rather than a payment of nothing: the
+            // economy refuses a non-positive amount (SPEC 17.3), so charging zero during a
+            // SPEC 13.5 Founders' Week would refuse every city it was meant to encourage.
+            if (cost.signum() > 0) {
+                Result<BigDecimal> payment = funds.withdraw(connection, founder, cost,
+                        TransactionType.CITY_CREATE_FEE, null, null);
+                if (payment instanceof Result.Failure<BigDecimal> failure) {
+                    return Result.<City>propagate(failure);
+                }
             }
 
             String tag = uniqueTag(connection, rawName);
@@ -959,6 +969,18 @@ public final class CityService {
      */
     public void useUpgrades(dev.civitas.core.upgrade.UpgradeService service) {
         this.upgrades = service;
+    }
+
+    /** Named for the server-event system, not to be confused with the {@code events} EventBus. */
+    private dev.civitas.core.events.EventEffects serverEvents;
+
+    /** SPEC 13.5 Founders' Week, which makes founding a city free while it runs. */
+    public void useEvents(dev.civitas.core.events.EventEffects effects) {
+        this.serverEvents = effects;
+    }
+
+    private boolean isCityCreationFree() {
+        return serverEvents != null && serverEvents.isCityCreationFree();
     }
 
     /**

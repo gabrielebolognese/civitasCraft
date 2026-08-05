@@ -4,6 +4,49 @@ All notable changes to CivitasCraft. One section per milestone from `PLAN.md`.
 
 ## [Unreleased]
 
+### M16, Server events
+
+Added:
+- `ServerEventType` and `ServerEvent`: the eight events of SPEC 13.5, with their phase
+  arithmetic. Nothing about what an event *does* lives in the enum; that is config.
+- `EventEffects`: every multiplier in one place, derived from what is running rather than
+  latched when it starts. There is no state to get stuck, so an effect cannot outlive its
+  event. Nine systems read it.
+- `EventService`: one event at a time, persisted, resumed across a restart.
+- `EventScheduler`: picks by weight, skips anything inside its cooldown, announces ahead,
+  ends on time, and catches up an end that passed while the server was down.
+- `EventBossBar` and `BroadcastAnnouncer`: SPEC 13.5's boss bar and announcements.
+- `InvasionWaves` and `EventListener`: waves spawned just outside city borders, mobs tagged in
+  their persistent data, and a treasury credit when a tagged mob dies inside a claim.
+- V10 `server_events`.
+
+Changed:
+- `MarketPricing`, `ClaimCostEngine`, `CityService`, `UpkeepCalculator` and `QuestService` each
+  gained a `useEvents` setter, the same shape M11 to M13 used. All five stay neutral when no
+  effects object is wired, so nothing changed for anyone until M16 handed them one.
+- **`CityService` no longer withdraws a fee of zero.** The economy refuses a non-positive
+  amount (SPEC 17.3), so a free founding during Founders' Week would have been refused by the
+  very system meant to encourage it. Found by the test, not by reading.
+- `EventService` takes its clock as a parameter. A service that consults the wall clock behind
+  its caller cannot be tested against a moved one, and every decision it makes is about time.
+
+Notes:
+- **SPEC 13.5 gives no schedule.** It calls the events "automatic, scheduled, config-driven"
+  and never says how often one fires or how the next is chosen. The interval, the per-event
+  weights and the repeat cooldowns are therefore this implementation's, not the
+  specification's, and all of them are in `events.yml`.
+- **Gold Rush multiplies ore drops, not generation.** SPEC 13.5 words it as an "ore generation
+  bonus via a temporary loot modifier", but the chunk a player mines was generated long before
+  the event started, and Paper exposes no supported loot-table hook without NMS, which SPEC 2.1
+  forbids unless unavoidable. The drop is the observable effect and the deliverable one.
+- **Tax Holiday overrides the rate rather than multiplying it**, so a city that bought the
+  SPEC 5.7 Market Access discount still has it when the holiday ends. Double Upkeep does the
+  opposite and multiplies, so a city that paid for cheaper upkeep keeps its discount and pays
+  double the discounted figure.
+- Invasion mobs are tagged because SPEC 13.5 pays for mobs "killed inside their claims", and
+  untagged that would pay a city with a dark room forever.
+- `/ca event start|stop` is SPEC 9.4.6 and belongs to M21.
+
 ### M15, Contests
 
 Added:

@@ -23,6 +23,7 @@ import dev.civitas.core.outpost.OutpostTeleport;
 import dev.civitas.core.defense.DefenseService;
 import dev.civitas.core.contest.ContestService;
 import dev.civitas.core.diplomacy.DiplomacyService;
+import dev.civitas.core.events.EventService;
 import dev.civitas.core.upgrade.UpgradeService;
 import dev.civitas.core.vault.VaultService;
 import dev.civitas.core.vault.VaultView;
@@ -70,6 +71,7 @@ public record CivitasServices(
         LeaderboardService leaderboards,
         StatsService stats,
         ContestService contests,
+        EventService events,
         OutpostService outposts,
         OutpostTeleport outpostTeleport,
         UpgradeService upgrades,

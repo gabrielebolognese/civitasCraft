@@ -7,28 +7,50 @@ events:
   announce-minutes-before: 30
   boss-bar: true
 
+  # SPEC 13.5 calls these "automatic, scheduled, config-driven" but never says how often one
+  # fires or how the next is chosen, so the three scheduling numbers here are this
+  # implementation's rather than the specification's.
+  #
+  # How long after one event ends before the next is picked.
+  interval-hours: 12
+  # How often the scheduler looks. Far more often than it acts, because an event boundary is a
+  # wall-clock moment and the server may have been down when it passed.
+  check-interval-minutes: 5
+  # How long an event waits before it may be drawn again. Without this a weighted draw hands
+  # out Double Upkeep three times a fortnight, which players read as broken rather than
+  # unlucky. An event may override it with its own cooldown-hours.
+  default-cooldown-hours: 72
+
   definitions:
     market-boom:
       display-name: Market Boom
       duration-hours: 6
       sell-price-percent: 140
+      weight: 1.5
 
     market-crash:
       display-name: Market Crash
       duration-hours: 6
       sell-price-percent: 70
       buy-price-percent: 70
+      weight: 1.0
 
     harvest-festival:
       display-name: Harvest Festival
       duration-hours: 24
       crop-growth-multiplier: 2.0
       farming-quest-reward-multiplier: 2.0
+      weight: 1.5
 
     gold-rush:
       display-name: Gold Rush
       duration-hours: 12
       mining-quest-reward-multiplier: 2.0
+      # SPEC 13.5 words this as an "ore generation bonus via a temporary loot modifier".
+      # Generation cannot change once a chunk exists, so this multiplies what ore drops.
+      # See OPEN_QUESTIONS.md.
+      ore-drop-multiplier: 2.0
+      weight: 1.5
 
     invasion:
       display-name: Invasion
@@ -37,12 +59,18 @@ events:
       mobs-per-wave: 20
       spawn-radius-from-city-border: 32
       treasury-reward-per-mob: 25
+      # Spawned just outside a city's border, never inside it.
+      mob-types: [ZOMBIE, SKELETON, SPIDER, HUSK, STRAY]
+      weight: 1.0
 
     founders-week:
       display-name: Founders' Week
       duration-hours: 168
       claim-cost-percent: 75
       city-creation-free: true
+      # A week long, so it should be rare.
+      weight: 0.3
+      cooldown-hours: 720
 
     double-upkeep:
       display-name: Double Upkeep
@@ -50,11 +78,14 @@ events:
       upkeep-multiplier: 2.0
       # A rare sink event, announced well in advance.
       announce-hours-before: 48
+      weight: 0.4
+      cooldown-hours: 336
 
     tax-holiday:
       display-name: Tax Holiday
       duration-hours: 24
       market-tax-percent: 0
+      weight: 1.0
 
 contests:
   enabled: true

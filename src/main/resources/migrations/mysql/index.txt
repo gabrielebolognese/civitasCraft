@@ -10,3 +10,4 @@ V6__city_vault.sql
 V7__diplomacy.sql
 V8__player_stats.sql
 V9__contests.sql
+V10__server_events.sql

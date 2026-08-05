@@ -60,8 +60,22 @@ public final class UpkeepCalculator {
         double reduction = Math.min(100.0, reductionPerLevel * Math.max(0, treasuryInterestLevel));
         BigDecimal discounted = gross.subtract(Money.percentOf(gross, reduction));
 
-        return discounted.max(SqlDialect.zero())
+        // SPEC 13.5's Double Upkeep applies after the SPEC 5.7 discount, not instead of it: a
+        // city that bought cheaper upkeep keeps its discount and pays double the discounted
+        // figure, which is what the two features promise when read together.
+        return discounted.multiply(eventMultiplier()).max(SqlDialect.zero())
                 .setScale(SqlDialect.MONEY_SCALE, RoundingMode.DOWN);
+    }
+
+    private dev.civitas.core.events.EventEffects events;
+
+    /** SPEC 13.5 Double Upkeep. */
+    public void useEvents(dev.civitas.core.events.EventEffects effects) {
+        this.events = effects;
+    }
+
+    private BigDecimal eventMultiplier() {
+        return events == null ? BigDecimal.ONE : events.upkeepMultiplier();
     }
 
     /** The charge for a city with no outposts, no defense units and no upgrades. */

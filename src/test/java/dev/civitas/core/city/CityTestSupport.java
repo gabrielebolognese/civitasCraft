@@ -17,6 +17,7 @@ import dev.civitas.core.contest.ContestService;
 import dev.civitas.core.contest.VoteWeighting;
 import dev.civitas.core.diplomacy.DiplomacyRegistry;
 import dev.civitas.core.diplomacy.DiplomacyService;
+import dev.civitas.core.events.EventService;
 import dev.civitas.core.economy.Funds;
 import dev.civitas.core.economy.PlayerAccountService;
 import dev.civitas.core.economy.EconomyService;
@@ -72,6 +73,7 @@ public final class CityTestSupport implements AutoCloseable {
     public final DiplomacyService diplomacy;
     public final VoteWeighting voteWeighting;
     public final ContestService contests;
+    public final EventService serverEvents;
 
     private CityTestSupport(Path directory, EventBus events) {
         this.configs = new ConfigManager(
@@ -116,6 +118,10 @@ public final class CityTestSupport implements AutoCloseable {
         this.voteWeighting = new VoteWeighting(configs);
         this.contests = new ContestService(db, daos, registry, claimRegistry, treasury,
                 voteWeighting, configs, Scheduler.direct());
+        // Constructed but deliberately not wired into pricing, claims, cities or upkeep here:
+        // EventHooksTest does that wiring itself, so every other test sees the unmodified
+        // behaviour and a stray event cannot explain away a failure somewhere else.
+        this.serverEvents = new EventService(daos.serverEvents(), configs);
     }
 
     public static CityTestSupport open(Path directory) {

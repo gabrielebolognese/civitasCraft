@@ -871,3 +871,37 @@ contest:
     results: "<gold>Il concorso <white><theme></white> e' finito. Risultati:"
     placed: "<gray><place>. <white><city></white> <dark_gray>- <aqua><score></aqua> <dark_gray>- <gold><prize> C"
     no-entries: "<gray>Il concorso <white><theme></white> si e' concluso senza opere."
+
+# SPEC 13.5, eventi programmati su tutto il server.
+event:
+  none: "<gray>Nessun evento del server e' in corso."
+  disabled: "<red>Gli eventi del server sono disattivati."
+  already-running: "<red>C'e' gia' un evento in corso."
+  boss-bar: "<gold><event></gold> <gray>- <white><remaining></white> rimasti"
+  announce:
+    upcoming: "<gold><event></gold> inizia tra <white><when></white>! <gray><description>"
+    ended: "<gray><event> e' finito."
+  market-boom:
+    name: "Boom del Mercato"
+    description: "Il mercato paga di piu' per tutto quello che vendi."
+  market-crash:
+    name: "Crollo del Mercato"
+    description: "Il mercato paga meno, ma comprare costa meno."
+  harvest-festival:
+    name: "Festa del Raccolto"
+    description: "Le colture crescono in fretta e le missioni agricole pagano il doppio."
+  gold-rush:
+    name: "Corsa all'Oro"
+    description: "I minerali rendono di piu' e le missioni minerarie pagano il doppio."
+  invasion:
+    name: "Invasione"
+    description: "Ondate ostili ai confini delle citta'. Le uccisioni nella tua terra pagano la tesoreria."
+  founders-week:
+    name: "Settimana dei Fondatori"
+    description: "I chunk costano meno e fondare una citta' e' gratis."
+  double-upkeep:
+    name: "Mantenimento Doppio"
+    description: "Il mantenimento costa il doppio. Controlla che la tesoreria regga."
+  tax-holiday:
+    name: "Tregua Fiscale"
+    description: "Il mercato non applica tasse di vendita."

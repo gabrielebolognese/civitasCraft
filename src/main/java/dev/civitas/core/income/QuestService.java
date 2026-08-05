@@ -177,6 +177,29 @@ public final class QuestService {
      * money only moves if that write actually changed a row. Two events finishing the same
      * quest in the same tick therefore pay once.
      */
+    private dev.civitas.core.events.EventEffects events;
+
+    /** SPEC 13.5 Harvest Festival and Gold Rush, which pay more for one quest category. */
+    public void useEvents(dev.civitas.core.events.EventEffects effects) {
+        this.events = effects;
+    }
+
+    /**
+     * The event multiplier for the category this quest belongs to.
+     *
+     * <p>Looked up through the quest pool rather than stored on the assignment, because SPEC
+     * 13.5's events start and end after quests are handed out: a farming quest assigned this
+     * morning must pay double if a Harvest Festival begins this afternoon.
+     */
+    private BigDecimal eventMultiplierFor(String questId) {
+        if (events == null) {
+            return BigDecimal.ONE;
+        }
+        return pool.byId(questId)
+                .map(definition -> events.questRewardMultiplier(definition.category()))
+                .orElse(BigDecimal.ONE);
+    }
+
     private CompletableFuture<Void> complete(UUID player, PlayerQuestRow row) {
         long now = System.currentTimeMillis();
         return quests.markCompleted(row.id(), now).thenCompose(changed -> {
@@ -195,7 +218,11 @@ public final class QuestService {
             }
             PlayerRow account = found.get();
 
-            BigDecimal amount = multipliers.apply(row.reward(), account,
+            // SPEC 13.5's Harvest Festival and Gold Rush double the reward of one quest
+            // category. Applied before the SPEC 4.2 newcomer multiplier, so the two compound
+            // in the player's favour rather than one replacing the other.
+            BigDecimal base = row.reward().multiply(eventMultiplierFor(row.questId()));
+            BigDecimal amount = multipliers.apply(base, account,
                     account.activePlaytimeMs(), now);
             if (amount.signum() <= 0) {
                 // SPEC 17.6 case 70: a quest completed by an account too new to earn pays

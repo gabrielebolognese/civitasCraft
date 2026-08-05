@@ -5,7 +5,7 @@
 
 ## Current session focus
 
-**Next milestone:** M16, Server events
+**Next milestone:** M17, War: block logging
 
 ## Session protocol
 
@@ -39,7 +39,7 @@
 | 13 | Diplomacy | M2 | DONE | Relations, alliances with the 24h notice and 7-day cooldown, truces, trusted build access, /ally /truce /ac, GUI. V7 migration. |
 | 14 | Leaderboards | M5 | DONE | Nine boards (SPEC 13.3's table, not its "seven"), `/leaderboard`, cached snapshot on a timer. V8 adds `player_stats` for Builder and Farmer. **Contest Champions and War Record report themselves unavailable** until M15 and M19. |
 | 15 | Contests | M14, M8 | DONE | Full SPEC 13.4 cycle, marking, voting on three axes, weighted scoring, prizes. V9. Closes M14's Contest Champions seam. **The SPEC 13.4 "verified against block placement logs" check cannot run until M17 and says so at startup.** `/ca contest` is M21. |
-| 16 | Server events | M5, M6 | TODO | |
+| 16 | Server events | M5, M6 | DONE | All eight SPEC 13.5 events, scheduler with weights and cooldowns, boss bar, announcements, invasion waves. V10. **SPEC gives no schedule, so the interval, weights and cooldowns are this implementation's.** Gold Rush multiplies ore *drops*: generation cannot change after a chunk exists. |
 | 17 | War: block logging | M4 | TODO | Benchmark 2000 writes/sec before marking done |
 | 18 | War: rollback engine | M17 | TODO | Test with a synthetic block log, no war gameplay yet |
 | 19 | War: lifecycle | M18, M13 | TODO | |

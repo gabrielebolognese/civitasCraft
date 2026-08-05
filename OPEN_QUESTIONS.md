@@ -694,3 +694,54 @@ Format:
   disqualified entry is marked rather than deleted, because its votes reference it and an
   admin action that erased its own evidence would be the one thing in this plugin that cannot
   be audited. *Date:* 2026-08-05
+
+- **[M16]** SPEC 13.5 calls server events "automatic, scheduled, config-driven" and lists what
+  each one does, but never says how often an event fires, how the next is chosen, or whether
+  two may overlap. *Implemented default:* one at a time; a fixed interval after the last one
+  ends (`events.interval-hours`, 12); a weighted draw (`weight` per event); and a repeat
+  cooldown (`events.default-cooldown-hours`, 72, overridable per event) so a weighted draw
+  cannot hand out the same rare event twice in a fortnight. **None of these four numbers is
+  from SPEC.** One at a time because Market Boom and Tax Holiday together compound into a
+  multiplier nobody designed, and SPEC 4.1 is explicit that the economy's properties are
+  deliberate. *Date:* 2026-08-05
+
+- **[M16]** SPEC 13.5's Gold Rush is "ore generation bonus via a temporary loot modifier".
+  Generation cannot be what changes: the chunks a player mines were generated long before the
+  event began, and Paper exposes no supported hook into world generation or loot tables
+  without NMS, which SPEC 2.1 forbids unless unavoidable. *Implemented default:* the event
+  multiplies what an ore block *drops*, on `BlockDropItemEvent`, which is the effect a player
+  would describe as a gold rush and the one that can actually be delivered. On the drop event
+  rather than the break so a silk-touch pick is included and a block broken by anything other
+  than a player is not. *Date:* 2026-08-05
+
+- **[M16]** SPEC 3 lists no table for a running event, but SPEC 13.5's Founders' Week lasts
+  seven days, so an event outliving a restart is the normal case. *Implemented default:* V10
+  adds `server_events`, one row per run, closed when the event ends. An open row whose window
+  has passed is what an outage looks like, and it is closed on startup rather than resumed;
+  one still inside its window resumes with the right time remaining. Finished rows are kept,
+  because SPEC 13.5 events move real money and SPEC 1.5 makes that auditable.
+  *Date:* 2026-08-05
+
+- **[M16]** SPEC 13.5's Tax Holiday sets "market tax 0%" and Double Upkeep sets "upkeep
+  doubled", but neither says how it combines with the SPEC 5.7 upgrade that changes the same
+  number. *Implemented default:* the tax holiday **overrides** the rate, so a city's bought
+  Market Access discount is untouched and is still there when the holiday ends; Double Upkeep
+  **multiplies** the already-discounted figure, so a city that paid for cheaper upkeep keeps
+  its discount and pays double the discounted amount. Multiplying the tax by zero would have
+  silently discarded a purchase; multiplying upkeep before the discount would have cancelled
+  one. *Date:* 2026-08-05
+
+- **[M16]** SPEC 13.5's Invasion pays a city "proportional to mobs killed inside their claims",
+  which taken literally would pay a city for any hostile mob, including the ones from its own
+  dark rooms and the cave under it. *Implemented default:* only mobs this event spawned pay
+  out, stamped in their persistent data with the invasion's id. They are also spawned just
+  *outside* a city's border rather than inside it: SPEC 13.5 says "near city borders", and
+  dropping twenty hostiles into somebody's town square would damage the build that SPEC 1.2's
+  rollback promise exists to protect. *Date:* 2026-08-05
+
+- **[M16]** SPEC 13.5's Harvest Festival doubles "crop growth rate", which Minecraft exposes
+  no per-block-type control over. *Implemented default:* when a crop grows naturally, the
+  extra stages the multiplier buys are applied on top, so a multiplier of 2 advances the crop
+  twice per natural growth. Applied with physics suppressed, for the reason SPEC 11.8.2 gives
+  about rollback: a growth that cascades into neighbours is not what anyone asked for.
+  *Date:* 2026-08-05

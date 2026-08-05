@@ -872,3 +872,37 @@ contest:
     placed: "<gray><place>. <white><city></white> <dark_gray>- <aqua><score></aqua> <dark_gray>- <gold><prize> C"
     no-entries: "<gray>The <white><theme></white> contest ended with no entries."
 
+
+# SPEC 13.5, scheduled server-wide events.
+event:
+  none: "<gray>No server event is running."
+  disabled: "<red>Server events are disabled on this server."
+  already-running: "<red>An event is already running."
+  boss-bar: "<gold><event></gold> <gray>- <white><remaining></white> left"
+  announce:
+    upcoming: "<gold><event></gold> starts in <white><when></white>! <gray><description>"
+    ended: "<gray><event> has ended."
+  market-boom:
+    name: "Market Boom"
+    description: "The market pays more for everything you sell."
+  market-crash:
+    name: "Market Crash"
+    description: "The market pays less, but everything costs less to buy."
+  harvest-festival:
+    name: "Harvest Festival"
+    description: "Crops grow faster and farming quests pay double."
+  gold-rush:
+    name: "Gold Rush"
+    description: "Ore yields more and mining quests pay double."
+  invasion:
+    name: "Invasion"
+    description: "Hostile waves gather at city borders. Kills inside your claims pay your treasury."
+  founders-week:
+    name: "Founders' Week"
+    description: "Claims are cheaper and founding a city is free."
+  double-upkeep:
+    name: "Double Upkeep"
+    description: "City upkeep costs twice as much. Make sure your treasury can take it."
+  tax-holiday:
+    name: "Tax Holiday"
+    description: "The market charges no sale tax."
