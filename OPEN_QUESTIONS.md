@@ -535,3 +535,162 @@ Format:
   exclude a specific entity from spawn calculations without NMS, and SPEC 2.1 forbids NMS
   unless unavoidable. `setPersistent(true)` already stops them despawning, which is the part
   that would actually lose a city its money. *Date:* 2026-08-03
+
+- **[M13]** SPEC 14.1 lists five relation states and SPEC 3.9 gives `alliances` a `state`
+  column, but SPEC names no states for that column, and SPEC 14.2's 24-hour notice period
+  needs one: during it the alliance "still holds", so it is neither active-and-settled nor
+  ended. *Implemented default:* `PENDING`, `ACTIVE`, `BREAKING`, `BROKEN`, with `BREAKING`
+  counting as allied everywhere. `BROKEN` rows are kept rather than deleted, because the
+  seven-day re-ally cooldown is timed from when the break completed and deleting the row
+  would lose the only record of that. *Date:* 2026-08-04
+
+- **[M13]** SPEC 3.9 gives `alliances` four columns, none of which can carry the notice
+  timer, the reciprocal build grant, or which city proposed. *Implemented default:* V7 adds
+  `state_changed_at`, `trusted` and `proposed_by`. Without `proposed_by` either city could
+  accept its own proposal, which is not an agreement. *Date:* 2026-08-04
+
+- **[M13]** SPEC 14.3 gives `/truce offer` and `/truce accept`, but describes no way to
+  refuse and no consequence of ignoring an offer, and a truce restricts both parties
+  identically. *Implemented default:* offering agrees it. `/truce accept` is therefore not
+  registered. The conservative reading is that a pact nobody can be harmed by needs no
+  defence against being given one. *Date:* 2026-08-04
+
+- **[M13]** SPEC 14.1 says a relation is exactly one state per pair, but a pair can be allied
+  and under truce at once, since SPEC 14.3 imposes a truce automatically after a war and
+  nothing forbids allying during one. *Implemented default:* precedence is war, then truce,
+  then alliance, then the post-war enemy marker. A truce outranks an alliance because it is
+  the one with an end date and the one that blocks a declaration. *Date:* 2026-08-04
+
+- **[M13]** SPEC 14.2 says allies "may join each other's wars" and SPEC 14.1 lists `AT_WAR`
+  and `ENEMY`, both of which need the war system in M19. *Implemented default:*
+  `DiplomacyService.isAtWar` and `isRecentEnemy` are named methods that answer no, so M19
+  fills in two methods rather than auditing the relation table. *Date:* 2026-08-04
+
+- **[M13]** SPEC 19 gives M13 "alliance chat" but SPEC 9.2's `/cc` city chat was never
+  assigned to a milestone and is still the M0 stub. *Implemented default:* `/ac` is
+  implemented and `/cc` is left alone, since M13's deliverable names only the alliance
+  channel. City chat is still unowned and needs a home. *Date:* 2026-08-04
+
+- **[M13]** Nothing cleaned up after a disbanded city beyond its claims: `UpgradeService`
+  and `DefenseService` both had a removal method that no caller reached, so a city id reused
+  by a later founding would inherit bought upgrade levels and a garrison. *Implemented
+  default:* `CityService.onCityDisbanded` is a hook that runs after the transaction commits,
+  and diplomacy, upgrades and defense are all registered on it. A `CityDisbandEvent` listener
+  could not be used: that event fires before the mutation so it can be cancelled.
+  *Date:* 2026-08-04
+
+- **[M14]** SPEC 13.3 says "There are seven, all shown with equal prominence", and SPEC 19's
+  M14 row repeats "All seven leaderboards", but the table in SPEC 13.3 lists **nine** rows
+  (Wealth, Cities by Treasury, Cities by Size, Cities by Population, Contest Champions, War
+  Record, Contribution, Builder, Farmer) and no section anywhere enumerates a set of seven.
+  *Implemented default:* all nine. The count appears twice and the list once, but only the
+  list says which, and dropping two would mean choosing which two on no authority at all.
+  Implementing every board SPEC names invents nothing; picking a subset would.
+  *Date:* 2026-08-05
+
+- **[M14]** SPEC 13.3 defines Contribution as "Lifetime treasury deposits (personal)", and
+  `city_members.contributed_total` already holds a per-member deposit total that SPEC 8.5's
+  in-city contribution list uses. It is not the same number: the membership row is deleted
+  when a player leaves a city, so that column measures what someone has given the city they
+  are in now. *Implemented default:* the board sums `TREASURY_DEPOSIT` rows from the ledger,
+  grouped by actor. SPEC 3.6 never deletes from the ledger, so it is the only lifetime record
+  there is, and SPEC 1.5 already makes it the authority. Only positive amounts are counted,
+  because a treasury movement writes both sides under the same type and actor and an
+  unfiltered `SUM` nets to zero. *Date:* 2026-08-05
+
+- **[M14]** SPEC 13.3's Builder and Farmer boards rank blocks placed and crops harvested, but
+  nothing persisted either: M9 reports both metrics into `player_quests.progress`, which SPEC
+  13.1 reassigns every day. *Implemented default:* V8 adds a `player_stats` table of lifetime
+  counters, one row per (player, counter), following the M1 pattern of adding a table in the
+  milestone that needs it. One row per counter rather than a column per counter on `players`,
+  so a future board is an enum constant and no migration. *Date:* 2026-08-05
+
+- **[M14]** SPEC 13.3 names the boards and what each ranks, but gives no board size, no page
+  size and no refresh rate, and SPEC 19 asks for "caching" without saying how fresh.
+  *Implemented default:* `leaderboards.size` (25), `page-size` (10),
+  `refresh-interval-minutes` (5) and `stats-flush-seconds` (30) in `events.yml`, which already
+  owns the other SPEC 13 progression features that are not income. These four numbers are this
+  implementation's, not the specification's. The refresh interval is also the staleness a
+  player can see: someone who deposits does not move up Contribution until the next sweep.
+  *Date:* 2026-08-05
+
+- **[M14]** SPEC 13.3's Contest Champions and War Record rank data that M15 and M19 produce,
+  so at M14 there is nothing to rank, and SPEC does not say what a board with no data source
+  should do. *Implemented default:* both are listed and both report themselves *unavailable*,
+  which is deliberately distinct from empty. "Nobody has any contest points" and "contests do
+  not exist on this server yet" are different statements, and showing the first when the
+  second is true is how a player concludes the feature is broken. The War Record ordering SPEC
+  13.3 specifies (wins, then fewest losses) is settled and tested now, while it is being read
+  out of the specification, rather than reconstructed in M19. *Date:* 2026-08-05
+
+- **[M14]** SPEC 13.3 defines the Builder metric as "blocks placed (excluding war zones)", but
+  war zones are M19. *Implemented default:* `StatsService.isInWarZone` answers false, in the
+  same shape as the `ProtectionService` war seams, so the exclusion already has its branch and
+  M19 changes one method rather than remembering that a leaderboard depended on it.
+  *Date:* 2026-08-05
+
+- **[M15]** SPEC 13.4 step 4 has voters score an entry "1 to 10 across three axes: Creativity,
+  Technical Skill, Theme Fit", but SPEC 3.9's `contest_votes` carries a single `score` column.
+  *Implemented default:* V9 adds a column per axis and keeps `score` as the combined figure
+  the tally uses, the unweighted mean of the three. Equal weight per axis, because SPEC 13.4
+  lists them without ranking them. *Date:* 2026-08-05
+
+- **[M15]** SPEC 13.4 requires that "entries must be built during the contest window (verified
+  against block placement logs)", but no block placement log exists: the one SPEC 11.8.1
+  specifies is scoped to a war zone and belongs to M17, and M14's lifetime counters are
+  per-player totals with no region or time in them. *Implemented default:*
+  `ContestService.canVerifyBuildWindow` answers false, `events.yml` keeps its
+  `verify-built-during-window` key, and the server logs a warning at startup when the operator
+  has asked for a check this build cannot perform. Quietly passing every entry would let an
+  operator believe the check was running, which is worse than not having it.
+  *Date:* 2026-08-05
+
+- **[M15]** SPEC 13.4 words two anti-abuse rules differently: "Players cannot vote for their
+  own city" against "Votes from accounts sharing an IP with a member of the entered city are
+  discarded". *Implemented default:* the difference is kept. A self-city vote is refused and
+  the player told why. A shared-connection vote is accepted, stored, and weighed at zero.
+  Telling the voter their vote was discarded for sharing a connection would report on another
+  account's connection to somebody who did not ask and has no business knowing; storing at
+  zero achieves what SPEC 17.6 case 72 wants, which is only that the vote does not count.
+  *Date:* 2026-08-05
+
+- **[M15]** SPEC 13.4's IP rule needs to know how players connect, and nothing in SPEC 3
+  stores anything about a connection. *Implemented default:* V9 adds `player_logins` holding
+  `SHA-256(salt || address)` and never the address. The rule only ever asks whether two
+  accounts connect from the same place, which a hash answers. The salt is generated once and
+  kept in a file beside the database, so a stolen copy of the table cannot be reversed by
+  hashing candidate addresses, and losing the salt fails the rule *open* (nothing is
+  discarded) rather than discarding everyone's votes. A separate table rather than a column on
+  `players` so it can be purged on its own. *Date:* 2026-08-05
+
+- **[M15]** SPEC 13.3 ranks Contest Champions by "cumulative contest points" and defines
+  contest points nowhere. *Implemented default:* the sum of a city's finished, qualifying
+  entry scores. It rewards entering often and doing well, and cannot be gamed by a city that
+  entered once. *Date:* 2026-08-05
+
+- **[M15]** SPEC 13.4 does not say how to break a tie between two entries on the same score,
+  nor what an entry that nobody voted for should win. *Implemented default:* the earlier
+  submission wins the tie, which is the one tiebreak that cannot be arranged after the votes
+  are in; and an entry with a score of zero is placed but paid nothing, so entering unopposed
+  is not a way to farm the treasury. *Date:* 2026-08-05
+
+- **[M15]** SPEC 13.4 step 4 says a visitor is teleported "to a viewing platform above the
+  build, spectator-ish, no build permission". *Implemented default:* teleported above the
+  region, with no platform built and no game mode changed. An entry sits inside the entrant's
+  own claims, so M4's protection already stops a visitor touching anything; placing blocks in
+  somebody's city to make a viewing stand, or moving a player into spectator, are both larger
+  interventions than SPEC describes. *Date:* 2026-08-05
+
+- **[M15]** SPEC 13.4 gives no length for the contest state list and SPEC 3.9's `contests`
+  table carries `state` without naming its values. *Implemented default:* BUILDING, VOTING,
+  SCORING, FINISHED. SCORING is a state of its own rather than a moment inside the tally
+  because the tally moves money into treasuries, and a server that dies halfway through one
+  must come back knowing it was mid-tally rather than replaying the payouts.
+  *Date:* 2026-08-05
+
+- **[M15]** SPEC 9.4.6 gives `/ca contest start|end|disqualify`, but PLAN.md assigns every
+  SPEC 9.4 command to M21. *Implemented default:* M15 builds and tests the service methods,
+  including disqualification with its mandatory reason, and registers no admin command. A
+  disqualified entry is marked rather than deleted, because its votes reference it and an
+  admin action that erased its own evidence would be the one thing in this plugin that cannot
+  be audited. *Date:* 2026-08-05

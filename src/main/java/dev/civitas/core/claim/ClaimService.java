@@ -142,6 +142,19 @@ public final class ClaimService {
      * (SPEC 7.2), and that price needs the same divisor.
      */
     public int activeMemberCount(City city) {
+        // Floored at one because this is a divisor: a city whose members have all gone quiet
+        // must still be quoted a price, not an infinite one.
+        return Math.max(1, rawActiveMemberCount(city));
+    }
+
+    /**
+     * The same count without the divisor's floor of one.
+     *
+     * <p>SPEC 13.3's Cities by Population board ranks this, and there the difference matters:
+     * a city with nobody active should read zero rather than one. The rule for what counts as
+     * active lives here, in one place, so the board and the price can never disagree about it.
+     */
+    public int rawActiveMemberCount(City city) {
         FileConfiguration cityConfig = configs.get(ConfigFile.CITIES);
         long window = cityConfig.getLong("claims.active-member-days", 14) * MILLIS_PER_DAY;
         long minPlaytime = cityConfig.getLong("creation.min-playtime-hours", 2) * 3_600_000L;
@@ -159,7 +172,7 @@ public final class ClaimService {
                 active++;
             }
         }
-        return Math.max(1, active);
+        return active;
     }
 
     /**

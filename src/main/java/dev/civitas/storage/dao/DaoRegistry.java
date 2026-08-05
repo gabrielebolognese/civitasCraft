@@ -15,6 +15,8 @@ import dev.civitas.storage.DatabaseManager;
 public final class DaoRegistry {
 
     private final PlayerDao players;
+    private final PlayerStatDao playerStats;
+    private final PlayerLoginDao playerLogins;
     private final CityDao cities;
     private final CityRankDao cityRanks;
     private final CityMemberDao cityMembers;
@@ -46,6 +48,8 @@ public final class DaoRegistry {
     public DaoRegistry(DatabaseManager db) {
         Objects.requireNonNull(db, "db");
         this.players = new PlayerDao(db);
+        this.playerStats = new PlayerStatDao(db);
+        this.playerLogins = new PlayerLoginDao(db);
         this.cities = new CityDao(db);
         this.cityRanks = new CityRankDao(db);
         this.cityMembers = new CityMemberDao(db);
@@ -77,6 +81,14 @@ public final class DaoRegistry {
 
     public PlayerDao players() {
         return players;
+    }
+
+    public PlayerStatDao playerStats() {
+        return playerStats;
+    }
+
+    public PlayerLoginDao playerLogins() {
+        return playerLogins;
     }
 
     public CityDao cities() {
@@ -189,7 +201,7 @@ public final class DaoRegistry {
 
     /** Every DAO, in no particular order. Used by tests that assert across the whole set. */
     public List<Dao<?>> all() {
-        return List.of(players, cities, cityRanks, cityMembers, cityInvites, cityBans, claims, outposts,
+        return List.of(players, playerStats, playerLogins, cities, cityRanks, cityMembers, cityInvites, cityBans, claims, outposts,
                 ledger, economySnapshots, wars, warBlockLog, warContainerLog, warParticipants, warKills, alliances,
                 truces, marketStock, playerShops, playerQuests, cityChallenges, contests, contestEntries, contestVotes,
                 cityUpgrades, cityVault, defenseUnits, auditLog);

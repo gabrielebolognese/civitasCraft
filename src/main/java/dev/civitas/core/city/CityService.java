@@ -413,6 +413,9 @@ public final class CityService {
             disbanded.setDeletedAt(now);
             disbanded.setTreasury(dev.civitas.storage.SqlDialect.zero());
             claims.forgetCity(disbanded.id());
+            for (java.util.function.IntConsumer hook : disbandHooks) {
+                hook.accept(disbanded.id());
+            }
             registry.unregister(disbanded);
         }));
     }
@@ -957,6 +960,23 @@ public final class CityService {
     public void useUpgrades(dev.civitas.core.upgrade.UpgradeService service) {
         this.upgrades = service;
     }
+
+    /**
+     * Registers something to clean up after a disbanded city.
+     *
+     * <p>Run after the transaction commits and only on success, which is why this is a hook
+     * rather than a {@link dev.civitas.api.event.CityDisbandEvent} listener: that event fires
+     * before the mutation so it can be cancelled, and a listener there would delete a city's
+     * alliances and then watch the disband fail.
+     *
+     * @param hook takes the id of the city that has just gone
+     */
+    public void onCityDisbanded(java.util.function.IntConsumer hook) {
+        disbandHooks.add(Objects.requireNonNull(hook, "hook"));
+    }
+
+    private final List<java.util.function.IntConsumer> disbandHooks =
+            new java.util.concurrent.CopyOnWriteArrayList<>();
 
     private dev.civitas.core.upgrade.UpgradeService upgrades;
 

@@ -175,6 +175,15 @@ class LangKeyUsageTest {
                 || key.startsWith("upgrade.")
                 // A unit's description key is built from its catalogue entry,
                 // DefenseUnitType.messageKey.
-                || key.startsWith("defense.unit.");
+                || key.startsWith("defense.unit.")
+                // A relation's name key is built from its enum, Relation.messageKey.
+                || key.startsWith("diplomacy.relation.")
+                // A board's name and metric keys are built from its enum,
+                // LeaderboardType.nameKey and .metricKey.
+                || key.startsWith("leaderboard.type.")
+                // A contest phase name is built from ContestState.messageKey, and a scoring
+                // axis from VoteAxis.messageKey.
+                || key.startsWith("contest.state.")
+                || key.startsWith("contest.axis.");
     }
 }

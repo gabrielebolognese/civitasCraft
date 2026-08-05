@@ -52,6 +52,11 @@ public final class TruceDao extends Dao<TruceRow> {
                 this::map, pair[0], pair[1], now);
     }
 
+    /** Every truce still running, for the startup cache. */
+    public CompletableFuture<List<TruceRow>> findAllActive(long now) {
+        return queryList("SELECT " + COLUMNS + " FROM truces WHERE expires_at > ?", now);
+    }
+
     public CompletableFuture<List<TruceRow>> findByCity(int cityId, long now) {
         return queryList("SELECT " + COLUMNS + " FROM truces "
                 + "WHERE (city_a_id = ? OR city_b_id = ?) AND expires_at > ?", cityId, cityId, now);

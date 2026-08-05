@@ -47,6 +47,21 @@ public final class ContestDao extends Dao<ContestRow> {
                 this::map, now, now));
     }
 
+    /**
+     * The most recent contest that has not been scored, whether or not its window has closed.
+     *
+     * <p>What the cycle loads at startup, and deliberately not {@link #findCurrent}: a contest
+     * whose day 14 passed while the server was down is exactly the one that still needs its
+     * votes tallied and its prizes paid, and {@code findCurrent} filters it out for having
+     * ended.
+     */
+    public CompletableFuture<Optional<ContestRow>> findUnfinished() {
+        return db.call(connection -> queryOneSync(connection,
+                "SELECT " + COLUMNS + " FROM contests WHERE state <> ? "
+                        + "ORDER BY starts_at DESC LIMIT 1",
+                this::map, "FINISHED"));
+    }
+
     public CompletableFuture<List<ContestRow>> findRecent(int limit) {
         return queryList("SELECT " + COLUMNS + " FROM contests ORDER BY starts_at DESC LIMIT ?", limit);
     }
@@ -64,7 +79,11 @@ public final class ContestDao extends Dao<ContestRow> {
     }
 
     public CompletableFuture<Integer> updateState(int contestId, String state) {
-        return db.call(connection -> updateSync(connection,
-                "UPDATE contests SET state = ? WHERE id = ?", state, contestId));
+        return db.call(connection -> updateState(connection, contestId, state));
+    }
+
+    public int updateState(Connection connection, int contestId, String state) throws SQLException {
+        return updateSync(connection,
+                "UPDATE contests SET state = ? WHERE id = ?", state, contestId);
     }
 }

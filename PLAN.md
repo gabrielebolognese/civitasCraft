@@ -5,7 +5,7 @@
 
 ## Current session focus
 
-**Next milestone:** M13, Diplomacy
+**Next milestone:** M16, Server events
 
 ## Session protocol
 
@@ -36,9 +36,9 @@
 | 10 | Outposts | M3, M5 | DONE | SPEC 7 in full, including the 7.4 auto-conversion. Upkeep counts outposts now. Slot cap still reads the base until M11 builds Outpost Range. |
 | 11 | City upgrades | M5, M8 | DONE | Six tracks, the vault, V6 migration. Fills the Population, Treasury Interest, Outpost Range and Market Access seams. **Fortification is stored but unread until M12, and SPEC 5.7 and 12.4 disagree on what it grants.** |
 | 12 | Custom mobs | M5, M8 | DONE | Eight units, placement by egg, SPEC 12.3 behaviour, upkeep and deactivation. Fortification resolved at 2 units a level (SPEC 12.4 over 5.7). The leash is written and tested but unticked until M19. |
-| 13 | Diplomacy | M2 | TODO | |
-| 14 | Leaderboards | M5 | TODO | |
-| 15 | Contests | M14, M8 | TODO | |
+| 13 | Diplomacy | M2 | DONE | Relations, alliances with the 24h notice and 7-day cooldown, truces, trusted build access, /ally /truce /ac, GUI. V7 migration. |
+| 14 | Leaderboards | M5 | DONE | Nine boards (SPEC 13.3's table, not its "seven"), `/leaderboard`, cached snapshot on a timer. V8 adds `player_stats` for Builder and Farmer. **Contest Champions and War Record report themselves unavailable** until M15 and M19. |
+| 15 | Contests | M14, M8 | DONE | Full SPEC 13.4 cycle, marking, voting on three axes, weighted scoring, prizes. V9. Closes M14's Contest Champions seam. **The SPEC 13.4 "verified against block placement logs" check cannot run until M17 and says so at startup.** `/ca contest` is M21. |
 | 16 | Server events | M5, M6 | TODO | |
 | 17 | War: block logging | M4 | TODO | Benchmark 2000 writes/sec before marking done |
 | 18 | War: rollback engine | M17 | TODO | Test with a synthetic block log, no war gameplay yet |

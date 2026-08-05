@@ -11,6 +11,7 @@ import java.util.concurrent.CompletableFuture;
 
 import dev.civitas.storage.DatabaseManager;
 import dev.civitas.storage.row.LedgerRow;
+import dev.civitas.storage.row.RankedTotalRow;
 
 /**
  * {@code ledger}, SPEC 3.6.
@@ -120,6 +121,36 @@ public final class LedgerDao extends Dao<LedgerRow> {
                         + "WHERE actor_uuid = ? AND type = ? AND timestamp >= ? AND amount > 0",
                 rs -> money(rs, "total"), actor, type, since)
                 .orElse(BigDecimal.ZERO));
+    }
+
+    /**
+     * The top {@code limit} players by what they have been credited under one type, over all
+     * time, highest first.
+     *
+     * <p>What SPEC 13.3's Contribution board ranks. It has to come from here rather than from
+     * {@code city_members.contributed_total}, which looks like the same number and is not:
+     * that row is deleted when a player leaves a city, so it measures what someone has given
+     * their <em>current</em> city. SPEC 13.3 asks for a lifetime figure, and the ledger is the
+     * only place that keeps one, because SPEC 3.6 never deletes from it.
+     *
+     * <p>Only positive amounts count, for the reason {@link #sumOutflowByActor} gives: a
+     * treasury movement writes both sides under the same type and actor, so an unfiltered
+     * {@code SUM} nets to zero.
+     */
+    public CompletableFuture<List<RankedTotalRow>> topByTypeGroupedByActor(String type, int limit) {
+        return db.call(connection -> queryListSync(connection,
+                "SELECT l.actor_uuid AS uuid, p.last_known_name AS name, "
+                        + "SUM(l.amount) AS total "
+                        + "FROM ledger l "
+                        + "JOIN players p ON p.uuid = l.actor_uuid "
+                        + "WHERE l.type = ? AND l.amount > 0 "
+                        + "GROUP BY l.actor_uuid, p.last_known_name "
+                        + "ORDER BY total DESC, p.last_known_name ASC LIMIT ?",
+                rs -> new RankedTotalRow(
+                        uuid(rs, "uuid"),
+                        rs.getString("name"),
+                        money(rs, "total")),
+                type, limit));
     }
 
     public CompletableFuture<Long> insert(LedgerRow row) {

@@ -82,6 +82,10 @@ public final class ProtectionService {
         }
 
         if (!city.isMember(player)) {
+            if (isTrustedAlly(city, player, action)) {
+                // SPEC 14.2: allies may grant each other reciprocal build access.
+                return ProtectionDecision.ALLOWED;
+            }
             return ProtectionDecision.deny("NOT_A_MEMBER", action.messageKey(),
                     Map.of("city", city.name()));
         }
@@ -96,6 +100,41 @@ public final class ProtectionService {
                 Map.of("city", city.name(),
                         "permission", action.anyOf().iterator().next().name()));
     }
+
+    /**
+     * SPEC 14.2's reciprocal build access.
+     *
+     * <p>Two allied cities may grant each other {@code BUILD} and {@code INTERACT}, and SPEC
+     * 14.2 says "never {@code CONTAINER}" in as many words. That exclusion is the whole
+     * reason trust is safe to give: an ally can help you build and cannot empty your chests.
+     * So the allowed set is fixed here rather than read from the acting player's own rank,
+     * which would let a city grant itself more by editing its own permissions.
+     */
+    private boolean isTrustedAlly(City city, UUID player, ProtectionAction action) {
+        if (diplomacy == null) {
+            return false;
+        }
+        if (action != ProtectionAction.BUILD && action != ProtectionAction.INTERACT) {
+            return false;
+        }
+        return cities.cityOf(player)
+                .filter(theirs -> theirs.id() != city.id())
+                .filter(theirs -> diplomacy.areTrusted(city.id(), theirs.id()))
+                .isPresent();
+    }
+
+    /**
+     * Told about diplomacy once it exists.
+     *
+     * <p>Set rather than injected because protection is built before diplomacy and answers
+     * correctly without it: no diplomacy means no trusted allies, which is what a server
+     * with no alliances has anyway.
+     */
+    public void useDiplomacy(dev.civitas.core.diplomacy.DiplomacyRegistry registry) {
+        this.diplomacy = registry;
+    }
+
+    private dev.civitas.core.diplomacy.DiplomacyRegistry diplomacy;
 
     /**
      * SPEC 5.5: "PvP inside claims: disabled outside of war. Enabled only inside the claims

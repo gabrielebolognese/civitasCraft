@@ -60,6 +60,10 @@ contests:
   enabled: true
   # SPEC 13.4: a 14-day cycle run automatically.
   cycle-days: 14
+  # How often the cycle checks whether a phase boundary has passed. Checked far more often
+  # than it acts: a phase ends at a wall-clock moment, and the server may have been down when
+  # it did, so the check is what notices and catches up.
+  check-interval-minutes: 10
   build-days: 11
   voting-days: 2
   max-region-size: 64
@@ -82,3 +86,22 @@ contests:
     - Floating Island
     - Grand Library
     - Harbour Town
+
+# SPEC 13.3, the leaderboards.
+#
+# SPEC 13.3 names the boards and what each ranks, but gives no sizes and no refresh rate, so
+# the three numbers below are this implementation's, not the specification's.
+leaderboards:
+  enabled: true
+  # How many entries each board keeps.
+  size: 25
+  # How many of them print on one page of /leaderboard <type>.
+  page-size: 10
+  # How often the boards are recomputed. Every board is an aggregate over a whole table or
+  # registry, so this is the trade between how fresh the numbers are and how much work the
+  # server does for them. It is also how stale a number a player can see: someone who
+  # deposits into the treasury does not move up the Contribution board until the next sweep.
+  refresh-interval-minutes: 5
+  # How often the lifetime Builder and Farmer counters are written out. Small and frequent:
+  # this interval is the most work an unclean shutdown can lose.
+  stats-flush-seconds: 30

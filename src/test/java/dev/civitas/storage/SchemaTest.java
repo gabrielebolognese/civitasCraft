@@ -75,7 +75,11 @@ class SchemaTest {
         schema.put("city_invites", List.of("city_id", "invitee_uuid", "inviter_uuid", "expires_at"));
         // Added by V2: SPEC 5.2 and 8.6 need a ban list that SPEC 3 does not define.
         schema.put("city_bans", List.of("city_id", "banned_uuid", "banned_by", "reason", "banned_at"));
-        schema.put("alliances", List.of("city_a_id", "city_b_id", "state", "formed_at"));
+        schema.put("alliances", List.of("city_a_id", "city_b_id", "state", "formed_at",
+                // V7, SPEC 14.2: the notice period and the re-ally cooldown are both
+                // timed from state_changed_at, trusted is the reciprocal build grant,
+                // and proposed_by decides who is allowed to accept.
+                "state_changed_at", "trusted", "proposed_by"));
         schema.put("truces", List.of("city_a_id", "city_b_id", "expires_at"));
         schema.put("war_participants", List.of("war_id", "city_id", "side", "is_ally"));
         schema.put("war_kills", List.of("id", "war_id", "killer_uuid", "victim_uuid", "timestamp",
@@ -97,9 +101,13 @@ class SchemaTest {
         schema.put("city_challenges", List.of("id", "city_id", "challenge_id", "progress",
                 "target", "reward", "week_start", "completed_at"));
         schema.put("contests", List.of("id", "theme", "starts_at", "ends_at", "state"));
+        // V9, SPEC 13.4: disqualification is a mark rather than a delete so the decision and
+        // the votes behind it stay auditable, and the placement is written once at scoring.
         schema.put("contest_entries", List.of("id", "contest_id", "city_id", "plot_region",
-                "submitted_at", "score"));
-        schema.put("contest_votes", List.of("id", "contest_id", "voter_uuid", "entry_id", "score"));
+                "submitted_at", "score", "disqualified", "disqualified_reason", "placement"));
+        // V9, SPEC 13.4 step 4: three axes, plus the anti-abuse weight the vote was given.
+        schema.put("contest_votes", List.of("id", "contest_id", "voter_uuid", "entry_id", "score",
+                "creativity", "technical_skill", "theme_fit", "weight"));
         schema.put("city_upgrades", List.of("city_id", "upgrade_key", "level"));
         // V6, SPEC 5.7 and 9.2: the shared city vault, which SPEC 3 lists no table for.
         schema.put("city_vault", List.of("city_id", "page", "contents", "updated_at"));
@@ -110,6 +118,12 @@ class SchemaTest {
         // Added by V3: SPEC 4.8 needs circulation history that SPEC 3 does not define.
         schema.put("economy_snapshots", List.of("id", "timestamp", "player_total",
                 "treasury_total"));
+        // V8, SPEC 13.3: the lifetime counters the Builder and Farmer boards rank. SPEC 3
+        // lists no table, and quest progress cannot serve because it resets every day.
+        schema.put("player_stats", List.of("uuid", "stat", "value", "updated_at"));
+        // V9, SPEC 13.4: a salted hash of the connection address, never the address. It
+        // answers "same connection?" for the vote rule and nothing else.
+        schema.put("player_logins", List.of("uuid", "login_hash", "updated_at"));
         return schema;
     }
 

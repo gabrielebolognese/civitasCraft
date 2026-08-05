@@ -422,4 +422,69 @@ class ProtectionServiceTest {
         support.configs.get(ConfigFile.CITIES).set("protection.deny-message-cooldown-ms", 500);
         assertEquals(500L, protection.denyMessageCooldownMillis());
     }
+
+    // ==================================================================================
+    // Allied trust, SPEC 14.2
+    // ==================================================================================
+
+    @Nested
+    @DisplayName("reciprocal build access between allies, SPEC 14.2")
+    class AlliedTrust {
+
+        private UUID allyMember;
+        private City ally;
+
+        @BeforeEach
+        void allyWithRoma() {
+            UUID allyMayor = support.givenEligiblePlayer("Aeneas");
+            ally = support.givenCity(allyMayor, "Ostia", 40, 40);
+            allyMember = allyMayor;
+
+            assertTrue(await(support.diplomacy.invite(mayor, city, ally)).isSuccess());
+            assertTrue(await(support.diplomacy.accept(allyMayor, ally, city)).isSuccess());
+        }
+
+        @Test
+        @DisplayName("an ally with no trust granted is still an outsider")
+        void allianceAloneGrantsNothing() {
+            assertFalse(check(allyMember, ProtectionAction.BUILD).allowed());
+            assertFalse(check(allyMember, ProtectionAction.INTERACT).allowed());
+        }
+
+        @Test
+        @DisplayName("trust grants BUILD and INTERACT")
+        void trustGrantsBuildAndInteract() {
+            assertTrue(await(support.diplomacy.setTrusted(mayor, city, ally, true)).isSuccess());
+
+            assertTrue(check(allyMember, ProtectionAction.BUILD).allowed());
+            assertTrue(check(allyMember, ProtectionAction.INTERACT).allowed());
+        }
+
+        @Test
+        @DisplayName("trust never grants container access, SPEC 14.2 says so in as many words")
+        void trustNeverGrantsContainers() {
+            await(support.diplomacy.setTrusted(mayor, city, ally, true));
+
+            assertFalse(check(allyMember, ProtectionAction.CONTAINER_OPEN).allowed(),
+                    "a trusted ally must not be able to empty the city's chests");
+            assertFalse(check(allyMember, ProtectionAction.CONTAINER_TAKE).allowed());
+        }
+
+        @Test
+        @DisplayName("withdrawing trust takes the access back at once")
+        void trustCanBeWithdrawn() {
+            await(support.diplomacy.setTrusted(mayor, city, ally, true));
+            assertTrue(check(allyMember, ProtectionAction.BUILD).allowed());
+
+            await(support.diplomacy.setTrusted(mayor, city, ally, false));
+            assertFalse(check(allyMember, ProtectionAction.BUILD).allowed());
+        }
+
+        @Test
+        @DisplayName("a player in no city is not helped by anyone's alliance")
+        void cityLessPlayersAreUnaffected() {
+            await(support.diplomacy.setTrusted(mayor, city, ally, true));
+            assertFalse(check(outsider, ProtectionAction.BUILD).allowed());
+        }
+    }
 }

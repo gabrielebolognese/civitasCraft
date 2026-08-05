@@ -189,3 +189,17 @@ spawn:
   # How far a player may drift before the warmup counts as movement. Small enough that
   # walking cancels it, large enough that standing still on a boat does not.
   warmup-move-tolerance-blocks: 0.5
+
+# Diplomacy, SPEC 14.
+diplomacy:
+  # SPEC 14.2: no server-wide mega-blocs, so the political map stays interesting.
+  max-allies: 3
+  # SPEC 14.2: breaking gives notice, and the alliance holds until it expires. This is what
+  # stops a city breaking with an ally the instant it declares war on them.
+  break-notice-hours: 24
+  re-ally-cooldown-days: 7
+  # SPEC 14.3. A truce cannot be cancelled early by either party; that is the point of it.
+  truce-min-days: 1
+  truce-max-days: 30
+  # How often notice periods and truces are checked. The shortest thing measured is a day.
+  sweep-interval-minutes: 60

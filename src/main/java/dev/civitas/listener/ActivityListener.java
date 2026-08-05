@@ -7,6 +7,8 @@ import dev.civitas.core.income.ActivityTracker;
 import dev.civitas.core.income.QuestMetric;
 import dev.civitas.core.income.QuestService;
 import dev.civitas.core.income.ChallengeService;
+import dev.civitas.core.progression.PlayerStat;
+import dev.civitas.core.progression.StatsService;
 import io.papermc.paper.event.player.AsyncChatEvent;
 import org.bukkit.Location;
 import org.bukkit.Material;
@@ -40,12 +42,14 @@ public final class ActivityListener implements Listener {
     private final ActivityTracker activity;
     private final QuestService quests;
     private final ChallengeService challenges;
+    private final StatsService stats;
 
     public ActivityListener(ActivityTracker activity, QuestService quests,
-                            ChallengeService challenges) {
+                            ChallengeService challenges, StatsService stats) {
         this.activity = Objects.requireNonNull(activity, "activity");
         this.quests = Objects.requireNonNull(quests, "quests");
         this.challenges = Objects.requireNonNull(challenges, "challenges");
+        this.stats = Objects.requireNonNull(stats, "stats");
     }
 
     // ==================================================================================
@@ -87,6 +91,9 @@ public final class ActivityListener implements Listener {
 
         if (isRipeCrop(block)) {
             report(player, QuestMetric.HARVEST_CROPS, 1);
+            // SPEC 13.3's Farmer board counts the same harvest, but for a career rather than
+            // for today's quest, so it goes to a counter the daily reset cannot touch.
+            stats.record(player.getUniqueId(), PlayerStat.CROPS_HARVESTED, 1);
         }
         if (isOre(block.getType())) {
             report(player, QuestMetric.MINE_ORE, 1);
@@ -97,6 +104,8 @@ public final class ActivityListener implements Listener {
     public void onPlace(BlockPlaceEvent event) {
         activity.record(event.getPlayer().getUniqueId(), ActivityKind.PLACED_BLOCK);
         report(event.getPlayer(), QuestMetric.PLACE_BLOCKS, 1);
+        // SPEC 13.3's Builder board, which excludes war zones; StatsService owns that test.
+        stats.recordPlacement(event.getPlayer().getUniqueId(), event.getBlock().getLocation());
     }
 
     // ==================================================================================

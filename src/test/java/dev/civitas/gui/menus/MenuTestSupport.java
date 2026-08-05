@@ -23,6 +23,10 @@ import dev.civitas.core.defense.DefenseCatalogue;
 import dev.civitas.core.defense.DefenseRegistry;
 import dev.civitas.core.defense.DefenseService;
 import dev.civitas.core.defense.DefenseSpawner;
+import dev.civitas.core.diplomacy.DiplomacyRegistry;
+import dev.civitas.core.diplomacy.DiplomacyService;
+import dev.civitas.core.progression.LeaderboardService;
+import dev.civitas.core.progression.StatsService;
 import dev.civitas.core.upgrade.UpgradeService;
 import dev.civitas.core.vault.VaultService;
 import dev.civitas.core.vault.VaultView;
@@ -101,14 +105,26 @@ final class MenuTestSupport implements AutoCloseable {
                 new DefenseSpawner(plugin, defenseCatalogue, lang), cities.registry,
                 cities.claimRegistry, cities.treasury, upgradeService, lang, Scheduler.direct());
 
+        DiplomacyRegistry diplomacyRegistry = new DiplomacyRegistry(cities.daos.alliances(),
+                cities.daos.truces());
+        DiplomacyService diplomacyService = new DiplomacyService(cities.db, cities.daos,
+                cities.registry, diplomacyRegistry, cities.configs, Scheduler.direct());
+        cities.protection.useDiplomacy(diplomacyRegistry);
+
         SpawnService spawns = new SpawnService(plugin, cities.registry, cities.configs, lang);
         CityHall halls = new CityHall(plugin, cities.configs, lang);
+
+        StatsService stats = new StatsService(cities.daos.playerStats(), quiet());
+        LeaderboardService leaderboards = new LeaderboardService(cities.daos.players(),
+                cities.daos.ledger(), cities.daos.playerStats(), cities.daos.contestEntries(),
+                cities.registry, cities.claimRegistry, cities.claims, cities.configs, quiet());
 
         this.services = new CivitasServices(cities.registry, cities.cities, cities.ranks,
                 cities.claimRegistry, cities.claims, null, null, cities.protection, null, null,
                 cities.economy, cities.treasury, cities.upkeep, upkeep, cities.market,
-                cities.marketFilter, cities.shops, quests, challenges, outposts,
-                outpostTeleport, upgradeService, defenseService, vaultService,
+                cities.marketFilter, cities.shops, quests, challenges, leaderboards, stats,
+                cities.contests, outposts,
+                outpostTeleport, upgradeService, defenseService, diplomacyService, vaultService,
                 vaultView, menus, layouts,
                 input, spawns, halls,
                 cities.accounts, new PlayerLookup(cities.daos.players()), Scheduler.direct());

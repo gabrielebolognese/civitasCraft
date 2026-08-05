@@ -19,7 +19,7 @@ import dev.civitas.storage.row.AllianceRow;
  */
 public final class AllianceDao extends Dao<AllianceRow> {
 
-    private static final String COLUMNS = "city_a_id, city_b_id, state, formed_at";
+    private static final String COLUMNS = "city_a_id, city_b_id, state, formed_at, state_changed_at, trusted, proposed_by";
 
     public AllianceDao(DatabaseManager db) {
         super(db);
@@ -36,7 +36,10 @@ public final class AllianceDao extends Dao<AllianceRow> {
                 rs.getInt("city_a_id"),
                 rs.getInt("city_b_id"),
                 rs.getString("state"),
-                rs.getLong("formed_at"));
+                rs.getLong("formed_at"),
+                rs.getLong("state_changed_at"),
+                rs.getBoolean("trusted"),
+                rs.getInt("proposed_by"));
     }
 
     public CompletableFuture<Optional<AllianceRow>> find(int cityId, int otherCityId) {
@@ -57,25 +60,51 @@ public final class AllianceDao extends Dao<AllianceRow> {
                 cityId, cityId);
     }
 
-    public CompletableFuture<Integer> insert(int cityId, int otherCityId, String state, long formedAt) {
-        return db.call(connection -> insert(connection, cityId, otherCityId, state, formedAt));
+    public CompletableFuture<Integer> insert(AllianceRow row) {
+        return db.call(connection -> insert(connection, row));
     }
 
-    public int insert(Connection connection, int cityId, int otherCityId, String state, long formedAt)
-            throws SQLException {
+    public int insert(Connection connection, AllianceRow row) throws SQLException {
+        int[] pair = AllianceRow.normalisedPair(row.cityAId(), row.cityBId());
+        return updateSync(connection,
+                "INSERT INTO alliances (" + COLUMNS + ") VALUES (?, ?, ?, ?, ?, ?, ?)",
+                pair[0], pair[1], row.state(), row.formedAt(), row.stateChangedAt(),
+                row.trusted(), row.proposedBy());
+    }
+
+    /** Every alliance row on the server, for the startup cache. */
+    public CompletableFuture<List<AllianceRow>> findAll() {
+        return queryList("SELECT " + COLUMNS + " FROM alliances ORDER BY city_a_id, city_b_id");
+    }
+
+    /**
+     * Moves a pair to a new state, stamping when it happened.
+     *
+     * <p>Both in one statement, because SPEC 14.2's notice period and cooldown are measured
+     * from that stamp: a state written without it would be a state nobody can time.
+     */
+    public CompletableFuture<Integer> updateState(int cityId, int otherCityId, String state,
+                                                   long changedAt) {
+        return db.call(connection -> updateState(connection, cityId, otherCityId, state,
+                changedAt));
+    }
+
+    public int updateState(Connection connection, int cityId, int otherCityId, String state,
+                           long changedAt) throws SQLException {
         int[] pair = AllianceRow.normalisedPair(cityId, otherCityId);
         return updateSync(connection,
-                "INSERT INTO alliances (" + COLUMNS + ") VALUES (?, ?, ?, ?)",
-                pair[0], pair[1], state, formedAt);
+                "UPDATE alliances SET state = ?, state_changed_at = ? "
+                        + "WHERE city_a_id = ? AND city_b_id = ?",
+                state, changedAt, pair[0], pair[1]);
     }
 
-    /** Used for the SPEC 14.2 break notice period, which changes state before removal. */
-    public CompletableFuture<Integer> updateState(int cityId, int otherCityId, String state) {
+    /** SPEC 14.2's reciprocal build access, which is a property of the pair. */
+    public CompletableFuture<Integer> setTrusted(int cityId, int otherCityId, boolean trusted) {
         return db.call(connection -> {
             int[] pair = AllianceRow.normalisedPair(cityId, otherCityId);
             return updateSync(connection,
-                    "UPDATE alliances SET state = ? WHERE city_a_id = ? AND city_b_id = ?",
-                    state, pair[0], pair[1]);
+                    "UPDATE alliances SET trusted = ? WHERE city_a_id = ? AND city_b_id = ?",
+                    trusted, pair[0], pair[1]);
         });
     }
 

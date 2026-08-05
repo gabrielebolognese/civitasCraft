@@ -7,3 +7,6 @@ V3__economy_snapshots.sql
 V4__player_shops.sql
 V5__quests_and_challenges.sql
 V6__city_vault.sql
+V7__diplomacy.sql
+V8__player_stats.sql
+V9__contests.sql

@@ -99,7 +99,16 @@ public final class MainMenu extends CityMenu {
                                 this).open())
                         .build());
         putUnavailable("wars", 22, Material.NETHERITE_SWORD, "gui.main.wars");
-        putUnavailable("diplomacy", 24, Material.WRITTEN_BOOK, "gui.main.diplomacy");
+        put("diplomacy", 24, Material.WRITTEN_BOOK, "gui.main.diplomacy", entry ->
+                Button.of(entry.material(), text(entry.labelKey()))
+                        .lore(text("gui.main.diplomacy.lore",
+                                "allies", String.valueOf(services.diplomacy().registry()
+                                        .allyCount(city.id())),
+                                "truces", String.valueOf(services.diplomacy().registry()
+                                        .trucesOf(city.id(), System.currentTimeMillis()).size())))
+                        .onClick(context -> new DiplomacyMenu(manager, services, viewer, city,
+                                this).open())
+                        .build());
         put("upgrades", 28, Material.ANVIL, "gui.main.upgrades", entry ->
                 Button.of(entry.material(), text(entry.labelKey()))
                         .lore(text("gui.main.upgrades.lore",
@@ -135,7 +144,12 @@ public final class MainMenu extends CityMenu {
                         .onClick(context -> new OutpostsMenu(manager, services, viewer, city,
                                 this).open())
                         .build());
-        putUnavailable("contests", 34, Material.PAINTING, "gui.main.contests");
+        put("contests", 34, Material.PAINTING, "gui.main.contests", entry ->
+                Button.of(entry.material(), text(entry.labelKey()))
+                        .lore(text("gui.main.contests.lore"))
+                        .onClick(context -> new ContestsMenu(manager, services, viewer, city,
+                                this).open())
+                        .build());
 
         put("spawn", 40, Material.ENDER_PEARL, "gui.main.spawn", entry ->
                 Button.of(entry.material(), text(entry.labelKey()))

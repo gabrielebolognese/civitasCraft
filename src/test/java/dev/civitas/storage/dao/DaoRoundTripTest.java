@@ -108,7 +108,7 @@ class DaoRoundTripTest {
     @Test
     @DisplayName("the registry exposes one DAO per table and every table exists")
     void registryCoversEveryTable() {
-        assertEquals(28, daos.all().size(), "a DAO is missing from the registry");
+        assertEquals(30, daos.all().size(), "a DAO is missing from the registry");
 
         for (Dao<?> dao : daos.all()) {
             assertEquals(0L, await(dao.count()), dao.table() + " should start empty");
@@ -550,7 +550,8 @@ class DaoRoundTripTest {
             int roma = givenCity("Roma", ALICE, money("0.00"));
             int ostia = givenCity("Ostia", BOB, money("0.00"));
 
-            await(daos.alliances().insert(ostia, roma, "ACTIVE", 1_000L));
+            await(daos.alliances().insert(new dev.civitas.storage.row.AllianceRow(
+                    ostia, roma, "ACTIVE", 1_000L, 1_000L, false, ostia)));
 
             assertTrue(await(daos.alliances().find(roma, ostia)).isPresent());
             assertTrue(await(daos.alliances().find(ostia, roma)).isPresent());
@@ -644,10 +645,10 @@ class DaoRoundTripTest {
                     new ContestRow(0, "Medieval Market", 1_000L, 20_000L, "BUILDING")));
 
             int entryId = await(daos.contestEntries().insert(
-                    new ContestEntryRow(0, contestId, cityId, "world:0,0,0:16,16,16", null, 0)));
+                    new ContestEntryRow(0, contestId, cityId, "world:0,0,0:16,16,16", null, 0, false, null, null)));
 
             assertThrows(ExecutionException.class, () -> daos.contestEntries().insert(
-                    new ContestEntryRow(0, contestId, cityId, "world:1,1,1:2,2,2", null, 0))
+                    new ContestEntryRow(0, contestId, cityId, "world:1,1,1:2,2,2", null, 0, false, null, null))
                     .get(15, TimeUnit.SECONDS));
 
             assertTrue(await(daos.contestEntries().findSubmitted(contestId)).isEmpty());
@@ -669,10 +670,10 @@ class DaoRoundTripTest {
             int contestId = await(daos.contests().insert(
                     new ContestRow(0, "Harbour Town", 0L, 100L, "VOTING")));
             int entryId = await(daos.contestEntries().insert(
-                    new ContestEntryRow(0, contestId, cityId, "region", 1L, 0)));
+                    new ContestEntryRow(0, contestId, cityId, "region", 1L, 0, false, null, null)));
 
-            await(daos.contestVotes().upsert(contestId, BOB, entryId, 7.0));
-            await(daos.contestVotes().upsert(contestId, BOB, entryId, 9.0));
+            await(daos.contestVotes().upsert(contestId, BOB, entryId, 7, 7, 7, 7.0, 1.0));
+            await(daos.contestVotes().upsert(contestId, BOB, entryId, 9, 9, 9, 9.0, 1.0));
 
             assertEquals(1L, await(daos.contestVotes().count()));
             assertEquals(9.0, await(daos.contestVotes().findByEntry(entryId)).get(0).score(), 1e-9);

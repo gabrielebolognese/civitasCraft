@@ -16,9 +16,13 @@ import dev.civitas.core.economy.UpkeepCalculator;
 import dev.civitas.core.economy.UpkeepTask;
 import dev.civitas.core.income.ChallengeService;
 import dev.civitas.core.income.QuestService;
+import dev.civitas.core.progression.LeaderboardService;
+import dev.civitas.core.progression.StatsService;
 import dev.civitas.core.outpost.OutpostService;
 import dev.civitas.core.outpost.OutpostTeleport;
 import dev.civitas.core.defense.DefenseService;
+import dev.civitas.core.contest.ContestService;
+import dev.civitas.core.diplomacy.DiplomacyService;
 import dev.civitas.core.upgrade.UpgradeService;
 import dev.civitas.core.vault.VaultService;
 import dev.civitas.core.vault.VaultView;
@@ -63,10 +67,14 @@ public record CivitasServices(
         PlayerShopService shops,
         QuestService quests,
         ChallengeService challenges,
+        LeaderboardService leaderboards,
+        StatsService stats,
+        ContestService contests,
         OutpostService outposts,
         OutpostTeleport outpostTeleport,
         UpgradeService upgrades,
         DefenseService defense,
+        DiplomacyService diplomacy,
         VaultService vaults,
         VaultView vaultView,
         MenuManager menus,

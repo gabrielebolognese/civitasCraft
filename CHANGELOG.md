@@ -4,6 +4,116 @@ All notable changes to CivitasCraft. One section per milestone from `PLAN.md`.
 
 ## [Unreleased]
 
+### M15, Contests
+
+Added:
+- `Contest`, `ContestState`, `PlotRegion`, `VoteAxis`, `Vote`: the SPEC 13.4 cycle as data. A
+  contest works its phase boundaries out once at load rather than from config at every
+  comparison, so an operator editing `build-days` cannot move the deadline of a contest
+  already under way.
+- `ContestService`: marking two corners, the 64-block cap, the inside-your-own-claims rule,
+  submission, voting on three axes, the weighted tally, placements and prizes.
+- `ContestCycle`: the automatic 14-day cycle. It never asks whether a boundary has just
+  passed; it asks what phase the clock says the contest is in and walks it through every phase
+  in between. One missed boundary and four take the same path.
+- `VoteWeighting`: SPEC 13.4's anti-abuse rules as pure decisions, one test each.
+- `LoginFingerprint` and `player_logins`: a salted hash of the connection address, for the one
+  question SPEC 13.4 asks. See below.
+- `/contest` with `mark`, `submit`, `list`, `visit` and `vote`, and the SPEC 8.3 slot 34
+  screen, which now opens.
+- V9: the three vote axes, the stored vote weight, disqualification, placement, and
+  `player_logins`.
+
+Changed:
+- `LeaderboardService` closes M14's Contest Champions seam: the board now ranks cumulative
+  entry scores and reports itself available. War Record is the only one left waiting, on M19.
+- `ClaimService.rawActiveMemberCount` (M14) and `ContestEntryDao` gained the queries these
+  needed; no behaviour elsewhere changed.
+
+Notes:
+- **The SPEC 13.4 build-window check cannot run.** SPEC 13.4 requires entries "verified
+  against block placement logs"; no such log exists outside a war, because SPEC 11.8.1's is
+  war-scoped and belongs to M17. `canVerifyBuildWindow()` answers false and the server logs a
+  warning at startup. Quietly passing every entry would let an operator believe a check was
+  running.
+- **Refusing and discarding are different, deliberately.** SPEC 13.4 words two rules
+  differently and both readings are kept. A self-city vote is *refused* and the player told.
+  A vote from a connection shared with a member of the entered city is *accepted, stored, and
+  weighed at zero* — because telling the voter would report on somebody else's connection to
+  a player who did not ask.
+- **The login table holds a salted hash, never an address.** The rule only ever asks "same
+  connection?", which a hash answers. The salt lives in a file beside the database, so a
+  stolen table is a list of numbers; losing the salt fails the rule open rather than
+  discarding the wrong votes.
+- An entry nobody voted for is placed but paid nothing, so entering unopposed is not a way to
+  farm the treasury. A tie goes to whoever submitted first, the one tiebreak that cannot be
+  arranged after the votes are in.
+- `/ca contest start|end|disqualify` is SPEC 9.4.6 and belongs to M21. The service methods
+  those commands will call, including disqualification, exist and are tested.
+
+### M14, Leaderboards
+
+Added:
+- `LeaderboardType`: the nine boards SPEC 13.3's table names, in its order. SPEC 13.3's prose
+  and SPEC 19 both say "seven" and no section lists seven, so every named board is here rather
+  than two being dropped by a choice the specification never makes.
+- `LeaderboardService`: one cached snapshot, recomputed off the main thread on a timer.
+  Aggregates over whole tables must never run on the path a player types on, and SPEC 19 names
+  caching as part of this milestone. A failed sweep keeps the previous snapshot.
+- `StatsService` and `PlayerStat`: the lifetime Builder and Farmer counters, buffered in memory
+  and flushed in one transaction, with a failed batch put back rather than dropped.
+- `/leaderboard [type] [page]`: the index lists every board with the same emphasis, which is
+  the point of SPEC 13.3 having nine of them.
+- V8 migration: `player_stats`. SPEC 3 lists no table, and quest progress could not serve as
+  one because SPEC 13.1 reassigns it daily; a career board built on it would rank whoever
+  logged in this morning.
+- `LedgerDao.topByTypeGroupedByActor`, feeding Contribution from the append-only ledger.
+- Tests: ordering and ties for every board, the paging, the counters, and the two cases that
+  actually bite, below.
+
+Changed:
+- `ClaimService.rawActiveMemberCount` splits the SPEC 6.2 active-member rule from the divisor's
+  floor of one, so Cities by Population can read a genuine zero while pricing still cannot
+  divide by nothing. The rule itself stays in one place.
+- `ActivityListener` feeds the lifetime counters alongside quest progress, from the events it
+  already handles rather than from a second listener on the same ones.
+
+Notes:
+- **Contribution reads the ledger, not `city_members.contributed_total`.** The two look like
+  the same number. They are not: the membership row is deleted when a player leaves a city, so
+  that column measures what someone has given their *current* city, and SPEC 13.3 asks for a
+  lifetime figure. A player who leaves a city would otherwise have their record erased by
+  walking out of it. There is a test for exactly that.
+- **Contest Champions and War Record report themselves unavailable**, which is deliberately
+  distinct from empty. "Nobody has any contest points" and "contests do not exist on this
+  server yet" are different statements, and showing the first when the second is true is how a
+  player concludes the feature is broken. M15 and M19 each fill in one supplier and one seam.
+- The boards are as old as `leaderboards.refresh-interval-minutes`. A player who deposits does
+  not move up Contribution that second.
+
+### M13, Diplomacy
+
+Added:
+- `Relation` (SPEC 14.1), `AllianceState` and `Alliance`: one row per city pair, stored with
+  the lower id first, so "is A allied to B" and "is B allied to A" cannot disagree.
+- `DiplomacyRegistry`: alliances and running truces in memory, because SPEC 14.2's build
+  grant is read on the block-protection path and cannot be a database round trip.
+- `DiplomacyService`: propose, accept, break with SPEC 14.2's 24-hour notice, the three-ally
+  cap, the seven-day re-ally cooldown, reciprocal build access, and SPEC 14.3 truces
+  including the one a war end imposes.
+- `DiplomacyTask`: the hourly sweep that ends a notice period nobody was online for.
+- `/ally`, `/truce`, `/ac` and the SPEC 8.3 slot 24 Diplomacy menu, which now opens.
+- V7 migration: `alliances.state_changed_at`, `.trusted` and `.proposed_by`.
+- Tests: one per rule in SPEC 14.2 and 14.3, plus the protection matrix for a trusted ally.
+
+Changed:
+- `ProtectionService` grants a trusted ally `BUILD` and `INTERACT` inside a claim, and never
+  `CONTAINER`. SPEC 14.2 states that exclusion directly, and it is what makes trust safe to
+  give: an ally can help you build and cannot empty your chests.
+- `CityService.onCityDisbanded` is a new hook that runs after the disband commits. Diplomacy,
+  upgrades and defense are registered on it; the latter two had removal methods that nothing
+  called, so a reused city id inherited a garrison and bought upgrade levels.
+
 ### M12, Custom mobs
 
 Added:

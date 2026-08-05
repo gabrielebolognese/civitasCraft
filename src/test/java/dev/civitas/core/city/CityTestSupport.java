@@ -13,6 +13,10 @@ import dev.civitas.config.PluginResources;
 import dev.civitas.core.claim.ClaimCostEngine;
 import dev.civitas.core.claim.ClaimRegistry;
 import dev.civitas.core.claim.ClaimService;
+import dev.civitas.core.contest.ContestService;
+import dev.civitas.core.contest.VoteWeighting;
+import dev.civitas.core.diplomacy.DiplomacyRegistry;
+import dev.civitas.core.diplomacy.DiplomacyService;
 import dev.civitas.core.economy.Funds;
 import dev.civitas.core.economy.PlayerAccountService;
 import dev.civitas.core.economy.EconomyService;
@@ -64,6 +68,10 @@ public final class CityTestSupport implements AutoCloseable {
     public final MarketItemFilter marketFilter;
     public final PlayerShopService shops;
     public final Funds funds;
+    public final DiplomacyRegistry diplomacyRegistry;
+    public final DiplomacyService diplomacy;
+    public final VoteWeighting voteWeighting;
+    public final ContestService contests;
 
     private CityTestSupport(Path directory, EventBus events) {
         this.configs = new ConfigManager(
@@ -100,6 +108,14 @@ public final class CityTestSupport implements AutoCloseable {
                 configs);
         this.marketFilter = new MarketItemFilter(configs);
         this.shops = new PlayerShopService(daos.playerShops(), economy);
+        this.diplomacyRegistry = new DiplomacyRegistry(daos.alliances(), daos.truces());
+        this.diplomacy = new DiplomacyService(db, daos, registry, diplomacyRegistry, configs,
+                Scheduler.direct());
+        protection.useDiplomacy(diplomacyRegistry);
+        cities.onCityDisbanded(diplomacy::forgetCity);
+        this.voteWeighting = new VoteWeighting(configs);
+        this.contests = new ContestService(db, daos, registry, claimRegistry, treasury,
+                voteWeighting, configs, Scheduler.direct());
     }
 
     public static CityTestSupport open(Path directory) {

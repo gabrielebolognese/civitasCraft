@@ -10,6 +10,10 @@ import dev.civitas.command.CommandRegistry;
 import dev.civitas.command.city.CityCommand;
 import dev.civitas.command.player.MoneyCommand;
 import dev.civitas.command.player.PayCommand;
+import dev.civitas.command.diplomacy.AllianceChatCommand;
+import dev.civitas.command.diplomacy.AllyCommand;
+import dev.civitas.command.player.ContestCommand;
+import dev.civitas.command.player.LeaderboardCommand;
 import dev.civitas.command.player.QuestsCommand;
 import dev.civitas.command.player.SellCommand;
 import dev.civitas.command.player.ShopCommand;
@@ -41,6 +45,12 @@ import dev.civitas.core.income.IncomeReporter;
 import dev.civitas.core.income.QuestPool;
 import dev.civitas.core.income.QuestService;
 import dev.civitas.core.income.StipendTask;
+import dev.civitas.core.contest.ContestCycle;
+import dev.civitas.core.contest.ContestService;
+import dev.civitas.core.contest.LoginFingerprint;
+import dev.civitas.core.contest.VoteWeighting;
+import dev.civitas.core.progression.LeaderboardService;
+import dev.civitas.core.progression.StatsService;
 import dev.civitas.core.outpost.OutpostRegistry;
 import dev.civitas.core.outpost.OutpostService;
 import dev.civitas.core.outpost.OutpostTeleport;
@@ -49,6 +59,9 @@ import dev.civitas.core.defense.DefenseCatalogue;
 import dev.civitas.core.defense.DefenseRegistry;
 import dev.civitas.core.defense.DefenseService;
 import dev.civitas.core.defense.DefenseSpawner;
+import dev.civitas.core.diplomacy.DiplomacyRegistry;
+import dev.civitas.core.diplomacy.DiplomacyService;
+import dev.civitas.core.diplomacy.DiplomacyTask;
 import dev.civitas.core.upgrade.UpgradeService;
 import dev.civitas.core.vault.VaultService;
 import dev.civitas.core.vault.VaultView;
@@ -120,6 +133,7 @@ public final class CivitasPlugin extends JavaPlugin {
 
     private ConfigManager configs;
     private LangManager lang;
+    private StatsService stats;
     private DatabaseManager database;
     private DaoRegistry daos;
     private BackupService backups;
@@ -148,10 +162,18 @@ public final class CivitasPlugin extends JavaPlugin {
         SellCommand sellCommand = new SellCommand(services::get, lang, scheduler, getLogger());
         WorthCommand worthCommand = new WorthCommand(services::get, lang);
         QuestsCommand questsCommand = new QuestsCommand(services::get, lang, scheduler);
+        AllyCommand allyCommand = new AllyCommand(services::get, lang, scheduler, getLogger());
+        AllianceChatCommand allianceChat = new AllianceChatCommand(services::get, lang);
+        LeaderboardCommand leaderboardCommand = new LeaderboardCommand(services::get, lang);
+        ContestCommand contestCommand =
+                new ContestCommand(services::get, lang, scheduler, getLogger());
         new CommandRegistry(this, lang).registerAll(
                 List.of(cityCommand.build(), moneyCommand.build(), payCommand.build(),
                         shopCommand.build(), sellCommand.build(), worthCommand.build(),
-                        questsCommand.buildQuests(), questsCommand.buildChallenges()));
+                        questsCommand.buildQuests(), questsCommand.buildChallenges(),
+                        allyCommand.buildAlly(), allyCommand.buildTruce(),
+                        allianceChat.build(), leaderboardCommand.build(),
+                        contestCommand.build()));
 
         warnIfRollbackDisabled();
         openDatabaseAsync(scheduler);
@@ -177,6 +199,12 @@ public final class CivitasPlugin extends JavaPlugin {
         if (outposts != null) {
             outposts.stopAll();
             outposts = null;
+        }
+        if (stats != null) {
+            // Before the pool closes, for the reason SPEC 17.7 case 84 gives: this is the last
+            // chance, and a buffer dropped here is career totals quietly going backwards.
+            stats.flushBlocking(System.currentTimeMillis());
+            stats = null;
         }
         if (income != null) {
             income.activity().clear();
@@ -278,6 +306,8 @@ public final class CivitasPlugin extends JavaPlugin {
         this.daos = loadedDaos;
         this.backups = new BackupService(getLogger(), manager, new File(getDataFolder(), "backups"));
 
+        LoginFingerprint fingerprints = loadFingerprints();
+
         EconomyService economyService = new EconomyService(manager, loadedDaos.players(),
                 loadedDaos.ledger(), configs, getLogger());
         economyService.loadAll().thenAccept(loaded ->
@@ -357,6 +387,28 @@ public final class CivitasPlugin extends JavaPlugin {
             challengeService.report(player, metric, amount);
         });
 
+        // SPEC 13.3, the leaderboards and the lifetime counters two of them rank. Built after
+        // the income systems because the same listener feeds both, and before the menus so a
+        // later milestone can put a board on a screen without reordering anything.
+        StatsService statsService = new StatsService(loadedDaos.playerStats(), getLogger());
+        LeaderboardService leaderboardService = new LeaderboardService(loadedDaos.players(),
+                loadedDaos.ledger(), loadedDaos.playerStats(), loadedDaos.contestEntries(),
+                cityRegistry, claimRegistry, claimService, configs, getLogger());
+        this.stats = statsService;
+
+        // SPEC 13.4, building contests. After the leaderboards, because Contest Champions
+        // reads the entries this writes, and after the treasury, which the prizes are paid into.
+        ContestService contestService = new ContestService(manager, loadedDaos, cityRegistry,
+                claimRegistry, treasuryService, new VoteWeighting(configs), configs, scheduler);
+        contestService.load().thenAccept(loaded -> loaded.ifPresent(contest ->
+                getLogger().info(() -> "Contest \"" + contest.theme() + "\" is in "
+                        + contest.state() + ".")));
+        if (contestService.wantsUnavailableVerification()) {
+            getLogger().warning("events.yml asks for contest entries to be verified against block "
+                    + "placement logs (SPEC 13.4), but no such log exists outside a war. Entries "
+                    + "are accepted unverified until the war block logger lands in M17.");
+        }
+
         // SPEC 5.7, upgrades and the vault. Built before the outposts and the menus, because
         // four systems read a level and would otherwise have to be told about it afterwards.
         UpgradeService upgradeService = new UpgradeService(manager, loadedDaos.cityUpgrades(),
@@ -389,6 +441,18 @@ public final class CivitasPlugin extends JavaPlugin {
                 .thenAccept(converted -> converted.forEach(outpost -> scheduler.runOnMain(() ->
                         notifyMayor(city, outpost.name())))));
 
+        // SPEC 14, diplomacy. Before protection is told about it, because the trust grant
+        // is read on the block path.
+        DiplomacyRegistry diplomacyRegistry =
+                new DiplomacyRegistry(loadedDaos.alliances(), loadedDaos.truces());
+        diplomacyRegistry.loadAll(System.currentTimeMillis()).thenAccept(loaded ->
+                getLogger().info(() -> "Loaded " + loaded + " alliances."));
+        DiplomacyService diplomacyService = new DiplomacyService(manager, loadedDaos,
+                cityRegistry, diplomacyRegistry, configs, scheduler);
+        protection.useDiplomacy(diplomacyRegistry);
+        scheduleDiplomacy(diplomacyService, diplomacyRegistry, cityRegistry);
+        cityService.onCityDisbanded(cityId -> diplomacyService.forgetCity(cityId));
+
         // SPEC 12, defense units.
         DefenseCatalogue defenseCatalogue = new DefenseCatalogue(configs, getLogger());
         getLogger().info(() -> "Defense catalogue: " + defenseCatalogue.load() + " units.");
@@ -401,6 +465,12 @@ public final class CivitasPlugin extends JavaPlugin {
                 cityRegistry, claimRegistry, treasuryService, upgradeService, lang, scheduler);
         DefenseBehaviour defenseBehaviour = new DefenseBehaviour(defenseCatalogue, cityRegistry);
         upkeepTask.useDefense(defenseRegistry, defenseService);
+        // Registered on the same hook rather than left to the next milestone: a disbanded
+        // city that keeps its units and its bought upgrade levels would hand them back to
+        // whoever founds a city that happens to reuse the id.
+        cityService.onCityDisbanded(upgradeService::forgetCity);
+        cityService.onCityDisbanded(cityId -> cityRegistry.city(cityId)
+                .ifPresent(defenseService::removeCity));
 
         MenuManager menuManager = new MenuManager(configs, lang);
         LayoutLoader layoutLoader = new LayoutLoader(dev.civitas.config.PluginResources.of(this));
@@ -418,12 +488,15 @@ public final class CivitasPlugin extends JavaPlugin {
                 claimService, claimMap, borderRenderer, protection, protectionGuard,
                 blockClassifier, economyService, treasuryService, upkeepCalculator,
                 upkeepTask, marketService, marketFilter, shopService, questService,
-                challengeService, outpostService, outpostTeleport, upgradeService,
-                defenseService, vaultService, vaultView, menuManager, layoutLoader,
+                challengeService, leaderboardService, statsService, contestService,
+                outpostService, outpostTeleport, upgradeService,
+                defenseService, diplomacyService, vaultService, vaultView,
+                menuManager, layoutLoader,
                 amountInput, spawnService, cityHall, accounts, lookup, scheduler));
 
         getServer().getPluginManager().registerEvents(
-                new PlayerAccountListener(accounts, getLogger()), this);
+                new PlayerAccountListener(accounts, loadedDaos.playerLogins(), fingerprints,
+                        getLogger()), this);
         getServer().getPluginManager().registerEvents(
                 new CityChatListener(cityRegistry, configs, lang), this);
         getServer().getPluginManager().registerEvents(
@@ -448,11 +521,16 @@ public final class CivitasPlugin extends JavaPlugin {
         getServer().getPluginManager().registerEvents(new DefenseListener(this, defenseService,
                 defenseBehaviour, cityRegistry, lang, getLogger()), this);
         getServer().getPluginManager().registerEvents(
-                new ActivityListener(activityTracker, questService, challengeService), this);
+                new ActivityListener(activityTracker, questService, challengeService,
+                        statsService), this);
         getServer().getPluginManager().registerEvents(new IncomeJoinListener(questService,
                 challengeService, dailyLogin, cityRegistry, lang, scheduler, getLogger()), this);
 
         scheduleStipend(manager, loadedDaos, economyService, activityTracker, incomeMultipliers);
+
+        scheduleLeaderboards(leaderboardService, statsService);
+
+        scheduleContests(contestService, cityRegistry);
 
         scheduleMarketDecay(marketRegistry, pricing, loadedDaos);
 
@@ -601,6 +679,75 @@ public final class CivitasPlugin extends JavaPlugin {
     }
 
     /**
+     * The salt behind SPEC 13.4's shared-connection check.
+     *
+     * <p>If it cannot be read or written, the plugin carries on with a salt that lasts only
+     * this run. The consequence is that no stored fingerprint matches, so the rule discards
+     * nothing rather than discarding the wrong votes: for an anti-abuse check, failing open is
+     * the direction that cannot punish an innocent player.
+     */
+    private LoginFingerprint loadFingerprints() {
+        try {
+            return LoginFingerprint.load(getDataFolder());
+        } catch (java.io.IOException e) {
+            getLogger().log(Level.WARNING, "Could not read the login salt; SPEC 13.4's "
+                    + "shared-connection vote check will not match anything this run.", e);
+            byte[] temporary = new byte[32];
+            new java.security.SecureRandom().nextBytes(temporary);
+            return LoginFingerprint.withSalt(temporary);
+        }
+    }
+
+    /**
+     * The SPEC 13.4 contest cycle.
+     *
+     * <p>Checked far more often than it acts, for the same reason the upkeep sweep is: a phase
+     * ends at a wall-clock moment and the server may have been down when it passed. The cycle
+     * itself does nothing when the recorded phase already matches the clock.
+     */
+    private void scheduleContests(ContestService contests, CityRegistry cityRegistry) {
+        if (!contests.isEnabled()) {
+            getLogger().info("Contests are disabled in events.yml.");
+            return;
+        }
+        ContestCycle cycle = new ContestCycle(contests, cityRegistry,
+                StipendTask.Notifier.online(lang), getLogger(), System::currentTimeMillis);
+        long ticks = configs.get(ConfigFile.EVENTS)
+                .getLong("contests.check-interval-minutes", 10) * 60L * 20L;
+        Bukkit.getScheduler().runTaskTimerAsynchronously(this, cycle, ticks, ticks);
+    }
+
+    /**
+     * The SPEC 13.3 boards and the counters two of them rank.
+     *
+     * <p>Two timers with different jobs. The stats flush is frequent and small: it writes what
+     * players have done since the last one, and the interval is the most work a crash can
+     * cost. The board refresh is slower and heavier, and runs the aggregates. Both are async,
+     * and the refresh is kicked once at startup so the first player to type
+     * {@code /leaderboard} does not meet an empty board.
+     */
+    private void scheduleLeaderboards(LeaderboardService boards, StatsService statsService) {
+        long flushTicks = configs.get(ConfigFile.EVENTS)
+                .getLong("leaderboards.stats-flush-seconds", 30) * 20L;
+        Bukkit.getScheduler().runTaskTimerAsynchronously(this,
+                () -> statsService.flush(System.currentTimeMillis()), flushTicks, flushTicks);
+
+        if (!boards.isEnabled()) {
+            getLogger().info("Leaderboards are disabled in events.yml.");
+            return;
+        }
+
+        long refreshTicks = boards.refreshIntervalMinutes() * 60L * 20L;
+        Bukkit.getScheduler().runTaskAsynchronously(this,
+                () -> boards.refresh(System.currentTimeMillis()).thenAccept(populated ->
+                        getLogger().info(() -> "Leaderboards ready, " + populated
+                                + " of " + dev.civitas.core.progression.LeaderboardType.all().size()
+                                + " boards populated.")));
+        Bukkit.getScheduler().runTaskTimerAsynchronously(this,
+                () -> boards.refresh(System.currentTimeMillis()), refreshTicks, refreshTicks);
+    }
+
+    /**
      * The SPEC 4.2 stipend sweep.
      *
      * <p>Runs on the interval SPEC 4.2.1 defines rather than more often: the check is "did
@@ -632,6 +779,21 @@ public final class CivitasPlugin extends JavaPlugin {
             lang.send(mayor, "outpost.converted",
                     dev.civitas.lang.LangManager.placeholder("name", outpostName));
         }
+    }
+
+    /**
+     * The SPEC 14.2 and 14.3 sweep: notice periods that have run out, truces that have ended.
+     *
+     * <p>Hourly, because the shortest thing it measures is a 24-hour notice and checking a
+     * day-long timer every minute would be sixty times the work for the same answer.
+     */
+    private void scheduleDiplomacy(DiplomacyService service, DiplomacyRegistry registry,
+                                   CityRegistry cityRegistry) {
+        DiplomacyTask task = new DiplomacyTask(service, registry, cityRegistry,
+                dev.civitas.core.income.StipendTask.Notifier.online(lang), getLogger());
+        long ticks = configs.get(ConfigFile.CITIES)
+                .getLong("diplomacy.sweep-interval-minutes", 60) * 60L * 20L;
+        Bukkit.getScheduler().runTaskTimerAsynchronously(this, task, ticks, ticks);
     }
 
     private void scheduleBackups(DatabaseSettings settings) {
