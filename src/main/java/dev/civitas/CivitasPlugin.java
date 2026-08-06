@@ -177,6 +177,8 @@ public final class CivitasPlugin extends JavaPlugin {
         AllyCommand allyCommand = new AllyCommand(services::get, lang, scheduler, getLogger());
         AllianceChatCommand allianceChat = new AllianceChatCommand(services::get, lang);
         LeaderboardCommand leaderboardCommand = new LeaderboardCommand(services::get, lang);
+        dev.civitas.command.war.WarCommand warCommand =
+                new dev.civitas.command.war.WarCommand(services::get, lang, scheduler, getLogger());
         ContestCommand contestCommand =
                 new ContestCommand(services::get, lang, scheduler, getLogger());
         new CommandRegistry(this, lang).registerAll(
@@ -185,7 +187,7 @@ public final class CivitasPlugin extends JavaPlugin {
                         questsCommand.buildQuests(), questsCommand.buildChallenges(),
                         allyCommand.buildAlly(), allyCommand.buildTruce(),
                         allianceChat.build(), leaderboardCommand.build(),
-                        contestCommand.build()));
+                        contestCommand.build(), warCommand.build()));
 
         warnIfRollbackDisabled();
         openDatabaseAsync(scheduler);
@@ -530,12 +532,23 @@ public final class CivitasPlugin extends JavaPlugin {
 
         this.borders = borderRenderer;
 
+        // SPEC 11, the war system. Built before the services record because the record holds
+        // three of its pieces, and before the seam wiring below because those read from it.
+        WarWiring warWiring = startWarSystem(manager, loadedDaos, cityRegistry, claimRegistry,
+                diplomacyRegistry, treasuryService, protection, scheduler);
+
+        // SPEC 11.9 and 14.1: the seams the war system closes in three other subsystems.
+        marketService.useWarRewards(warWiring.rewards(), warWiring.marketBonusPercent());
+        diplomacyService.useWars(warWiring.registry());
+        leaderboardService.useWars(loadedDaos.wars());
+
         services.set(new CivitasServices(cityRegistry, cityService, rankService, claimRegistry,
                 claimService, claimMap, borderRenderer, protection, protectionGuard,
                 blockClassifier, economyService, treasuryService, upkeepCalculator,
                 upkeepTask, marketService, marketFilter, shopService, questService,
                 challengeService, leaderboardService, statsService, contestService,
-                eventService, outpostService, outpostTeleport, upgradeService,
+                eventService, warWiring.service(), warWiring.allies(), warWiring.peace(),
+                outpostService, outpostTeleport, upgradeService,
                 defenseService, diplomacyService, vaultService, vaultView,
                 menuManager, layoutLoader,
                 amountInput, spawnService, cityHall, accounts, lookup, scheduler));
@@ -580,13 +593,6 @@ public final class CivitasPlugin extends JavaPlugin {
 
         scheduleEvents(eventService, cityRegistry, claimRegistry, treasuryService, manager);
 
-        WarWiring warWiring = startWarSystem(manager, loadedDaos, cityRegistry, claimRegistry,
-                diplomacyRegistry, treasuryService, protection, scheduler);
-
-        // SPEC 11.9 and 14.1: the seams the war system closes in three other subsystems.
-        marketService.useWarRewards(warWiring.rewards(), warWiring.marketBonusPercent());
-        diplomacyService.useWars(warWiring.registry());
-        leaderboardService.useWars(loadedDaos.wars());
 
         scheduleMarketDecay(marketRegistry, pricing, loadedDaos);
 
@@ -766,7 +772,10 @@ public final class CivitasPlugin extends JavaPlugin {
     /** What the war system hands back so the systems it touches can be wired to it. */
     private record WarWiring(dev.civitas.core.war.WarRegistry registry,
                              dev.civitas.core.war.WarRewards rewards,
-                             double marketBonusPercent) { }
+                             double marketBonusPercent,
+                             dev.civitas.core.war.WarService service,
+                             dev.civitas.core.war.WarAllies allies,
+                             dev.civitas.core.war.PeaceOffer peace) { }
 
     private WarWiring startWarSystem(DatabaseManager database, DaoRegistry loadedDaos,
                                 CityRegistry cityRegistry, ClaimRegistry claimRegistry,
@@ -808,6 +817,13 @@ public final class CivitasPlugin extends JavaPlugin {
         dev.civitas.core.war.WarRestrictions warRestrictions =
                 new dev.civitas.core.war.WarRestrictions(warRegistry, cityRegistry);
         protection.useWars(warRestrictions);
+
+        // SPEC 11.10 and 8.8: allies joining, and the way out of a war already under way.
+        dev.civitas.core.war.WarAllies warAllies = new dev.civitas.core.war.WarAllies(
+                database, loadedDaos, cityRegistry, diplomacyRegistry, warRegistry,
+                treasuryService, configs, scheduler);
+        dev.civitas.core.war.PeaceOffer peaceOffers = new dev.civitas.core.war.PeaceOffer(
+                database, loadedDaos, cityRegistry, treasuryService, configs, scheduler);
 
         WarBlockRecorder recorder = new WarBlockRecorder(
                 new dev.civitas.core.war.RegistryWarZones(warRegistry), blockLog);
@@ -864,7 +880,8 @@ public final class CivitasPlugin extends JavaPlugin {
         long ticks = Math.max(1L, blockLog.flushIntervalSeconds()) * 20L;
         Bukkit.getScheduler().runTaskTimerAsynchronously(this, blockLog::flush, ticks, ticks);
 
-        return new WarWiring(warRegistry, warRewards, payouts.marketBonusPercent());
+        return new WarWiring(warRegistry, warRewards, payouts.marketBonusPercent(),
+                warService, warAllies, peaceOffers);
     }
 
     /**

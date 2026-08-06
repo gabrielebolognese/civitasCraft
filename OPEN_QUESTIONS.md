@@ -906,3 +906,18 @@ Format:
   restarts and the point pays again every sixty seconds. Reading it as once-only would make a
   point worth taking and then abandoning, where SPEC 11.6's stated intent is that a war is
   decided by fighting and capturing rather than by demolition. *Date:* 2026-08-06
+
+- **[M19]** SPEC 8.8 offers "Sue for Peace … forfeits 25% of your wager" but does not say
+  whether a peace agreed mid-war still rolls the world back. *Implemented default:* it must.
+  Damage done during ACTIVE has already been logged and SPEC 1.2 promises it is never
+  permanent, so a peace during ACTIVE goes to `ROLLING_BACK` exactly as a war that ran its
+  course, with no winner recorded. A peace during PREP has nothing to restore and simply
+  cancels. *Date:* 2026-08-06
+
+- **[M19]** SPEC 11.10 says both that "a city may not join a war against its own ally" and that
+  "if two allies end up on opposite sides, the alliance is automatically broken". The first
+  makes the second unreachable through joining. *Implemented default:* both are kept, because
+  they cover different routes to the same state. The join is refused outright, and
+  `breakCrossSideAlliances` handles the case SPEC's second sentence really describes: two
+  cities allying *after* they are already on opposite sides, which nothing forbids.
+  *Date:* 2026-08-06

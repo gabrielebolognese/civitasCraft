@@ -14,6 +14,8 @@ declaration:
   same-opponent-cooldown-days: 21
   decline-window-hours: 6
   decline-penalty-percent: 30
+  # SPEC 8.8: suing for peace forfeits a quarter of your own wager to the other side.
+  peace-forfeit-percent: 25
   large-vs-small-block: true
   large-city-member-threshold: 20
   small-city-member-threshold: 5
@@ -46,6 +48,8 @@ rewards:
   loser-refund-percent: 20
   burn-percent: 20
   ally-payout-share-percent: 30
+  # SPEC 11.10: an ally escrows a quarter of the primary wager to join.
+  ally-wager-percent: 25
   winner-market-bonus-percent: 10
   winner-market-bonus-days: 7
   immunity-days: 7

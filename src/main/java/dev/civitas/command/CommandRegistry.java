@@ -37,7 +37,6 @@ public final class CommandRegistry {
             CommandSpec.of("cc", "civitas.use", 2, "City-only chat.", "citychat"),
 
             // SPEC 9.3, war and diplomacy.
-            CommandSpec.of("war", "civitas.use", 19, "Declare and track wars."),
 
             // SPEC 4.7. The escrow is economy, but a bounty is only claimable during a war
             // (SPEC 4.7), so the payout half needs the war system.

@@ -354,6 +354,12 @@ public final class WarService {
         return configs.get(ConfigFile.WAR).getLong("rewards.immunity-days", 7);
     }
 
+    /** Past wars a city fought, for {@code /war history}. */
+    public java.util.concurrent.CompletableFuture<java.util.List<dev.civitas.storage.row.WarRow>>
+            historyOf(int cityId, int limit) {
+        return daos.wars().findByCity(cityId, limit);
+    }
+
     /** A city's claims, for the capture points SPEC 11.6 places on the defender's land. */
     public java.util.Collection<dev.civitas.core.claim.Claim> claimsOf(int cityId) {
         return claims.claimsOf(cityId);

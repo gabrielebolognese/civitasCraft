@@ -123,7 +123,7 @@ final class MenuTestSupport implements AutoCloseable {
                 cities.claimRegistry, cities.claims, null, null, cities.protection, null, null,
                 cities.economy, cities.treasury, cities.upkeep, upkeep, cities.market,
                 cities.marketFilter, cities.shops, quests, challenges, leaderboards, stats,
-                cities.contests, cities.serverEvents, outposts,
+                cities.contests, cities.serverEvents, null, null, null, outposts,
                 outpostTeleport, upgradeService, defenseService, diplomacyService, vaultService,
                 vaultView, menus, layouts,
                 input, spawns, halls,
