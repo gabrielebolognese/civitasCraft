@@ -143,6 +143,16 @@ public final class WarPhaseTask implements Runnable {
         war.state(WarState.ACTIVE);
         persist(war);
 
+        // SPEC 11.6's capture points, placed once alongside the zone and for the same reason:
+        // both describe the ground the war is fought over, and neither may move under it.
+        if (capturePoints != null) {
+            cities.city(war.defenderCityId()).ifPresent(defender -> {
+                int placed = capturePoints.generate(war, wars.claimsOf(defender.id()),
+                        capturePointCount(), defender.coreChunkX(), defender.coreChunkZ()).size();
+                logger.info("War " + war.id() + " has " + placed + " capture point(s).");
+            });
+        }
+
         logger.info("War " + war.id() + " is active. Zone: " + war.zone().size()
                 + " chunks across " + war.zone().worlds().size() + " world(s).");
         announce(war, "war.announce.active",
@@ -219,6 +229,16 @@ public final class WarPhaseTask implements Runnable {
     }
 
     private WarResolution resolution;
+    private CapturePoints capturePoints;
+
+    /** SPEC 11.6's capture points, generated when a war goes ACTIVE. */
+    public void useCapturePoints(CapturePoints points) {
+        this.capturePoints = points;
+    }
+
+    private int capturePointCount() {
+        return configs.get(ConfigFile.WAR).getInt("scoring.capture-points", 3);
+    }
 
     /** SPEC 11.9's payouts, wired after construction because it needs the treasury. */
     public void useResolution(WarResolution warResolution) {

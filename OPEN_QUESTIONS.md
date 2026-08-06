@@ -884,3 +884,25 @@ Format:
   means what SPEC says it means, and the market bonus is keyed on `war_ends_at` instead. Caught
   by a test asserting the bonus survives a restart, which it could not while the column was
   being written at the wrong time. *Date:* 2026-08-06
+
+- **[M19]** SPEC 11.6 places three capture points "at the geometric extremes of the defender's
+  claim set (north-most, south-most, and the chunk furthest from the core)", but a city with
+  one or two chunks has fewer than three distinct extremes and SPEC does not say what happens.
+  *Implemented default:* the extremes are deduplicated, then topped up from the city's other
+  claims, and a city smaller than the requested count simply gets fewer points. Naming the same
+  chunk three times would make one place worth 75 points a minute, which is the opposite of
+  what putting them at the extremes is for. *Date:* 2026-08-06
+
+- **[M19]** SPEC 11.6 awards the City Hall bonus for reaching "the enemy City Hall chunk", but
+  SPEC 8.1 lets the City Hall block be placed by hand if the founding spot was obstructed, so
+  its position is not guaranteed to be recorded anywhere. *Implemented default:* the city's
+  **core chunk** is the objective. SPEC 5.1 step 7 places the block where the founder stood,
+  which is the chunk they claimed, so the two coincide in every ordinary case; and the core
+  chunk is the one thing about a city's geography that SPEC 3.2 guarantees exists and SPEC 6.4
+  forbids unclaiming. *Date:* 2026-08-06
+
+- **[M19]** SPEC 11.6 awards capture points "for 60 continuous seconds" without saying whether
+  a side that keeps holding a point keeps earning. *Implemented default:* yes, the timer
+  restarts and the point pays again every sixty seconds. Reading it as once-only would make a
+  point worth taking and then abandoning, where SPEC 11.6's stated intent is that a war is
+  decided by fighting and capturing rather than by demolition. *Date:* 2026-08-06

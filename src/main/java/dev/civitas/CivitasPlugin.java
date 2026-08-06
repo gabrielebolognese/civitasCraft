@@ -842,6 +842,21 @@ public final class CivitasPlugin extends JavaPlugin {
         phases.useResolution(new dev.civitas.core.war.WarResolution(database, loadedDaos,
                 cityRegistry, treasuryService, payouts, warRewards, getLogger()));
 
+        // SPEC 11.6's score table.
+        dev.civitas.core.war.WarScoring warScoring =
+                new dev.civitas.core.war.WarScoring(configs);
+        dev.civitas.core.war.CapturePoints capturePoints =
+                new dev.civitas.core.war.CapturePoints(warScoring);
+        phases.useCapturePoints(capturePoints);
+
+        dev.civitas.listener.war.WarScoringListener scoringListener =
+                new dev.civitas.listener.war.WarScoringListener(warRegistry, warScoring,
+                        cityRegistry, claimRegistry,
+                        dev.civitas.listener.war.WarScoringListener.DefenseOwnership.none());
+        manager.registerEvents(scoringListener, this);
+
+        scheduleWarObjectives(warRegistry, capturePoints, cityRegistry);
+
         long phaseTicks = configs.get(ConfigFile.WAR)
                 .getLong("phases.check-interval-minutes", 5) * 60L * 20L;
         Bukkit.getScheduler().runTaskTimer(this, phases, phaseTicks, phaseTicks);
@@ -850,6 +865,86 @@ public final class CivitasPlugin extends JavaPlugin {
         Bukkit.getScheduler().runTaskTimerAsynchronously(this, blockLog::flush, ticks, ticks);
 
         return new WarWiring(warRegistry, warRewards, payouts.marketBonusPercent());
+    }
+
+    /**
+     * The SPEC 11.6 objectives tick: capture points and the City Hall stand.
+     *
+     * <p>On the server thread, because it reads where players are standing, and every second
+     * rather than every tick: both objectives are measured in tens of seconds and counting
+     * heads twenty times a second would be nineteen wasted counts.
+     */
+    private void scheduleWarObjectives(dev.civitas.core.war.WarRegistry warRegistry,
+                                       dev.civitas.core.war.CapturePoints capturePoints,
+                                       CityRegistry cityRegistry) {
+        dev.civitas.core.war.CapturePoints.Occupancy occupancy =
+                (world, chunkX, chunkZ, cities) -> {
+                    int count = 0;
+                    for (Player player : Bukkit.getOnlinePlayers()) {
+                        var at = player.getLocation();
+                        if (at.getWorld() == null || !at.getWorld().getName().equals(world)
+                                || (at.getBlockX() >> 4) != chunkX
+                                || (at.getBlockZ() >> 4) != chunkZ) {
+                            continue;
+                        }
+                        if (cityRegistry.cityOf(player.getUniqueId())
+                                .filter(city -> cities.contains(city.id())).isPresent()) {
+                            count++;
+                        }
+                    }
+                    return count;
+                };
+
+        Bukkit.getScheduler().runTaskTimer(this, () -> {
+            long now = System.currentTimeMillis();
+            for (dev.civitas.core.war.War war : warRegistry.all()) {
+                if (war.state() != dev.civitas.core.war.WarState.ACTIVE) {
+                    continue;
+                }
+                capturePoints.tick(war, occupancy, now);
+                tickCityHallStands(war, capturePoints, cityRegistry, now);
+            }
+        }, 20L, 20L);
+    }
+
+    /**
+     * SPEC 11.6's City Hall bonus.
+     *
+     * <p>The City Hall sits in the city's core chunk (SPEC 5.1 step 7 places it where the
+     * founder stood, which is the chunk they claimed), so that is the chunk each side has to
+     * reach.
+     */
+    private void tickCityHallStands(dev.civitas.core.war.War war,
+                                    dev.civitas.core.war.CapturePoints capturePoints,
+                                    CityRegistry cityRegistry, long now) {
+        for (boolean attackerSide : new boolean[] {true, false}) {
+            int enemyCityId = attackerSide ? war.defenderCityId() : war.attackerCityId();
+            var enemy = cityRegistry.city(enemyCityId);
+            if (enemy.isEmpty()) {
+                continue;
+            }
+            for (int cityId : war.side(attackerSide)) {
+                boolean present = anyMemberIn(cityId, enemy.get().coreWorld(),
+                        enemy.get().coreChunkX(), enemy.get().coreChunkZ(), cityRegistry);
+                capturePoints.tickCityHallStand(war, cityId, attackerSide, present, now);
+            }
+        }
+    }
+
+    private boolean anyMemberIn(int cityId, String world, int chunkX, int chunkZ,
+                                CityRegistry cityRegistry) {
+        for (Player player : Bukkit.getOnlinePlayers()) {
+            var at = player.getLocation();
+            if (at.getWorld() == null || !at.getWorld().getName().equals(world)
+                    || (at.getBlockX() >> 4) != chunkX || (at.getBlockZ() >> 4) != chunkZ) {
+                continue;
+            }
+            if (cityRegistry.cityOf(player.getUniqueId())
+                    .filter(city -> city.id() == cityId).isPresent()) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /**

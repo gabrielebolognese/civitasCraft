@@ -354,6 +354,11 @@ public final class WarService {
         return configs.get(ConfigFile.WAR).getLong("rewards.immunity-days", 7);
     }
 
+    /** A city's claims, for the capture points SPEC 11.6 places on the defender's land. */
+    public java.util.Collection<dev.civitas.core.claim.Claim> claimsOf(int cityId) {
+        return claims.claimsOf(cityId);
+    }
+
     /** Builds the SPEC 11.4 zone for a war, from the claims of everyone in it. */
     public WarZone computeZone(War war) {
         java.util.List<dev.civitas.core.claim.Claim> all = new java.util.ArrayList<>();
