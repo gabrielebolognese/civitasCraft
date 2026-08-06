@@ -869,6 +869,7 @@ public final class CivitasPlugin extends JavaPlugin {
                 new dev.civitas.listener.war.WarScoringListener(warRegistry, warScoring,
                         cityRegistry, claimRegistry,
                         dev.civitas.listener.war.WarScoringListener.DefenseOwnership.none());
+        scoringListener.useKillLog(loadedDaos.warKills());
         manager.registerEvents(scoringListener, this);
 
         scheduleWarObjectives(warRegistry, capturePoints, cityRegistry);

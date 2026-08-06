@@ -91,9 +91,39 @@ public final class WarScoringListener implements Listener {
                 at.getBlockZ())) {
             if (war.areEnemies(killerCity.get(), victimCity.get())) {
                 scoring.awardKill(war, war.isAttackerSide(killerCity.get()));
+                recordKill(war, killer.getUniqueId(), victim.getUniqueId(), at);
                 return;
             }
         }
+    }
+
+    /**
+     * Writes the kill to {@code war_kills}, for SPEC 8.8's kill feed and the post-war report.
+     *
+     * <p>Fire and forget: a kill that fails to record costs a line in a feed, and blocking the
+     * death event on a database write would cost every player in the fight a stutter.
+     */
+    private void recordKill(War war, UUID killer, UUID victim, org.bukkit.Location at) {
+        if (kills == null) {
+            return;
+        }
+        try {
+            kills.insert(new dev.civitas.storage.row.WarKillRow(0, war.id(), killer, victim,
+                            System.currentTimeMillis(),
+                            at.getWorld().getName() + " " + at.getBlockX() + ","
+                                    + at.getBlockY() + "," + at.getBlockZ()))
+                    .exceptionally(error -> 0L);
+        } catch (RuntimeException ignored) {
+            // A closed pool throws from the call itself. The score is already awarded and
+            // held in memory; only the feed line is lost.
+        }
+    }
+
+    private dev.civitas.storage.dao.WarKillDao kills;
+
+    /** SPEC 8.8's kill feed, wired by the plugin. */
+    public void useKillLog(dev.civitas.storage.dao.WarKillDao dao) {
+        this.kills = dao;
     }
 
     // ==================================================================================
