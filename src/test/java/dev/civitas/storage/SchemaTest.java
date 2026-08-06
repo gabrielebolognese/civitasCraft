@@ -135,6 +135,14 @@ class SchemaTest {
         // has to explain it. SPEC 3 lists neither table.
         schema.put("war_rollback_issues", List.of("id", "war_id", "kind", "world", "x", "y", "z",
                 "detail", "detected_at"));
+        // V12, SPEC 4.7: a bounty is escrowed when it is placed, so it must survive a restart
+        // or the money would be lost with no way to refund it.
+        schema.put("bounties", List.of("id", "placer_uuid", "target_uuid", "amount", "placed_at",
+                "expires_at", "state", "claimed_by", "claimed_at"));
+        // V12, SPEC 11.8.3: villagers and animals snapshotted at war start, because one killed
+        // in a war is gone before anything can ask it what it was.
+        schema.put("war_entity_snapshots", List.of("id", "war_id", "entity_uuid", "entity_type",
+                "world", "x", "y", "z", "payload", "died_at", "snapshot_at"));
         return schema;
     }
 

@@ -906,3 +906,32 @@ event:
   tax-holiday:
     name: "Tax Holiday"
     description: "The market charges no sale tax."
+
+# SPEC 11, wars.
+war:
+  state:
+    declared: "Declared"
+    prep: "Preparation"
+    active: "Active"
+    rolling-back: "Restoring"
+    resolved: "Resolved"
+    cancelled: "Cancelled"
+    rollback-failed: "Restore failed"
+  declare:
+    self: "<red>A city cannot declare war on itself."
+    too-few-members: "<red>Both cities need at least <white><required></white> members to go to war."
+    too-few-claims: "<red>Both cities need at least <white><required></white> claims to go to war."
+    city-too-young: "<red>Your city must be <white><days></white> days old before it can declare war."
+    immune: "<red>That city is under war immunity for another <white><hours></white> hours."
+    already-at-war: "<red>Your city is already in a war."
+    defender-at-war: "<red>That city is already in a war."
+    truce: "<red>A truce with that city forbids war."
+    allied: "<red>You cannot declare war on an ally."
+    wager-too-small: "<red>The wager must be at least <white><min> C</white>."
+    wager-too-large: "<red>The wager may be at most <white><max> C</white>, a quarter of the smaller treasury."
+    treasury-short: "<red>Both treasuries must hold <white><required> C</white> to cover the wager."
+    delinquent: "<red>A city that owes upkeep cannot go to war."
+    rematch-cooldown: "<red>You fought that city recently. You may declare again in <white><days></white> days."
+    size-mismatch: "<red>A city with more than <white><large></white> members cannot declare on one with fewer than <white><small></white>."
+  decline:
+    too-late: "<red>The window to decline this war has closed."

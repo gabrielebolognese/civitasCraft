@@ -905,3 +905,32 @@ event:
   tax-holiday:
     name: "Tregua Fiscale"
     description: "Il mercato non applica tasse di vendita."
+
+# SPEC 11, guerre.
+war:
+  state:
+    declared: "Dichiarata"
+    prep: "Preparazione"
+    active: "Attiva"
+    rolling-back: "Ripristino"
+    resolved: "Conclusa"
+    cancelled: "Annullata"
+    rollback-failed: "Ripristino fallito"
+  declare:
+    self: "<red>Una citta' non puo' dichiarare guerra a se stessa."
+    too-few-members: "<red>Servono almeno <white><required></white> membri per entrambe le citta'."
+    too-few-claims: "<red>Servono almeno <white><required></white> chunk rivendicati per entrambe."
+    city-too-young: "<red>La tua citta' deve avere <white><days></white> giorni per dichiarare guerra."
+    immune: "<red>Quella citta' e' immune ancora per <white><hours></white> ore."
+    already-at-war: "<red>La tua citta' e' gia' in guerra."
+    defender-at-war: "<red>Quella citta' e' gia' in guerra."
+    truce: "<red>Una tregua con quella citta' vieta la guerra."
+    allied: "<red>Non puoi dichiarare guerra a un alleato."
+    wager-too-small: "<red>La posta deve essere almeno <white><min> C</white>."
+    wager-too-large: "<red>La posta puo' essere al massimo <white><max> C</white>, un quarto della tesoreria piu' piccola."
+    treasury-short: "<red>Entrambe le tesorerie devono avere <white><required> C</white> per coprire la posta."
+    delinquent: "<red>Una citta' che deve il mantenimento non puo' andare in guerra."
+    rematch-cooldown: "<red>Avete combattuto di recente. Potrai dichiarare di nuovo tra <white><days></white> giorni."
+    size-mismatch: "<red>Una citta' con piu' di <white><large></white> membri non puo' dichiarare a una con meno di <white><small></white>."
+  decline:
+    too-late: "<red>Il tempo per rifiutare questa guerra e' scaduto."

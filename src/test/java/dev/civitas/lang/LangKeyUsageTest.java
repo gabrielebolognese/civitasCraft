@@ -188,7 +188,9 @@ class LangKeyUsageTest {
                 // An event's name and description are built from ServerEventType.nameKey
                 // and .descriptionKey. The keys that are not per-event, such as
                 // event.boss-bar, are literals and stay covered by the scanner.
-                || isPerEventKey(key);
+                || isPerEventKey(key)
+                // A war phase's name is built from WarState.messageKey.
+                || key.startsWith("war.state.");
     }
 
     /**

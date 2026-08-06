@@ -838,3 +838,26 @@ Format:
   M18 restores blocks and their tile payloads, which is what a synthetic log can exercise and
   what SPEC 19 assigns to this milestone. Hanging entities are logged by M17 and skipped by the
   replay for now, so M19 adds their restore rather than their capture. *Date:* 2026-08-06
+
+- **[M19]** SPEC 11.9 does not add up. Its table says the winner "receives their own wager back
+  plus 80% of the loser's wager" and that the loser "receives 20% of their own wager back"; the
+  paragraph immediately after says "The remaining 20% of the loser's wager is **deleted from
+  circulation**, acting as an economic sink". Those describe the same 20% twice, once as
+  refunded and once as burned, and `war.yml` ships all three keys
+  (`winner-wager-share-percent: 80`, `loser-refund-percent: 20`, `burn-percent: 20`), which
+  together claim 120% of a 100% stake. *Implemented default:* resolved in favour of the later
+  statement, so the burn is taken first and the loser's refund receives whatever survives it.
+  With the shipped numbers that means 80% to the winner, 20% destroyed, nothing to the loser,
+  which is the reading that makes SPEC's own economic-sink sentence true. Both keys stay
+  meaningful: an operator who sets `burn-percent: 0` gets SPEC's table row instead. The
+  arithmetic is closed in every configuration, so a war can neither mint coins nor lose them.
+  **This needs a developer decision**: it is the difference between a war destroying 20% of the
+  stake and returning it. *Date:* 2026-08-06
+
+- **[M19]** SPEC 11.6 awards 0.1 points per block broken, up to a cap of 500. Accumulated as a
+  running `double` this is wrong: 0.1 added ten times in binary floating point is
+  0.9999999999999999, so a side would be awarded nine points for every ten it earned, and over
+  the 5,000 blocks it takes to reach the cap the drift is points somebody fought for.
+  *Implemented default:* the counter is a `long` of thousandths of a point, converted from the
+  config value once per award. Exact at every scale the cap allows, and it keeps the config key
+  a plain decimal. *Date:* 2026-08-06
