@@ -150,6 +150,22 @@ public final class CityDao extends Dao<CityRow> {
     }
 
     /** Single-column treasury write, so it cannot race an unrelated edit to the same row. */
+    /**
+     * SPEC 11.9's seven days of immunity for a city that just lost a war.
+     *
+     * <p>A narrow statement rather than a whole-row update, so ending a war cannot overwrite
+     * something else about the city that changed in the meantime.
+     */
+    public CompletableFuture<Integer> updateWarProtection(int cityId, long until) {
+        return db.call(connection -> updateWarProtection(connection, cityId, until));
+    }
+
+    public int updateWarProtection(Connection connection, int cityId, long until)
+            throws SQLException {
+        return updateSync(connection,
+                "UPDATE cities SET war_protection_until = ? WHERE id = ?", until, cityId);
+    }
+
     public CompletableFuture<Integer> updateTreasury(int cityId, BigDecimal treasury) {
         return db.call(connection -> updateTreasury(connection, cityId, treasury));
     }

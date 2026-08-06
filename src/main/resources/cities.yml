@@ -192,6 +192,8 @@ spawn:
 
 # Diplomacy, SPEC 14.
 diplomacy:
+  # SPEC 14.1: the post-war ENEMY marker is cosmetic and decays.
+  enemy-marker-days: 30
   # SPEC 14.2: no server-wide mega-blocs, so the political map stays interesting.
   max-allies: 3
   # SPEC 14.2: breaking gives notice, and the alliance holds until it expires. This is what

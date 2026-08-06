@@ -940,3 +940,6 @@ war:
     prep: "<gold>The war has begun. You have <white><hours></white> hours to prepare."
     active: "<red>The war is live. It runs for <white><days></white> days."
     rolling-back: "<gold>The war is over. The land is being restored; the zone is closed until it finishes."
+    draw: "<gold>The war ended in a draw at <white><attacker></white> to <white><defender></white>. Both wagers are returned."
+    won: "<gold>The war is decided: <white><attacker></white> to <white><defender></white>. The winner takes <white><prize> C</white>."
+  resolve-failed: "<red>This war could not be settled automatically. An administrator must resolve it."

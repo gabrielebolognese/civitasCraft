@@ -247,7 +247,28 @@ public final class MarketService {
      * <p>One until M19 builds wars, because there is no war for anyone to have won.
      */
     private BigDecimal sellBonusMultiplier(UUID seller) {
-        return BigDecimal.ONE;
+        if (warRewards == null || cities == null) {
+            return BigDecimal.ONE;
+        }
+        return cities.cityOf(seller)
+                .filter(city -> warRewards.hasMarketBonus(city.id(), System.currentTimeMillis()))
+                .map(city -> BigDecimal.ONE.add(BigDecimal.valueOf(warBonusPercent)
+                        .divide(BigDecimal.valueOf(100), 4, java.math.RoundingMode.HALF_UP)))
+                .orElse(BigDecimal.ONE);
+    }
+
+    private dev.civitas.core.war.WarRewards warRewards;
+    private double warBonusPercent = 10.0;
+
+    /**
+     * SPEC 11.9's winner bonus, wired by M19.
+     *
+     * <p>Read from a map rather than from storage: this runs on every sale, and SPEC 2.1
+     * forbids a query there.
+     */
+    public void useWarRewards(dev.civitas.core.war.WarRewards rewards, double bonusPercent) {
+        this.warRewards = rewards;
+        this.warBonusPercent = bonusPercent;
     }
 
     // ==================================================================================

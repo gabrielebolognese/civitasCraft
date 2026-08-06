@@ -180,7 +180,13 @@ public final class City {
         return warProtectionUntil;
     }
 
-    void setWarProtectionUntil(long warProtectionUntil) {
+    /**
+     * SPEC 11.9's post-war immunity.
+     *
+     * <p>Public since M19: the war system sets it when a war ends, and SPEC 11.9 is explicit
+     * that this "is protection, not punishment" for the city that just lost.
+     */
+    public void setWarProtectionUntil(long warProtectionUntil) {
         this.warProtectionUntil = warProtectionUntil;
     }
 

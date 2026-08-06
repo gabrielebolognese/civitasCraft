@@ -580,8 +580,13 @@ public final class CivitasPlugin extends JavaPlugin {
 
         scheduleEvents(eventService, cityRegistry, claimRegistry, treasuryService, manager);
 
-        startWarSystem(manager, loadedDaos, cityRegistry, claimRegistry, diplomacyRegistry,
-                treasuryService, protection, scheduler);
+        WarWiring warWiring = startWarSystem(manager, loadedDaos, cityRegistry, claimRegistry,
+                diplomacyRegistry, treasuryService, protection, scheduler);
+
+        // SPEC 11.9 and 14.1: the seams the war system closes in three other subsystems.
+        marketService.useWarRewards(warWiring.rewards(), warWiring.marketBonusPercent());
+        diplomacyService.useWars(warWiring.registry());
+        leaderboardService.useWars(loadedDaos.wars());
 
         scheduleMarketDecay(marketRegistry, pricing, loadedDaos);
 
@@ -758,7 +763,12 @@ public final class CivitasPlugin extends JavaPlugin {
      * {@link WarZones#none()} answers "no war" and every listener returns on its first line,
      * so a peacetime server pays nothing for this.
      */
-    private void startWarSystem(DatabaseManager database, DaoRegistry loadedDaos,
+    /** What the war system hands back so the systems it touches can be wired to it. */
+    private record WarWiring(dev.civitas.core.war.WarRegistry registry,
+                             dev.civitas.core.war.WarRewards rewards,
+                             double marketBonusPercent) { }
+
+    private WarWiring startWarSystem(DatabaseManager database, DaoRegistry loadedDaos,
                                 CityRegistry cityRegistry, ClaimRegistry claimRegistry,
                                 dev.civitas.core.diplomacy.DiplomacyRegistry diplomacyRegistry,
                                 TreasuryService treasuryService, ProtectionService protection,
@@ -819,12 +829,27 @@ public final class CivitasPlugin extends JavaPlugin {
                 },
                 StipendTask.Notifier.online(lang), configs, getLogger(),
                 System::currentTimeMillis);
+        // SPEC 11.9, the payouts and the two seven-day consequences.
+        dev.civitas.core.war.WarPayouts payouts = new dev.civitas.core.war.WarPayouts(configs);
+        dev.civitas.core.war.WarRewards warRewards =
+                new dev.civitas.core.war.WarRewards(loadedDaos.wars());
+        warRewards.load(System.currentTimeMillis(), payouts.marketBonusDays())
+                .thenAccept(loaded -> {
+                    if (loaded > 0) {
+                        getLogger().info(loaded + " city/cities still hold a war market bonus.");
+                    }
+                });
+        phases.useResolution(new dev.civitas.core.war.WarResolution(database, loadedDaos,
+                cityRegistry, treasuryService, payouts, warRewards, getLogger()));
+
         long phaseTicks = configs.get(ConfigFile.WAR)
                 .getLong("phases.check-interval-minutes", 5) * 60L * 20L;
         Bukkit.getScheduler().runTaskTimer(this, phases, phaseTicks, phaseTicks);
 
         long ticks = Math.max(1L, blockLog.flushIntervalSeconds()) * 20L;
         Bukkit.getScheduler().runTaskTimerAsynchronously(this, blockLog::flush, ticks, ticks);
+
+        return new WarWiring(warRegistry, warRewards, payouts.marketBonusPercent());
     }
 
     /**

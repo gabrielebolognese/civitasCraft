@@ -861,3 +861,26 @@ Format:
   *Implemented default:* the counter is a `long` of thousandths of a point, converted from the
   config value once per award. Exact at every scale the cap allows, and it keeps the config key
   a plain decimal. *Date:* 2026-08-06
+
+- **[M19]** The SPEC 11.9 payout contradiction recorded above is **resolved on the developer's
+  instruction in favour of the burn**: 80% of the loser's wager to the winner, 20% destroyed,
+  nothing refunded to the loser. That is the reading which makes SPEC's own sentence about "an
+  economic sink proportional to war activity" true, and it is the later of the two
+  contradictory statements. `rewards.loser-refund-percent` stays in `war.yml` and still works:
+  a server that sets `rewards.burn-percent: 0` gets SPEC's table row instead. *Date:* 2026-08-06
+
+- **[M19]** SPEC 11.9 gives the winner "a 7-day +10% market sell price bonus" but does not say
+  when the seven days start, and a war has two candidate moments: when the fighting ends and
+  when the rollback finishes restoring the land. *Implemented default:* from the end of the
+  fighting. A restore can take minutes and SPEC 11.8.5 allows it to take much longer after a
+  crash; measuring from its completion would quietly shorten a reward the city earned by
+  winning, by an amount that depends on how badly the server was behaving. The same moment is
+  used for the loser's immunity, so the two consequences of one war always run together.
+  *Date:* 2026-08-06
+
+- **[M19]** SPEC 3.7's `rollback_completed_at` is set by SPEC 11.8.2 step 9, at the end of the
+  restore, but M19's resolution runs *before* the rollback starts and was initially writing it.
+  *Implemented default:* resolution leaves the column null and M18's engine owns it. The column
+  means what SPEC says it means, and the market bonus is keyed on `war_ends_at` instead. Caught
+  by a test asserting the bonus survives a restart, which it could not while the column was
+  being written at the wrong time. *Date:* 2026-08-06

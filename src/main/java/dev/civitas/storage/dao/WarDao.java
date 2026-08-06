@@ -10,6 +10,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.stream.Collectors;
 
 import dev.civitas.storage.DatabaseManager;
+import dev.civitas.storage.row.WarRecordRow;
 import dev.civitas.storage.row.WarRow;
 
 /** {@code wars}, SPEC 3.7. */
@@ -137,5 +138,65 @@ public final class WarDao extends Dao<WarRow> {
             throws SQLException {
         return updateSync(connection,
                 "UPDATE wars SET rollback_checkpoint_sequence = ? WHERE id = ?", sequence, warId);
+    }
+
+    /**
+     * Every city's war record, for SPEC 13.3's War Record board.
+     *
+     * <p>Derived from the resolved wars rather than from a counter, so it cannot drift from
+     * the wars it describes. SPEC 13.3 ranks by wins with losses as the tiebreaker, which is
+     * the ordering here: more wins first, then fewer losses.
+     *
+     * <p>Only {@code RESOLVED} wars count. A cancelled or declined war was never fought, and a
+     * war whose rollback failed has not finished being dealt with.
+     */
+    public CompletableFuture<List<WarRecordRow>> findRecords(int limit) {
+        return db.call(connection -> queryListSync(connection,
+                "SELECT c.id AS city_id, c.name AS name, "
+                        + "SUM(CASE WHEN w.winner_city_id = c.id THEN 1 ELSE 0 END) AS wins, "
+                        + "SUM(CASE WHEN w.winner_city_id IS NOT NULL "
+                        + "AND w.winner_city_id <> c.id THEN 1 ELSE 0 END) AS losses "
+                        + "FROM cities c "
+                        + "JOIN wars w ON (w.attacker_city_id = c.id OR w.defender_city_id = c.id) "
+                        + "WHERE w.state = ? "
+                        + "GROUP BY c.id, c.name "
+                        + "HAVING wins > 0 OR losses > 0 "
+                        + "ORDER BY wins DESC, losses ASC, c.name ASC LIMIT ?",
+                rs -> new WarRecordRow(
+                        rs.getInt("city_id"),
+                        rs.getString("name"),
+                        rs.getInt("wins"),
+                        rs.getInt("losses")),
+                "RESOLVED", limit));
+    }
+
+    /**
+     * Wars a city won recently, for the SPEC 11.9 market bonus.
+     *
+     * <p>Read once at startup so the bonus survives a restart; the sell path itself reads a
+     * cached answer, because SPEC 2.1 forbids a query there.
+     */
+    public CompletableFuture<List<WarRow>> findWonSince(long since) {
+        // Keyed on when the war ended, not on when its rollback finished. SPEC 11.9 gives the
+        // winner seven days from winning, and a restore that takes an hour must not eat an
+        // hour of them. Any state with a winner qualifies, so a war still being rolled back
+        // has already granted its bonus.
+        return queryList("SELECT " + COLUMNS + " FROM wars "
+                + "WHERE winner_city_id IS NOT NULL AND war_ends_at >= ?", since);
+    }
+
+    /**
+     * Whether these two cities have fought inside the cooldown window.
+     *
+     * <p>SPEC 11.3 precondition 12, the anti-harassment rule SPEC 15.2 calls out by name.
+     * Asked of storage rather than of the registry, because the registry drops a war once it
+     * is finished and the cooldown outlives it by three weeks.
+     */
+    public CompletableFuture<Boolean> hasFoughtSince(int cityA, int cityB, long since) {
+        return db.call(connection -> !queryListSync(connection,
+                "SELECT id FROM wars WHERE declared_at >= ? "
+                        + "AND ((attacker_city_id = ? AND defender_city_id = ?) "
+                        + "OR (attacker_city_id = ? AND defender_city_id = ?)) LIMIT 1",
+                rs -> rs.getInt("id"), since, cityA, cityB, cityB, cityA).isEmpty());
     }
 }

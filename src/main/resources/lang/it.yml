@@ -939,3 +939,6 @@ war:
     prep: "<gold>La guerra e' iniziata. Hai <white><hours></white> ore per prepararti."
     active: "<red>La guerra e' attiva. Dura <white><days></white> giorni."
     rolling-back: "<gold>La guerra e' finita. La terra viene ripristinata; la zona e' chiusa fino al termine."
+    draw: "<gold>La guerra e finita in pareggio, <white><attacker></white> a <white><defender></white>. Le poste tornano indietro."
+    won: "<gold>La guerra e decisa: <white><attacker></white> a <white><defender></white>. Il vincitore prende <white><prize> C</white>."
+  resolve-failed: "<red>Questa guerra non e' stata risolta automaticamente. Serve un amministratore."

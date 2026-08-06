@@ -161,6 +161,19 @@ public final class WarPhaseTask implements Runnable {
         war.state(WarState.ROLLING_BACK);
         persist(war);
 
+        // SPEC 11.9 before SPEC 11.8.2, deliberately. A war is settled the moment it ends,
+        // not when the restore finishes: a player who lost should be told they lost rather
+        // than waiting on a rollback, and if the rollback runs into trouble the result is
+        // already on the record.
+        if (resolution != null) {
+            resolution.resolve(war, now).thenAccept(result -> {
+                if (result instanceof dev.civitas.util.Result.Success<WarResolution.Outcome>(
+                        WarResolution.Outcome outcome)) {
+                    announceOutcome(war, outcome);
+                }
+            });
+        }
+
         int moved = evacuation.evacuate(war);
         if (moved > 0) {
             logger.info("Evacuated " + moved + " player(s) from the zone of war " + war.id()
@@ -203,6 +216,26 @@ public final class WarPhaseTask implements Runnable {
         for (var member : city.members()) {
             notifier.tell(member.uuid(), key, extra);
         }
+    }
+
+    private WarResolution resolution;
+
+    /** SPEC 11.9's payouts, wired after construction because it needs the treasury. */
+    public void useResolution(WarResolution warResolution) {
+        this.resolution = warResolution;
+    }
+
+    private void announceOutcome(War war, WarResolution.Outcome outcome) {
+        if (outcome.isDraw()) {
+            announce(war, "war.announce.draw",
+                    LangManager.placeholder("attacker", String.valueOf(war.attackerScore())),
+                    LangManager.placeholder("defender", String.valueOf(war.defenderScore())));
+            return;
+        }
+        announce(war, "war.announce.won",
+                LangManager.placeholder("attacker", String.valueOf(war.attackerScore())),
+                LangManager.placeholder("defender", String.valueOf(war.defenderScore())),
+                LangManager.placeholder("prize", outcome.winnerReturn().toPlainString()));
     }
 
     long declineWindowMillis() {

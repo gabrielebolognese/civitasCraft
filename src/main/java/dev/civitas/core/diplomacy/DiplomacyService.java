@@ -362,17 +362,44 @@ public final class DiplomacyService {
     }
 
     // ==================================================================================
-    // What M19 will answer
+    // War, wired by M19
     // ==================================================================================
 
-    /** SPEC 14.1, once wars exist in M19. */
+    /** SPEC 14.1's {@code AT_WAR}: these two cities are on opposite sides of a live war. */
     private boolean isAtWar(int cityId, int otherCityId) {
-        return false;
+        if (wars == null) {
+            return false;
+        }
+        return wars.engagedWarOf(cityId)
+                .filter(war -> war.areEnemies(cityId, otherCityId))
+                .isPresent();
     }
 
-    /** SPEC 14.1's post-war marker, which decays after 30 days. M19's to record. */
+    /**
+     * SPEC 14.1's {@code ENEMY} marker, "cosmetic only … decays after 30 days".
+     *
+     * <p>Read from the war history rather than stored, so it cannot disagree with the wars it
+     * describes and needs no sweep to expire it.
+     */
     private boolean isRecentEnemy(int cityId, int otherCityId, long now) {
-        return false;
+        if (wars == null) {
+            return false;
+        }
+        long window = configs.get(ConfigFile.CITIES)
+                .getLong("diplomacy.enemy-marker-days", 30) * MILLIS_PER_DAY;
+        try {
+            return daos.wars().hasFoughtSince(cityId, otherCityId, now - window).join();
+        } catch (RuntimeException e) {
+            // A relation that cannot be read is shown as neutral rather than failing a screen.
+            return false;
+        }
+    }
+
+    private dev.civitas.core.war.WarRegistry wars;
+
+    /** SPEC 14.1's war-aware relations, wired by M19. */
+    public void useWars(dev.civitas.core.war.WarRegistry registry) {
+        this.wars = registry;
     }
 
     // ==================================================================================

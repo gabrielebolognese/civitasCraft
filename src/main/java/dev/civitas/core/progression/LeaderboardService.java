@@ -276,9 +276,16 @@ public final class LeaderboardService {
     // Seams for milestones that do not exist yet
     // ==================================================================================
 
-    /** SPEC 11's war record, M19. */
+    /** SPEC 11's war record. Available once the war system is wired, which M19 does. */
     private boolean hasWars() {
-        return false;
+        return wars != null;
+    }
+
+    private dev.civitas.storage.dao.WarDao wars;
+
+    /** SPEC 13.3's War Record board, wired by M19. */
+    public void useWars(dev.civitas.storage.dao.WarDao warDao) {
+        this.wars = warDao;
     }
 
     /**
@@ -289,7 +296,21 @@ public final class LeaderboardService {
      * losses, then name.
      */
     private List<LeaderboardEntry> warRecords() {
-        return List.of();
+        if (wars == null) {
+            return List.of();
+        }
+        try {
+            // Already ordered by the query: wins descending, then fewest losses, which is
+            // exactly what warRecordOrder describes and what SPEC 13.3 asks for.
+            return rank(wars.findRecords(size()).join().stream()
+                    .map(row -> new Ranked(row.name(),
+                            BigDecimal.valueOf(row.wins()),
+                            BigDecimal.valueOf(row.losses())))
+                    .toList());
+        } catch (RuntimeException e) {
+            logger.log(Level.WARNING, "Could not read war records for the leaderboard.", e);
+            return List.of();
+        }
     }
 
     /**
