@@ -580,7 +580,8 @@ public final class CivitasPlugin extends JavaPlugin {
 
         scheduleEvents(eventService, cityRegistry, claimRegistry, treasuryService, manager);
 
-        startWarBlockLog(loadedDaos);
+        startWarSystem(manager, loadedDaos, cityRegistry, claimRegistry, diplomacyRegistry,
+                treasuryService, protection, scheduler);
 
         scheduleMarketDecay(marketRegistry, pricing, loadedDaos);
 
@@ -757,7 +758,11 @@ public final class CivitasPlugin extends JavaPlugin {
      * {@link WarZones#none()} answers "no war" and every listener returns on its first line,
      * so a peacetime server pays nothing for this.
      */
-    private void startWarBlockLog(DaoRegistry loadedDaos) {
+    private void startWarSystem(DatabaseManager database, DaoRegistry loadedDaos,
+                                CityRegistry cityRegistry, ClaimRegistry claimRegistry,
+                                dev.civitas.core.diplomacy.DiplomacyRegistry diplomacyRegistry,
+                                TreasuryService treasuryService, ProtectionService protection,
+                                Scheduler scheduler) {
         BukkitTilePayloadCodec codec = new BukkitTilePayloadCodec(getLogger());
         WarBlockLogger blockLog = new WarBlockLogger(loadedDaos.warBlockLog(), codec, configs,
                 getLogger());
@@ -776,11 +781,47 @@ public final class CivitasPlugin extends JavaPlugin {
         this.rollbackEngine = rollback;
         resumeInterruptedRollbacks(rollback, blockLog);
 
-        WarBlockRecorder recorder = new WarBlockRecorder(WarZones.none(), blockLog);
+        // SPEC 11, the war system. This is the line that makes M17 and M18 live: with real
+        // zones behind it the logger records damage and the engine puts it back, where
+        // WarZones.none() meant both were tested machinery attached to nothing.
+        dev.civitas.core.war.WarRegistry warRegistry =
+                new dev.civitas.core.war.WarRegistry(loadedDaos.wars());
+        warRegistry.loadAll().thenAccept(loaded -> {
+            if (loaded > 0) {
+                getLogger().info("Loaded " + loaded + " unfinished war(s).");
+            }
+        });
+
+        dev.civitas.core.war.WarService warService = new dev.civitas.core.war.WarService(
+                database, loadedDaos, cityRegistry, claimRegistry, diplomacyRegistry,
+                warRegistry, treasuryService, configs, scheduler);
+        dev.civitas.core.war.WarRestrictions warRestrictions =
+                new dev.civitas.core.war.WarRestrictions(warRegistry, cityRegistry);
+        protection.useWars(warRestrictions);
+
+        WarBlockRecorder recorder = new WarBlockRecorder(
+                new dev.civitas.core.war.RegistryWarZones(warRegistry), blockLog);
         var manager = getServer().getPluginManager();
         manager.registerEvents(new dev.civitas.listener.war.WarBlockListener(recorder), this);
         manager.registerEvents(new dev.civitas.listener.war.WarPhysicsListener(recorder), this);
         manager.registerEvents(new dev.civitas.listener.war.WarHangingListener(recorder), this);
+        manager.registerEvents(new dev.civitas.listener.war.WarCombatListener(
+                warRestrictions, lang), this);
+
+        // SPEC 11.2's clock. Checked far more often than it acts, because a phase ends at a
+        // wall-clock moment and the server may have been down when it passed.
+        dev.civitas.core.war.WarPhaseTask phases = new dev.civitas.core.war.WarPhaseTask(
+                warService, warRegistry, loadedDaos.wars(), cityRegistry,
+                dev.civitas.core.war.Evacuation.of(cityRegistry),
+                war -> {
+                    blockLog.freeze(war.id());
+                    beginRollbackFor(rollback, blockLog, war.id());
+                },
+                StipendTask.Notifier.online(lang), configs, getLogger(),
+                System::currentTimeMillis);
+        long phaseTicks = configs.get(ConfigFile.WAR)
+                .getLong("phases.check-interval-minutes", 5) * 60L * 20L;
+        Bukkit.getScheduler().runTaskTimer(this, phases, phaseTicks, phaseTicks);
 
         long ticks = Math.max(1L, blockLog.flushIntervalSeconds()) * 20L;
         Bukkit.getScheduler().runTaskTimerAsynchronously(this, blockLog::flush, ticks, ticks);
@@ -829,6 +870,33 @@ public final class CivitasPlugin extends JavaPlugin {
                         }, 1L, 1L));
             }
         });
+    }
+
+    /**
+     * Starts a rollback for a war that has just ended, on the same driver a resumed one uses.
+     *
+     * <p>Shared so a war that ends normally and one picked up after a crash follow exactly the
+     * same path: SPEC 18.3 has to sign off one behaviour, not two.
+     */
+    private void beginRollbackFor(dev.civitas.core.war.RollbackEngine rollback,
+                                  WarBlockLogger blockLog, int warId) {
+        rollback.begin(warId).thenAccept(job ->
+                Bukkit.getScheduler().runTaskTimer(this, task -> {
+                    if (job.status() != dev.civitas.core.war.RollbackStatus.RUNNING) {
+                        task.cancel();
+                        return;
+                    }
+                    if (!job.hasPending()) {
+                        rollback.fetchNextPage(job).thenAccept(read -> {
+                            if (read == 0 && !job.hasPending()) {
+                                Bukkit.getScheduler().runTask(this,
+                                        () -> finishRollback(rollback, blockLog, job));
+                            }
+                        });
+                        return;
+                    }
+                    rollback.applySlice(job);
+                }, 1L, 1L));
     }
 
     private void finishRollback(dev.civitas.core.war.RollbackEngine rollback,

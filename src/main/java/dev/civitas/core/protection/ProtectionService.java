@@ -73,10 +73,10 @@ public final class ProtectionService {
         }
 
         if (action == ProtectionAction.PVP) {
-            return checkPvp(city);
+            return checkPvp(city, world, chunkX, chunkZ);
         }
 
-        if (isGriefPermitted(city, player)) {
+        if (isGriefPermitted(city, player, world, chunkX, chunkZ)) {
             // SPEC 11.6: inside an active war zone, the opposing side may do all of this.
             return ProtectionDecision.ALLOWED;
         }
@@ -140,8 +140,8 @@ public final class ProtectionService {
      * SPEC 5.5: "PvP inside claims: disabled outside of war. Enabled only inside the claims
      * of cities that are party to an active war."
      */
-    private ProtectionDecision checkPvp(City city) {
-        if (isAtWar(city)) {
+    private ProtectionDecision checkPvp(City city, String world, int chunkX, int chunkZ) {
+        if (isAtWar(city, world, chunkX, chunkZ)) {
             return ProtectionDecision.ALLOWED;
         }
         return ProtectionDecision.deny("PVP_DISABLED", ProtectionAction.PVP.messageKey(),
@@ -186,7 +186,7 @@ public final class ProtectionService {
             return true;
         }
         // SPEC 5.5: "TNT and end crystal explosions (fully disabled outside war)".
-        return isAtWar(owner.get());
+        return isAtWar(owner.get(), world, chunkX, chunkZ);
     }
 
     /**
@@ -244,15 +244,29 @@ public final class ProtectionService {
      * SPEC 11.6: whether {@code player} may grief this city right now because their side is
      * at war with it and this chunk is inside the war zone.
      *
-     * <p>Always false until M19. This is the single switch that turns SPEC 5.5's four
-     * "except in war" clauses on.
+     * <p>The single switch that turns SPEC 5.5's four "except in war" clauses on. It stays
+     * false on a server with no war running, which is every server most of the time.
      */
-    private boolean isGriefPermitted(City city, UUID player) {
-        return false;
+    private boolean isGriefPermitted(City city, UUID player, String world, int chunkX, int chunkZ) {
+        return wars != null
+                && wars.isGriefPermitted(city.id(), player, world, chunkX << 4, chunkZ << 4);
     }
 
     /** SPEC 5.5: whether this city is party to an active war, which enables PvP on its land. */
-    private boolean isAtWar(City city) {
-        return false;
+    private boolean isAtWar(City city, String world, int chunkX, int chunkZ) {
+        return wars != null && wars.isEngaged(city.id())
+                && !wars.isZoneClosed(world, chunkX << 4, chunkZ << 4);
+    }
+
+    private dev.civitas.core.war.WarRestrictions wars;
+
+    /**
+     * SPEC 11.6, wired by M19.
+     *
+     * <p>Optional in the same way diplomacy is: a protection service with no war system
+     * refuses every wartime exception, which is the safe direction.
+     */
+    public void useWars(dev.civitas.core.war.WarRestrictions restrictions) {
+        this.wars = restrictions;
     }
 }

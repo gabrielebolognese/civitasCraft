@@ -934,3 +934,8 @@ war:
     size-mismatch: "<red>Una citta' con piu' di <white><large></white> membri non puo' dichiarare a una con meno di <white><small></white>."
   decline:
     too-late: "<red>Il tempo per rifiutare questa guerra e' scaduto."
+  zone-closed: "<red>Quell'area e' in ripristino dopo una guerra. Non puoi entrare finche' non e' finito."
+  announce:
+    prep: "<gold>La guerra e' iniziata. Hai <white><hours></white> ore per prepararti."
+    active: "<red>La guerra e' attiva. Dura <white><days></white> giorni."
+    rolling-back: "<gold>La guerra e' finita. La terra viene ripristinata; la zona e' chiusa fino al termine."

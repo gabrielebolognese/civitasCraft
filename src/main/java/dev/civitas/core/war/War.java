@@ -251,12 +251,16 @@ public final class War {
      * the contest cycle keeps them apart: they differ whenever a boundary passed while the
      * server was down, and reconciling them is the phase task's job.
      */
-    public WarState phaseAt(long now) {
-        if (state == WarState.DECLARED) {
-            return now >= prepEndsAt ? WarState.ACTIVE : WarState.DECLARED;
-        }
+    public WarState phaseAt(long now, long declineWindowMillis) {
         if (state.isFinished() || state == WarState.ROLLING_BACK) {
+            // A cancelled, resolved or failed war is where it is. So is one already being
+            // rolled back: the engine owns that transition, not the clock.
             return state;
+        }
+        if (now < declaredAt + declineWindowMillis) {
+            // SPEC 11.3's six hours, during which the defender may still walk away. The
+            // wagers are escrowed but nothing can be destroyed yet.
+            return WarState.DECLARED;
         }
         if (now < prepEndsAt) {
             return WarState.PREP;

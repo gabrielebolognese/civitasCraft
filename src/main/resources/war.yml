@@ -21,6 +21,9 @@ declaration:
 phases:
   prep-hours: 48
   active-days: 7
+  # How often the phase sweep looks. Far more often than it acts: a phase ends at a wall-clock
+  # moment and the server may have been down when it passed, so the check is what notices.
+  check-interval-minutes: 5
 
 zone:
   perimeter-chunks: 1
