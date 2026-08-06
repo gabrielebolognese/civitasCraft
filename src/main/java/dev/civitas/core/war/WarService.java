@@ -360,6 +360,12 @@ public final class WarService {
         return daos.wars().findByCity(cityId, limit);
     }
 
+    /** The last kills of a war, for SPEC 8.8's kill feed. */
+    public java.util.concurrent.CompletableFuture<java.util.List<dev.civitas.storage.row.WarKillRow>>
+            recentKills(int warId, int limit) {
+        return daos.warKills().findRecent(warId, limit);
+    }
+
     /** A city's claims, for the capture points SPEC 11.6 places on the defender's land. */
     public java.util.Collection<dev.civitas.core.claim.Claim> claimsOf(int cityId) {
         return claims.claimsOf(cityId);

@@ -53,6 +53,10 @@ final class MenuTestSupport implements AutoCloseable {
     final AmountInput input;
     final CivitasServices services;
     final LangManager lang;
+    final dev.civitas.core.war.WarRegistry wars;
+    final dev.civitas.core.war.PeaceOffer peace;
+    final dev.civitas.core.war.CapturePoints capturePoints;
+    final dev.civitas.core.war.WarScoreboard scoreboard;
 
     private MenuTestSupport(Path directory, Plugin plugin) {
         this.cities = CityTestSupport.open(directory);
@@ -119,11 +123,27 @@ final class MenuTestSupport implements AutoCloseable {
                 cities.daos.ledger(), cities.daos.playerStats(), cities.daos.contestEntries(),
                 cities.registry, cities.claimRegistry, cities.claims, cities.configs, quiet());
 
+        // SPEC 8.8's screen reads the war system, so the menu tests need a real one rather
+        // than the nulls that stood in while M19 did not exist.
+        this.wars = new dev.civitas.core.war.WarRegistry(cities.daos.wars());
+        dev.civitas.core.war.WarService warService = new dev.civitas.core.war.WarService(
+                cities.db, cities.daos, cities.registry, cities.claimRegistry, diplomacyRegistry,
+                wars, cities.treasury, cities.configs, Scheduler.direct());
+        dev.civitas.core.war.WarAllies warAllies = new dev.civitas.core.war.WarAllies(cities.db,
+                cities.daos, cities.registry, diplomacyRegistry, wars, cities.treasury,
+                cities.configs, Scheduler.direct());
+        this.peace = new dev.civitas.core.war.PeaceOffer(cities.db, cities.daos, cities.registry,
+                cities.treasury, cities.configs, Scheduler.direct());
+        this.capturePoints = new dev.civitas.core.war.CapturePoints(
+                new dev.civitas.core.war.WarScoring(cities.configs));
+        this.scoreboard = new dev.civitas.core.war.WarScoreboard(wars, cities.registry, lang);
+
         this.services = new CivitasServices(cities.registry, cities.cities, cities.ranks,
                 cities.claimRegistry, cities.claims, null, null, cities.protection, null, null,
                 cities.economy, cities.treasury, cities.upkeep, upkeep, cities.market,
                 cities.marketFilter, cities.shops, quests, challenges, leaderboards, stats,
-                cities.contests, cities.serverEvents, null, null, null, outposts,
+                cities.contests, cities.serverEvents, warService, warAllies, peace,
+                capturePoints, scoreboard, outposts,
                 outpostTeleport, upgradeService, defenseService, diplomacyService, vaultService,
                 vaultView, menus, layouts,
                 input, spawns, halls,

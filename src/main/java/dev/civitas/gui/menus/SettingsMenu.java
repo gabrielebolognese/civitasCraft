@@ -45,7 +45,7 @@ public final class SettingsMenu extends CityMenu {
         City city = city();
 
         set(12, gated(Material.PAPER, text("gui.settings.motd"), CityPermission.EDIT_SETTINGS)
-                .lore(text("gui.settings.motd.current", "motd",
+                .lore(text("gui.settings.motd-current", "motd",
                         city.motd() == null || city.motd().isBlank() ? "-" : city.motd()))
                 .onClick(context -> services.amountInput().askText(context.player(),
                         "gui.settings.motd-prompt",
@@ -63,8 +63,8 @@ public final class SettingsMenu extends CityMenu {
         set(14, gated(Material.OAK_DOOR, text("gui.settings.open-join"),
                 CityPermission.EDIT_SETTINGS)
                 .lore(city.isOpenJoin()
-                        ? text("gui.settings.open-join.on")
-                        : text("gui.settings.open-join.off"))
+                        ? text("gui.settings.open-join-on")
+                        : text("gui.settings.open-join-off"))
                 .glowing(city.isOpenJoin())
                 .onClick(context -> services.cities()
                         .setOpenJoin(context.player().getUniqueId(), city(), !city().isOpenJoin())
@@ -75,7 +75,7 @@ public final class SettingsMenu extends CityMenu {
                 .build());
 
         set(16, gated(Material.COMPASS, text("gui.settings.set-spawn"), CityPermission.SET_SPAWN)
-                .lore(text("gui.settings.set-spawn.lore"))
+                .lore(text("gui.settings.set-spawn-lore"))
                 .onClick(context -> {
                     var location = context.player().getLocation();
                     services.cities().setSpawn(context.player().getUniqueId(), city(),
@@ -90,13 +90,13 @@ public final class SettingsMenu extends CityMenu {
                 .build());
 
         set(22, gated(Material.NAME_TAG, text("gui.settings.ranks"), CityPermission.MANAGE_RANKS)
-                .lore(text("gui.settings.ranks.lore"))
+                .lore(text("gui.settings.ranks-lore"))
                 .onClick(context -> new RanksMenu(manager, services, viewer, city(), this).open())
                 .build());
 
         set(28, gated(Material.WRITABLE_BOOK, text("gui.settings.rename"),
                 CityPermission.EDIT_SETTINGS)
-                .lore(text("gui.settings.rename.cost", "amount", money(renameCost())))
+                .lore(text("gui.settings.rename-cost", "amount", money(renameCost())))
                 .onClick(context -> services.amountInput().askText(context.player(),
                         "gui.settings.rename-prompt",
                         typed -> services.cities()
@@ -112,7 +112,7 @@ public final class SettingsMenu extends CityMenu {
 
         set(30, gated(Material.PLAYER_HEAD, text("gui.settings.transfer"),
                 CityPermission.TRANSFER)
-                .lore(text("gui.settings.transfer.lore"))
+                .lore(text("gui.settings.transfer-lore"))
                 .onClick(context -> services.amountInput().askText(context.player(),
                         "gui.settings.transfer-prompt",
                         typed -> transferTo(context.player(), typed),
@@ -120,7 +120,7 @@ public final class SettingsMenu extends CityMenu {
                 .build());
 
         set(34, gated(Material.TNT, text("gui.settings.disband"), CityPermission.DISBAND)
-                .lore(text("gui.settings.disband.lore"))
+                .lore(text("gui.settings.disband-lore"))
                 .onClick(context -> confirmDisband(context.player()))
                 .build());
     }
@@ -154,10 +154,10 @@ public final class SettingsMenu extends CityMenu {
      */
     private void confirmDisband(Player player) {
         ConfirmationMenu.builder(manager, player)
-                .title(text("gui.settings.disband.confirm-title"))
-                .question(text("gui.settings.disband.confirm", "city", city().name()))
-                .detail(text("gui.settings.disband.detail-refund"))
-                .detail(text("gui.settings.disband.detail-final"))
+                .title(text("gui.settings.disband-confirm-title"))
+                .question(text("gui.settings.disband-confirm", "city", city().name()))
+                .detail(text("gui.settings.disband-detail-refund"))
+                .detail(text("gui.settings.disband-detail-final"))
                 .parent(this)
                 .onConfirm(() -> services.amountInput().askText(player,
                         "gui.settings.disband-prompt",

@@ -55,7 +55,7 @@ public final class ContestsMenu extends CityMenu {
         Optional<Contest> running = services.contests().current();
         if (running.isEmpty()) {
             set(22, info(Material.BARRIER, text("gui.contests.none"),
-                    text("gui.contests.none.lore")));
+                    text("gui.contests.none-lore")));
             return;
         }
 
@@ -69,11 +69,11 @@ public final class ContestsMenu extends CityMenu {
                         describe(contest.millisUntilNextPhase(now)))));
 
         set(11, info(Material.GOLDEN_AXE, text("gui.contests.how"),
-                text("gui.contests.how.lore")));
+                text("gui.contests.how-lore")));
 
         set(15, info(Material.WRITABLE_BOOK,
                 text("gui.contests.entered", "count", String.valueOf(entries.size())),
-                text("gui.contests.entered.lore")));
+                text("gui.contests.entered-lore")));
 
         for (int index = 0; index < entries.size() && index < ENTRY_SLOTS.length; index++) {
             ContestEntryRow entry = entries.get(index);
@@ -82,7 +82,7 @@ public final class ContestsMenu extends CityMenu {
                     .orElse("?");
             set(ENTRY_SLOTS[index], info(Material.PLAYER_HEAD,
                     text("gui.contests.entry", "city", cityName),
-                    text("gui.contests.entry.lore", "index", String.valueOf(index + 1))));
+                    text("gui.contests.entry-lore", "index", String.valueOf(index + 1))));
         }
 
         // Refresh the list for the next redraw. The screen is live, so a query started now

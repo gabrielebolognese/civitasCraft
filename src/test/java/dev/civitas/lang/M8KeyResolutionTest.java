@@ -31,18 +31,18 @@ class M8KeyResolutionTest {
     @ValueSource(strings = {
             "gui.main.title",
             "gui.main.overview",
-            "gui.main.overview.lore",
-            "gui.main.treasury.lore",
-            "gui.claims.claim.base",
-            "gui.claims.claim.total",
-            "gui.claims.map.coords",
-            "gui.treasury.upkeep.daily",
-            "gui.treasury.deposit.lore",
+            "gui.main.overview-lore",
+            "gui.main.treasury-lore",
+            "gui.claims.claim-base",
+            "gui.claims.claim-total",
+            "gui.claims.map-coords",
+            "gui.treasury.upkeep-daily",
+            "gui.treasury.deposit-lore",
             "gui.members.entry-online",
-            "gui.member-actions.kick.confirm",
+            "gui.member-actions.kick-confirm",
             "gui.permissions.cannot-grant",
-            "gui.settings.disband.confirm",
-            "gui.settings.motd.current",
+            "gui.settings.disband-confirm",
+            "gui.settings.motd-current",
             "gui.overview.motd-value",
             "city.hall.item-name",
             "city.hall.cannot-break",
@@ -59,7 +59,7 @@ class M8KeyResolutionTest {
     void dottedKeysAreReachable() {
         // The shape this test exists to catch: if this ever returns null, the language files
         // have been written in a way the plugin cannot read, whatever the other tests say.
-        assertNotNull(language("en.yml").getString("gui.claims.unclaim.refund"));
+        assertNotNull(language("en.yml").getString("gui.claims.unclaim-refund"));
         assertNotNull(language("en.yml").getString("gui.rank-picker.weight"));
     }
 }

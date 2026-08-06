@@ -43,9 +43,13 @@ class LangKeyUsageTest {
     private static final Path SOURCE_ROOT = Path.of("src/main/java");
 
     private static FileConfiguration english() {
-        File file = new File("src/main/resources/lang/en.yml");
-        assertTrue(file.isFile(), "en.yml is missing");
-        return YamlConfiguration.loadConfiguration(file);
+        return YamlConfiguration.loadConfiguration(languageFile("en"));
+    }
+
+    private static File languageFile(String language) {
+        File file = new File("src/main/resources/lang/" + language + ".yml");
+        assertTrue(file.isFile(), language + ".yml is missing");
+        return file;
     }
 
     /** Any string literal in the source that has the shape of a message key. */
@@ -133,6 +137,42 @@ class LangKeyUsageTest {
         }
 
         assertTrue(missing.isEmpty(), "Msg constants absent from en.yml: " + missing);
+    }
+
+    /**
+     * A key written with a dot in it silently destroys its own parent.
+     *
+     * <p>Bukkit treats {@code .} as a path separator when it loads YAML, so a file holding
+     * both {@code treasury: "Treasury"} and {@code treasury.lore: "..."} ends up with a
+     * <em>section</em> at {@code treasury}, and {@code getString} on it returns the section's
+     * {@code toString}. The label a player sees becomes
+     * {@code MemorySection[path='gui.main.treasury', root='YamlConfiguration']}.
+     *
+     * <p>Nothing else catches this: the key exists, the lookup returns a non-empty string, and
+     * every other test passes. It is only visible to somebody looking at the screen. Fifty
+     * labels were broken this way before this test existed, so the convention is now a hyphen:
+     * {@code treasury-lore}, never {@code treasury.lore}.
+     */
+    @Test
+    @DisplayName("no key the code asks for resolves to a section")
+    void noRequestedKeyIsASection() throws IOException {
+        Set<String> requested = keysUsedInSource();
+        requested.addAll(Msg.ALL);
+
+        for (String language : List.of("en", "it")) {
+            FileConfiguration config = YamlConfiguration.loadConfiguration(
+                    languageFile(language));
+
+            Set<String> broken = new TreeSet<>();
+            for (String key : requested) {
+                if (config.isConfigurationSection(key)) {
+                    broken.add(language + ".yml: " + key);
+                }
+            }
+
+            assertTrue(broken.isEmpty(),
+                    "keys that would render as a MemorySection: " + broken);
+        }
     }
 
     @Test

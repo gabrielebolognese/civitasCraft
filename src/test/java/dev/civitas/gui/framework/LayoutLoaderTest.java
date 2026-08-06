@@ -72,7 +72,7 @@ class LayoutLoaderTest {
                     material: BEACON
                     label: "gui.main.overview"
                     lore:
-                      - "gui.main.overview.lore"
+                      - "gui.main.overview-lore"
                   claims:
                     slot: 12
                     material: GRASS_BLOCK
@@ -87,7 +87,7 @@ class LayoutLoaderTest {
         MenuLayout.Entry overview = layout.entry("overview").orElseThrow();
         assertEquals(10, overview.slot());
         assertEquals(Material.BEACON, overview.material());
-        assertEquals(List.of("gui.main.overview.lore"), overview.loreKeys());
+        assertEquals(List.of("gui.main.overview-lore"), overview.loreKeys());
 
         assertEquals(12, layout.entry("claims").orElseThrow().slot());
     }

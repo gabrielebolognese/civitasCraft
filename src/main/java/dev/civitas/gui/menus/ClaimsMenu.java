@@ -73,7 +73,7 @@ public final class ClaimsMenu extends CityMenu {
         set(11, claimButton(city, world, chunkX, chunkZ));
         set(13, unclaimButton(city, world, chunkX, chunkZ));
         set(15, Button.of(Material.MAP, text("gui.claims.map"))
-                .lore(text("gui.claims.map.lore"))
+                .lore(text("gui.claims.map-lore"))
                 .onClick(context -> {
                     context.player().closeInventory();
                     var location = context.player().getLocation();
@@ -86,8 +86,8 @@ public final class ClaimsMenu extends CityMenu {
 
         set(20, Button.of(Material.LEAD, text("gui.claims.auto"))
                 .lore(services.claims().isAutoClaiming(viewer.getUniqueId())
-                        ? text("gui.claims.auto.on")
-                        : text("gui.claims.auto.off"))
+                        ? text("gui.claims.auto-on")
+                        : text("gui.claims.auto-off"))
                 .glowing(services.claims().isAutoClaiming(viewer.getUniqueId()))
                 .requires(player -> city().hasPermission(player.getUniqueId(),
                                 CityPermission.CLAIM),
@@ -99,7 +99,7 @@ public final class ClaimsMenu extends CityMenu {
                 .build());
 
         set(22, Button.of(Material.GLOWSTONE, text("gui.claims.borders"))
-                .lore(text("gui.claims.borders.lore"))
+                .lore(text("gui.claims.borders-lore"))
                 .onClick(context -> {
                     context.player().closeInventory();
                     services.borders().toggle(context.player());
@@ -107,7 +107,7 @@ public final class ClaimsMenu extends CityMenu {
                 .build());
 
         set(24, Button.of(Material.FILLED_MAP, text("gui.claims.outposts"))
-                .lore(text("gui.main.outposts.lore",
+                .lore(text("gui.main.outposts-lore",
                         "used", String.valueOf(services.outposts().registry()
                                 .countOf(city.id())),
                         "max", String.valueOf(services.outposts().maxOutposts(city))))
@@ -139,20 +139,20 @@ public final class ClaimsMenu extends CityMenu {
         }
 
         ClaimCostEngine.Breakdown cost = quote.orElseThrow();
-        builder.lore(text("gui.claims.claim.chunk", "index", String.valueOf(cost.chunkIndex())))
-                .lore(text("gui.claims.claim.base", "amount", money(cost.base())))
-                .lore(text("gui.claims.claim.distance", "multiplier",
+        builder.lore(text("gui.claims.claim-chunk", "index", String.valueOf(cost.chunkIndex())))
+                .lore(text("gui.claims.claim-base", "amount", money(cost.base())))
+                .lore(text("gui.claims.claim-distance", "multiplier",
                         two(cost.distanceMultiplier())))
-                .lore(text("gui.claims.claim.members", "divisor", two(cost.memberDivisor())));
+                .lore(text("gui.claims.claim-members", "divisor", two(cost.memberDivisor())));
         if (cost.newcomerMultiplier() < 1.0) {
-            builder.lore(text("gui.claims.claim.newcomer", "multiplier",
+            builder.lore(text("gui.claims.claim-newcomer", "multiplier",
                     two(cost.newcomerMultiplier())));
         }
-        builder.lore(text("gui.claims.claim.total", "amount", money(cost.total())));
+        builder.lore(text("gui.claims.claim-total", "amount", money(cost.total())));
 
         // SPEC 17.2 case 13: a claim that empties the treasury is allowed, and warned about.
         if (city.treasury().subtract(cost.total()).compareTo(BigDecimal.ZERO) == 0) {
-            builder.lore(text("gui.claims.claim.empties-treasury"));
+            builder.lore(text("gui.claims.claim-empties-treasury"));
         }
 
         return builder
@@ -174,7 +174,7 @@ public final class ClaimsMenu extends CityMenu {
 
         Button.Builder builder = Button.of(Material.DIRT, text("gui.claims.unclaim"));
         if (here.isEmpty()) {
-            builder.lore(text("gui.claims.unclaim.not-yours"));
+            builder.lore(text("gui.claims.unclaim-not-yours"));
             return builder.build();
         }
 
@@ -187,16 +187,16 @@ public final class ClaimsMenu extends CityMenu {
         }
 
         BigDecimal refund = services.claims().costs().refundFor(here.get().costPaid());
-        builder.lore(text("gui.claims.unclaim.refund", "amount", money(refund)));
+        builder.lore(text("gui.claims.unclaim-refund", "amount", money(refund)));
 
         return builder
                 .requires(player -> city().hasPermission(player.getUniqueId(),
                                 CityPermission.UNCLAIM),
                         manager.missingPermission(CityPermission.UNCLAIM.name()))
                 .onClick(context -> ConfirmationMenu.builder(manager, context.player())
-                        .title(text("gui.claims.unclaim.confirm-title"))
-                        .question(text("gui.claims.unclaim.confirm"))
-                        .detail(text("gui.claims.unclaim.refund", "amount", money(refund)))
+                        .title(text("gui.claims.unclaim-confirm-title"))
+                        .question(text("gui.claims.unclaim-confirm"))
+                        .detail(text("gui.claims.unclaim-refund", "amount", money(refund)))
                         .parent(this)
                         .onConfirm(() -> services.claims()
                                 .unclaim(context.player().getUniqueId(), city(), world,
@@ -220,10 +220,10 @@ public final class ClaimsMenu extends CityMenu {
                         java.math.RoundingMode.DOWN);
 
         return info(Material.PAPER, text("gui.claims.stats"),
-                text("gui.claims.stats.total", "count", String.valueOf(claims.size())),
-                text("gui.claims.stats.invested", "amount", money(value)),
-                text("gui.claims.stats.average", "amount", money(average)),
-                text("gui.claims.stats.upkeep", "amount",
+                text("gui.claims.stats-total", "count", String.valueOf(claims.size())),
+                text("gui.claims.stats-invested", "amount", money(value)),
+                text("gui.claims.stats-average", "amount", money(average)),
+                text("gui.claims.stats-upkeep", "amount",
                         money(services.upkeepTask().amountFor(city))));
     }
 
@@ -243,8 +243,8 @@ public final class ClaimsMenu extends CityMenu {
             for (int dx = -1; dx <= 1; dx++) {
                 int slot = MAP_ORIGIN + (dz + 1) * 3 + (dx + 1);
                 if (dx == 0 && dz == 0) {
-                    set(slot, info(Material.PLAYER_HEAD, text("gui.claims.map.you"),
-                            text("gui.claims.map.coords",
+                    set(slot, info(Material.PLAYER_HEAD, text("gui.claims.map-you"),
+                            text("gui.claims.map-coords",
                                     "x", String.valueOf(chunkX), "z", String.valueOf(chunkZ))));
                     continue;
                 }
@@ -264,8 +264,8 @@ public final class ClaimsMenu extends CityMenu {
     private Button tile(City city, String world, int chunkX, int chunkZ) {
         Optional<Claim> claim = services.claimRegistry().at(world, chunkX, chunkZ);
         if (claim.isEmpty()) {
-            return info(Material.WHITE_CONCRETE, text("gui.claims.map.wilderness"),
-                    text("gui.claims.map.coords",
+            return info(Material.WHITE_CONCRETE, text("gui.claims.map-wilderness"),
+                    text("gui.claims.map-coords",
                             "x", String.valueOf(chunkX), "z", String.valueOf(chunkZ)));
         }
         boolean own = claim.get().cityId() == city.id();
@@ -274,9 +274,9 @@ public final class ClaimsMenu extends CityMenu {
                 .orElse("?");
 
         return info(own ? Material.LIME_CONCRETE : Material.GRAY_CONCRETE,
-                own ? text("gui.claims.map.yours") : text("gui.claims.map.other",
+                own ? text("gui.claims.map-yours") : text("gui.claims.map-other",
                         "city", owner),
-                text("gui.claims.map.coords",
+                text("gui.claims.map-coords",
                         "x", String.valueOf(chunkX), "z", String.valueOf(chunkZ)));
     }
 

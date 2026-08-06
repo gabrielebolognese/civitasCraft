@@ -55,7 +55,7 @@ public final class MemberActionsMenu extends CityMenu {
 
         set(20, gated(Material.EMERALD, text("gui.member-actions.promote"),
                 CityPermission.MANAGE_RANKS)
-                .lore(text("gui.member-actions.promote.lore"))
+                .lore(text("gui.member-actions.promote-lore"))
                 .onClick(context -> run(context.player(),
                         services.ranks().promote(context.player().getUniqueId(), city(), target),
                         "gui.member-actions.promoted"))
@@ -63,7 +63,7 @@ public final class MemberActionsMenu extends CityMenu {
 
         set(22, gated(Material.REDSTONE, text("gui.member-actions.demote"),
                 CityPermission.MANAGE_RANKS)
-                .lore(text("gui.member-actions.demote.lore"))
+                .lore(text("gui.member-actions.demote-lore"))
                 .onClick(context -> run(context.player(),
                         services.ranks().demote(context.player().getUniqueId(), city(), target),
                         "gui.member-actions.demoted"))
@@ -76,10 +76,10 @@ public final class MemberActionsMenu extends CityMenu {
                 .build());
 
         set(31, gated(Material.BARRIER, text("gui.member-actions.kick"), CityPermission.KICK)
-                .lore(text("gui.member-actions.kick.lore"))
+                .lore(text("gui.member-actions.kick-lore"))
                 .onClick(context -> ConfirmationMenu.builder(manager, context.player())
-                        .title(text("gui.member-actions.kick.confirm-title"))
-                        .question(text("gui.member-actions.kick.confirm", "player",
+                        .title(text("gui.member-actions.kick-confirm-title"))
+                        .question(text("gui.member-actions.kick-confirm", "player",
                                 nameOf(target)))
                         .parent(this)
                         .onConfirm(() -> services.cities()

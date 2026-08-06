@@ -24,8 +24,10 @@ import dev.civitas.core.defense.DefenseService;
 import dev.civitas.core.contest.ContestService;
 import dev.civitas.core.diplomacy.DiplomacyService;
 import dev.civitas.core.events.EventService;
+import dev.civitas.core.war.CapturePoints;
 import dev.civitas.core.war.PeaceOffer;
 import dev.civitas.core.war.WarAllies;
+import dev.civitas.core.war.WarScoreboard;
 import dev.civitas.core.war.WarService;
 import dev.civitas.core.upgrade.UpgradeService;
 import dev.civitas.core.vault.VaultService;
@@ -78,6 +80,8 @@ public record CivitasServices(
         WarService wars,
         WarAllies warAllies,
         PeaceOffer peaceOffers,
+        CapturePoints capturePoints,
+        WarScoreboard warScoreboard,
         OutpostService outposts,
         OutpostTeleport outpostTeleport,
         UpgradeService upgrades,

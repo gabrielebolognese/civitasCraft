@@ -3,6 +3,7 @@ package dev.civitas.gui.menus;
 import static dev.civitas.core.city.CityTestSupport.await;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -164,19 +165,18 @@ class CityScreensTest {
         }
 
         @Test
-        @DisplayName("a system a later milestone builds renders, explains itself, and refuses")
-        void unavailableSystems() {
+        @DisplayName("every button SPEC 8.3 names now leads somewhere")
+        void hubIsComplete() {
+            // Seven of these opened nothing when M8 built the hub. Wars, on slot 22, was the
+            // last to be filled in. A barrier here now means a screen was lost, not deferred.
             MainMenu menu = openMain(mayorPlayer);
 
-            // SPEC 8.3 slot 22 is Wars, which needs M19.
-            ItemStack wars = menu.inventory().getItem(22);
-            assertEquals(Material.BARRIER, wars.getType(), "rendered as the framework's refusal");
-            assertTrue(lore(wars).contains("not available"),
-                    "and says so rather than looking broken");
-
-            listener.onClick(click(mayorPlayer, 22));
-            assertEquals(menu, support.menus.openMenu(mayorPlayer).orElseThrow(),
-                    "clicking it goes nowhere");
+            for (int slot : new int[] {10, 12, 14, 16, 20, 22, 24, 28, 30, 32, 34, 40, 42}) {
+                ItemStack button = menu.inventory().getItem(slot);
+                assertNotNull(button, "SPEC 8.3 slot " + slot + " is empty");
+                assertNotEquals(Material.BARRIER, button.getType(),
+                        "SPEC 8.3 slot " + slot + " still refuses: " + plain(button));
+            }
         }
 
         @Test

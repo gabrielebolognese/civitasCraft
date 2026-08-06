@@ -72,7 +72,7 @@ public final class TreasuryMenu extends CityMenu {
         set(25, customWithdraw());
 
         set(31, Button.of(Material.BOOK, text("gui.treasury.history"))
-                .lore(text("gui.treasury.history.lore"))
+                .lore(text("gui.treasury.history-lore"))
                 .onClick(context -> new TransactionHistoryMenu(manager, services, viewer, city,
                         this).open())
                 .build());
@@ -80,7 +80,7 @@ public final class TreasuryMenu extends CityMenu {
         set(37, upkeepInfo(city));
 
         set(40, Button.of(Material.PLAYER_HEAD, text("gui.treasury.contributions"))
-                .lore(text("gui.treasury.contributions.lore"))
+                .lore(text("gui.treasury.contributions-lore"))
                 .onClick(context -> new ContributionMenu(manager, services, viewer, city, this)
                         .open())
                 .build());
@@ -93,7 +93,7 @@ public final class TreasuryMenu extends CityMenu {
     private Button deposit(Material material, BigDecimal amount) {
         return gated(material, text("gui.treasury.deposit", "amount", money(amount)),
                 CityPermission.DEPOSIT)
-                .lore(text("gui.treasury.deposit.lore"))
+                .lore(text("gui.treasury.deposit-lore"))
                 .onClick(context -> doDeposit(context.player(), amount))
                 .build();
     }
@@ -170,16 +170,16 @@ public final class TreasuryMenu extends CityMenu {
         long runway = services.upkeep().daysOfRunway(city.treasury(), daily);
 
         Button.Builder builder = Button.of(Material.CLOCK, text("gui.treasury.upkeep"))
-                .lore(text("gui.treasury.upkeep.daily", "amount", money(daily)))
-                .lore(text("gui.treasury.upkeep.next", "when", whenDue(city)));
+                .lore(text("gui.treasury.upkeep-daily", "amount", money(daily)))
+                .lore(text("gui.treasury.upkeep-next", "when", whenDue(city)));
 
         if (runway == Long.MAX_VALUE) {
-            builder.lore(text("gui.treasury.upkeep.no-cost"));
+            builder.lore(text("gui.treasury.upkeep-no-cost"));
         } else {
-            builder.lore(text("gui.treasury.upkeep.runway", "days", String.valueOf(runway)));
+            builder.lore(text("gui.treasury.upkeep-runway", "days", String.valueOf(runway)));
         }
         if (city.isDelinquent()) {
-            builder.lore(text("gui.treasury.upkeep.delinquent"));
+            builder.lore(text("gui.treasury.upkeep-delinquent"));
         }
         return builder.build();
     }
@@ -187,7 +187,7 @@ public final class TreasuryMenu extends CityMenu {
     private String whenDue(City city) {
         long remaining = city.upkeepDue() - System.currentTimeMillis();
         if (remaining <= 0) {
-            return manager.lang().get("gui.treasury.upkeep.due-now").toString();
+            return manager.lang().get("gui.treasury.upkeep-due-now").toString();
         }
         long hours = remaining / 3_600_000L;
         return hours <= 0 ? "<1h" : hours + "h";

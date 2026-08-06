@@ -120,10 +120,10 @@ public final class OutpostsMenu extends CityMenu {
             return builder.build();
         }
 
-        builder.lore(text("gui.outposts.create.cost", "amount",
+        builder.lore(text("gui.outposts.create-cost", "amount",
                         money(services.outposts().creationCost(city))))
-                .lore(text("gui.outposts.create.upkeep", "amount", money(dailyUpkeepEach())))
-                .lore(text("gui.outposts.create.here",
+                .lore(text("gui.outposts.create-upkeep", "amount", money(dailyUpkeepEach())))
+                .lore(text("gui.outposts.create-here",
                         "x", String.valueOf(chunkX * 16), "z", String.valueOf(chunkZ * 16)));
 
         return builder

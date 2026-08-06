@@ -921,3 +921,36 @@ Format:
   `breakCrossSideAlliances` handles the case SPEC's second sentence really describes: two
   cities allying *after* they are already on opposite sides, which nothing forbids.
   *Date:* 2026-08-06
+
+- **[M19]** SPEC 8.8 describes three different Wars screens but gives them one slot on the
+  SPEC 8.3 hub, and does not say what happens between them: a war moves from PREP to ACTIVE
+  while somebody is looking at it. *Implemented default:* one live menu that picks its face
+  from the war's state on every draw, so the screen changes under the viewer at the moment
+  the phase does. The alternative, three menus chosen when the window opens, would leave a
+  mayor staring at a countdown that had already finished. *Date:* 2026-08-06
+
+- **[M19]** SPEC 8.8 puts a Declare War button on the peacetime screen and says it "opens city
+  selector, then wager selector, then a confirmation screen showing full terms". *Implemented
+  default:* the button closes the window and points at `/war declare`. A wager selector needs
+  a number the player chooses between 50,000 C and a quarter of the smaller treasury, which
+  the framework's chat prompt already asks for elsewhere, and SPEC 11.3's terms run to twelve
+  preconditions that read better as text than as lore on a confirm button. This is the one
+  place M19 delivers less interface than SPEC 8.8 asks for, and it is recorded rather than
+  quietly dropped. *Date:* 2026-08-06
+
+- **[M19]** SPEC 8.8's ACTIVE screen shows "Capture Point Status" and SPEC 9.3 gives
+  `/war scoreboard` a sidebar, neither with a refresh rate. *Implemented default:* both ride
+  the one-second objective tick that SPEC 11.6's capture holds already need, so a score
+  appears a second after the kill that earned it. A faster tick would count heads twenty
+  times a second to answer a question measured in minutes. *Date:* 2026-08-06
+
+- **[Bug, all GUI milestones]** Bukkit reads `.` as a path separator when it loads YAML, so a
+  language file holding both `treasury: "Treasury"` and `treasury.lore: "..."` ends up with a
+  *section* at `treasury`, and `getString` on a section returns its `toString`. Fifty labels
+  across every GUI screen were rendering as
+  `MemorySection[path='gui.main.treasury', root='YamlConfiguration']` to players. Nothing
+  caught it: the key existed, the lookup returned a non-empty string, and every test passed.
+  *Fixed:* 90 child keys renamed from `parent.child` to `parent-child` in both languages and
+  at every call site, plus `LangKeyUsageTest.noRequestedKeyIsASection` so a key the code asks
+  for can never again resolve to a section. Related: a bare `on:` or `off:` key is a YAML 1.1
+  boolean and loads as `true`/`false`, so those are quoted. *Date:* 2026-08-06

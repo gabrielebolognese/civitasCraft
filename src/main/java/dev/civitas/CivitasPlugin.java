@@ -548,6 +548,7 @@ public final class CivitasPlugin extends JavaPlugin {
                 upkeepTask, marketService, marketFilter, shopService, questService,
                 challengeService, leaderboardService, statsService, contestService,
                 eventService, warWiring.service(), warWiring.allies(), warWiring.peace(),
+                warWiring.capturePoints(), warWiring.scoreboard(),
                 outpostService, outpostTeleport, upgradeService,
                 defenseService, diplomacyService, vaultService, vaultView,
                 menuManager, layoutLoader,
@@ -775,7 +776,9 @@ public final class CivitasPlugin extends JavaPlugin {
                              double marketBonusPercent,
                              dev.civitas.core.war.WarService service,
                              dev.civitas.core.war.WarAllies allies,
-                             dev.civitas.core.war.PeaceOffer peace) { }
+                             dev.civitas.core.war.PeaceOffer peace,
+                             dev.civitas.core.war.CapturePoints capturePoints,
+                             dev.civitas.core.war.WarScoreboard scoreboard) { }
 
     private WarWiring startWarSystem(DatabaseManager database, DaoRegistry loadedDaos,
                                 CityRegistry cityRegistry, ClaimRegistry claimRegistry,
@@ -872,7 +875,13 @@ public final class CivitasPlugin extends JavaPlugin {
         scoringListener.useKillLog(loadedDaos.warKills());
         manager.registerEvents(scoringListener, this);
 
-        scheduleWarObjectives(warRegistry, capturePoints, cityRegistry);
+        // SPEC 9.3's /war scoreboard. Off for everyone until somebody asks for it, so the
+        // refresh below costs one set-emptiness check a second on a server nobody has.
+        dev.civitas.core.war.WarScoreboard scoreboard =
+                new dev.civitas.core.war.WarScoreboard(warRegistry, cityRegistry, lang);
+        manager.registerEvents(scoreboard, this);
+
+        scheduleWarObjectives(warRegistry, capturePoints, cityRegistry, scoreboard);
 
         long phaseTicks = configs.get(ConfigFile.WAR)
                 .getLong("phases.check-interval-minutes", 5) * 60L * 20L;
@@ -882,7 +891,7 @@ public final class CivitasPlugin extends JavaPlugin {
         Bukkit.getScheduler().runTaskTimerAsynchronously(this, blockLog::flush, ticks, ticks);
 
         return new WarWiring(warRegistry, warRewards, payouts.marketBonusPercent(),
-                warService, warAllies, peaceOffers);
+                warService, warAllies, peaceOffers, capturePoints, scoreboard);
     }
 
     /**
@@ -894,7 +903,8 @@ public final class CivitasPlugin extends JavaPlugin {
      */
     private void scheduleWarObjectives(dev.civitas.core.war.WarRegistry warRegistry,
                                        dev.civitas.core.war.CapturePoints capturePoints,
-                                       CityRegistry cityRegistry) {
+                                       CityRegistry cityRegistry,
+                                       dev.civitas.core.war.WarScoreboard scoreboard) {
         dev.civitas.core.war.CapturePoints.Occupancy occupancy =
                 (world, chunkX, chunkZ, cities) -> {
                     int count = 0;
@@ -922,6 +932,9 @@ public final class CivitasPlugin extends JavaPlugin {
                 capturePoints.tick(war, occupancy, now);
                 tickCityHallStands(war, capturePoints, cityRegistry, now);
             }
+            // The sidebar shares this tick because it shows what the tick just computed: a
+            // score updated a second after the kill that earned it reads as live.
+            scoreboard.refresh(now);
         }, 20L, 20L);
     }
 

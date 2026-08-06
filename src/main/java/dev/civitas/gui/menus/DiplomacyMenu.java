@@ -106,15 +106,15 @@ public final class DiplomacyMenu extends CityMenu {
                         breaking ? Material.ORANGE_BANNER : Material.WHITE_BANNER,
                         text("gui.diplomacy.ally", "city", name))
                 .lore(alliance.trusted()
-                        ? text("gui.diplomacy.ally.trusted")
-                        : text("gui.diplomacy.ally.untrusted"));
+                        ? text("gui.diplomacy.ally-trusted")
+                        : text("gui.diplomacy.ally-untrusted"));
 
         if (breaking) {
-            builder.lore(text("gui.diplomacy.ally.breaking", "hours",
+            builder.lore(text("gui.diplomacy.ally-breaking", "hours",
                     String.valueOf(services.diplomacy().hoursLeftOfNotice(alliance))));
         } else {
-            builder.lore(text("gui.diplomacy.ally.toggle-trust"))
-                    .lore(text("gui.diplomacy.ally.break-hint"));
+            builder.lore(text("gui.diplomacy.ally-toggle-trust"))
+                    .lore(text("gui.diplomacy.ally-break-hint"));
         }
 
         return builder
@@ -147,7 +147,7 @@ public final class DiplomacyMenu extends CityMenu {
         String name = nameOf(alliance.otherThan(city.id()));
 
         return Button.of(Material.PAPER, text("gui.diplomacy.pending", "city", name))
-                .lore(text("gui.diplomacy.pending.accept"))
+                .lore(text("gui.diplomacy.pending-accept"))
                 .requires(player -> city().hasPermission(player.getUniqueId(),
                                 CityPermission.MANAGE_DIPLOMACY),
                         manager.missingPermission(CityPermission.MANAGE_DIPLOMACY.name()))
@@ -165,9 +165,9 @@ public final class DiplomacyMenu extends CityMenu {
         // party, so there is nothing here for anyone to do.
         return info(Material.LIGHT_BLUE_BANNER,
                 text("gui.diplomacy.truce", "city", nameOf(truce.otherCityId())),
-                text("gui.diplomacy.truce.until",
+                text("gui.diplomacy.truce-until",
                         "when", WHEN.format(Instant.ofEpochMilli(truce.expiresAt()))),
-                text("gui.diplomacy.truce.permanent"));
+                text("gui.diplomacy.truce-permanent"));
     }
 
     private void confirmBreak(Player player, Alliance alliance, String name) {

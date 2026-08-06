@@ -109,6 +109,11 @@ public final class WarCommand {
                             acceptPeace(context.getSource().getSender());
                             return Command.SINGLE_SUCCESS;
                         }))
+                .then(Commands.literal("scoreboard")
+                        .executes(context -> {
+                            scoreboard(context.getSource().getSender());
+                            return Command.SINGLE_SUCCESS;
+                        }))
                 .then(Commands.literal("history")
                         .executes(context -> {
                             history(context.getSource().getSender(), null);
@@ -268,6 +273,27 @@ public final class WarCommand {
                                 Replies.p("state", row.state()));
                     }
                 }));
+    }
+
+    /**
+     * SPEC 9.3's {@code /war scoreboard}, a toggle rather than something imposed.
+     *
+     * <p>Turning it on for a player with no war to watch is allowed: it takes effect the
+     * moment their city is in one, which is less surprising than being told no and having to
+     * remember to ask again later.
+     */
+    private void scoreboard(Audience audience) {
+        Player player = playerOrNull(audience);
+        if (player == null) {
+            return;
+        }
+        CivitasServices current = services.get();
+        if (current == null) {
+            lang.send(audience, "plugin.starting");
+            return;
+        }
+        boolean on = current.warScoreboard().toggle(player);
+        lang.send(player, on ? "war.board.on" : "war.board.off");
     }
 
     // ==================================================================================
