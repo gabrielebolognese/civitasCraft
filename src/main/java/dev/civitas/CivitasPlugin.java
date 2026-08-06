@@ -56,6 +56,10 @@ import dev.civitas.core.events.EventService;
 import dev.civitas.core.events.InvasionWaves;
 import dev.civitas.core.progression.LeaderboardService;
 import dev.civitas.core.progression.StatsService;
+import dev.civitas.core.war.BukkitTilePayloadCodec;
+import dev.civitas.core.war.WarBlockLogger;
+import dev.civitas.core.war.WarBlockRecorder;
+import dev.civitas.core.war.WarZones;
 import dev.civitas.core.outpost.OutpostRegistry;
 import dev.civitas.core.outpost.OutpostService;
 import dev.civitas.core.outpost.OutpostTeleport;
@@ -140,6 +144,7 @@ public final class CivitasPlugin extends JavaPlugin {
     private LangManager lang;
     private StatsService stats;
     private EventBossBar eventBar;
+    private WarBlockLogger warBlockLog;
     private DatabaseManager database;
     private DaoRegistry daos;
     private BackupService backups;
@@ -205,6 +210,13 @@ public final class CivitasPlugin extends JavaPlugin {
         if (outposts != null) {
             outposts.stopAll();
             outposts = null;
+        }
+        if (warBlockLog != null) {
+            // SPEC 17.7 case 84: "Flush the log buffer synchronously in onDisable(). Never
+            // lose buffered entries." A dropped entry here is a block that can never be
+            // restored, so this blocks and it goes before the pool closes.
+            warBlockLog.flushBlocking();
+            warBlockLog = null;
         }
         if (eventBar != null) {
             // A bar left on screen outlives the plugin that owns it and tells every player
@@ -561,6 +573,8 @@ public final class CivitasPlugin extends JavaPlugin {
 
         scheduleEvents(eventService, cityRegistry, claimRegistry, treasuryService, manager);
 
+        startWarBlockLog(loadedDaos);
+
         scheduleMarketDecay(marketRegistry, pricing, loadedDaos);
 
         // SPEC 8.2, the GUI framework. Registered before any screen exists so that M8 adds
@@ -725,6 +739,36 @@ public final class CivitasPlugin extends JavaPlugin {
             new java.security.SecureRandom().nextBytes(temporary);
             return LoginFingerprint.withSalt(temporary);
         }
+    }
+
+    /**
+     * The SPEC 11.8.1 war block logger.
+     *
+     * <p>Registered now although no war exists yet, which SPEC 19 asks for directly: M17 and
+     * M18 build and test the rollback engine before any war gameplay, so that it is never
+     * tested under time pressure with players waiting. Until M19 supplies real war zones,
+     * {@link WarZones#none()} answers "no war" and every listener returns on its first line,
+     * so a peacetime server pays nothing for this.
+     */
+    private void startWarBlockLog(DaoRegistry loadedDaos) {
+        BukkitTilePayloadCodec codec = new BukkitTilePayloadCodec(getLogger());
+        WarBlockLogger blockLog = new WarBlockLogger(loadedDaos.warBlockLog(), codec, configs,
+                getLogger());
+        this.warBlockLog = blockLog;
+
+        // The operator should learn what a rollback cannot put back before a war, not after.
+        for (String limitation : codec.knownLimitations()) {
+            getLogger().info("War rollback limitation: " + limitation);
+        }
+
+        WarBlockRecorder recorder = new WarBlockRecorder(WarZones.none(), blockLog);
+        var manager = getServer().getPluginManager();
+        manager.registerEvents(new dev.civitas.listener.war.WarBlockListener(recorder), this);
+        manager.registerEvents(new dev.civitas.listener.war.WarPhysicsListener(recorder), this);
+        manager.registerEvents(new dev.civitas.listener.war.WarHangingListener(recorder), this);
+
+        long ticks = Math.max(1L, blockLog.flushIntervalSeconds()) * 20L;
+        Bukkit.getScheduler().runTaskTimerAsynchronously(this, blockLog::flush, ticks, ticks);
     }
 
     /**

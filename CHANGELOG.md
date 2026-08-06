@@ -4,6 +4,51 @@ All notable changes to CivitasCraft. One section per milestone from `PLAN.md`.
 
 ## [Unreleased]
 
+### M17, War: block logging
+
+The write side of the rollback engine. No war gameplay: SPEC 19 orders M17 and M18 before
+M19 so the engine is built and tested before there is a war to test it under, and this
+milestone keeps to that.
+
+Added:
+- `WarBlockLogger`: the ring buffer, per-war sequence numbers, batched async flush, retry that
+  preserves order, and the three limits that make it refuse work rather than lose it.
+- `WarZones`: the seam M19 fills in. Until then it answers "no war", so every listener returns
+  on its first line and a peacetime server pays nothing for the logger.
+- `TilePayloadCodec` and `BukkitTilePayloadCodec`: the per-type tile capture. See below.
+- `WarBlockRecorder` plus three listeners covering every source in SPEC 11.8.1's table:
+  breaks, places, multi-places, buckets, signs, trampling, explosions, fire, fluid, pistons,
+  growth, decay, fade, entity block changes, and hanging entities.
+- Benchmarks for PLAN.md's gate, and tests for SPEC 17.4 cases 42, 45 and 58 and SPEC 17.7
+  cases 84 and 85.
+
+Benchmarked, against SPEC 11.8.1's 2,000 changes per second:
+- record path (server thread): **1,546,472/sec**
+- record and flush end to end: **93,567/sec**
+- a 40,000 block explosion (SPEC 17.4 case 45): **82 ms**
+
+Notes:
+- **SPEC 11.8.1's NBT API does not exist.** It says to "serialize the full NBT … using Paper's
+  BlockState snapshot serialization"; paper-api 1.21.11 contains no class matching `nbt`,
+  `TileState` exposes only `isSnapshot` and the plugin-owned PDC, and `BlockState` exposes only
+  `copy`. Capture is therefore per-type through the accessors Bukkit does provide, behind an
+  interface so an NMS or library-backed implementation can replace it without touching the
+  logger or the rollback that reads it. Chests, furnaces mid-smelt, signs, banners and spawners
+  all round-trip; **the bees inside a hive do not**, and that is stated at startup rather than
+  discovered at M20.
+- **The failure policy is refuse, never drop.** A full buffer (SPEC 17.7 case 85) or a war at
+  its row ceiling (SPEC 17.4 case 58) makes the listeners cancel the event. SPEC 17.4 case 58
+  states the reasoning: "Correctness over gameplay." A player who cannot break a block is
+  annoyed; a player whose house does not come back has quit.
+- **Listeners run at NORMAL priority, not MONITOR**, because the log records the state a block
+  is changing *from*. At MONITOR the block has already changed and the log would store the new
+  state as the old one, producing a rollback that faithfully restores rubble.
+- A per-war row ceiling counted the *global* buffer at first, so one busy war refused grief in
+  a quiet one. Found by the test that asserts the ceiling is per war.
+- One unimplemented optional accessor was discarding a whole tile payload. Optional fields are
+  now tolerated individually, so a sign keeps its text on a server that does not model whether
+  it is waxed.
+
 ### M16, Server events
 
 Added:

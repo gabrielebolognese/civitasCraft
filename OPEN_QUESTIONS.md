@@ -745,3 +745,49 @@ Format:
   twice per natural growth. Applied with physics suppressed, for the reason SPEC 11.8.2 gives
   about rollback: a growth that cascades into neighbours is not what anyone asked for.
   *Date:* 2026-08-05
+
+- **[M17]** SPEC 11.8.1 says that for tile entities the logger should "additionally serialize
+  the full NBT to `old_nbt` using Paper's `BlockState` snapshot serialization". **That API does
+  not exist.** The paper-api 1.21.11 jar contains no class matching `nbt`; `TileState` exposes
+  only `isSnapshot` and the plugin-owned `PersistentDataContainer`, and `BlockState` exposes
+  only `copy`. Vanilla NBT is reachable from a plugin only through NMS, which SPEC 2.1 forbids
+  unless unavoidable. *Implemented default:* a `TilePayloadCodec` interface with a per-type
+  Bukkit implementation, capturing what the API does expose: container and furnace inventories,
+  furnace burn and cook timings, sign text with colour and glow, banner base colour and
+  patterns, and spawner type and delays. Every element of SPEC 18.3's step 2 list round-trips
+  **except the bees inside a beehive**, which `EntityBlockStorage` counts but will not hand
+  over; a hive rolls back empty. The limitation is printed at startup and returned by
+  `knownLimitations()` rather than left to be discovered during the SPEC 18.3 protocol.
+  **This needs a developer decision before M20 signs off**: SPEC 18.3 step 8 as literally
+  written ("every … matches the pre-war screenshots exactly") cannot pass for a hive without
+  an NMS-backed codec. *Date:* 2026-08-06
+
+- **[M17]** SPEC 11.8.1 lists item frames, paintings and armor stands among the sources to log,
+  but SPEC 3.8's `war_block_log` is block-shaped: it has x, y, z and `old_block_data` and no
+  notion of an entity. *Implemented default:* a hanging entity is recorded at the block it
+  occupies, with the sentinel `civitas:hanging` in `old_block_data` and its detail in the
+  payload column. M18's rollback distinguishes them by that marker. The alternative, a second
+  table, would have been cleaner but SPEC 3 does not define one and the sequence numbering
+  that orders a replay is per war, not per table: two tables would need their ordering merged.
+  *Date:* 2026-08-06
+
+- **[M17]** SPEC 11.8.1 does not say what to do when a change cannot be logged, and SPEC 17.4
+  case 58 and SPEC 17.7 case 85 answer it only for their own cases. *Implemented default:* one
+  rule everywhere. `WarBlockLogger.isAcceptingChanges` answers false when the shared buffer is
+  full or a war has reached its row ceiling, and every listener cancels its event when it does.
+  SPEC 17.4 case 58's own words settle the trade: "Correctness over gameplay." The buffer cap
+  is global because it bounds memory; the row ceiling is per war because SPEC 17.4 case 58
+  states it per war. *Date:* 2026-08-06
+
+- **[M17]** SPEC 11.8.1 gives no event priority, and the obvious choice is wrong. *Implemented
+  default:* `NORMAL` with `ignoreCancelled`, never `MONITOR`. The log records the state a block
+  is changing *from*, so it must read the block before the change lands; at `MONITOR` it would
+  read the new state and store it as the old one, and the rollback would then faithfully
+  restore the rubble. This is the single most damaging mistake available in this subsystem and
+  it would look correct in every log. *Date:* 2026-08-06
+
+- **[M17]** SPEC 3.8 gives `war_block_log` a monotonic `sequence` per war but does not say how
+  it survives a restart. *Implemented default:* `WarBlockLogger.resume` seeds the counter from
+  `MAX(sequence)` on disk when a war is loaded. Without it a restarted server would hand out
+  sequence numbers that already exist, and a replay ordered by sequence would apply two
+  different changes in an order that is not the order they happened. *Date:* 2026-08-06
