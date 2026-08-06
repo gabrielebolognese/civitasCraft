@@ -5,7 +5,7 @@
 
 ## Current session focus
 
-**Next milestone:** M18, War: rollback engine
+**Next milestone:** M19, War: lifecycle
 
 ## Session protocol
 
@@ -41,7 +41,7 @@
 | 15 | Contests | M14, M8 | DONE | Full SPEC 13.4 cycle, marking, voting on three axes, weighted scoring, prizes. V9. Closes M14's Contest Champions seam. **The SPEC 13.4 "verified against block placement logs" check cannot run until M17 and says so at startup.** `/ca contest` is M21. |
 | 16 | Server events | M5, M6 | DONE | All eight SPEC 13.5 events, scheduler with weights and cooldowns, boss bar, announcements, invasion waves. V10. **SPEC gives no schedule, so the interval, weights and cooldowns are this implementation's.** Gold Rush multiplies ore *drops*: generation cannot change after a chunk exists. |
 | 17 | War: block logging | M4 | DONE | Every SPEC 11.8.1 source, ring buffer, async batching, crash-safe flush, per-war row ceiling. **Benchmark: 1,546,472/sec record path, 93,567/sec end to end against SPEC's 2,000 target.** No war gameplay, per SPEC 19's ordering note. **SPEC 11.8.1's NBT API does not exist in paper-api; capture is per-type Bukkit and a hive's bees do not round-trip.** |
-| 18 | War: rollback engine | M17 | TODO | Test with a synthetic block log, no war gameplay yet |
+| 18 | War: rollback engine | M17 | DONE | Reverse replay with physics suppressed, paging, throttling, checkpoint and resume, verification sampling, SPEC 11.8.4 chunk hashes, ROLLBACK_FAILED. V11. Driven by a synthetic log exactly as SPEC 19 asks. **Evacuation, living-entity restore and the no-drops rule are M19: all three need war start.** |
 | 19 | War: lifecycle | M18, M13 | TODO | |
 | 20 | War: hardening | M19 | TODO | Manual protocol SPEC 18.3 must pass 3x |
 | 21 | Admin tooling | all | TODO | |

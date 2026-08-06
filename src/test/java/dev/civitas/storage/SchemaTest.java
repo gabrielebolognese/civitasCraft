@@ -128,6 +128,13 @@ class SchemaTest {
         // without one a restart silently cancels whatever was running.
         schema.put("server_events", List.of("id", "event_key", "starts_at", "ends_at",
                 "ended_at", "announced"));
+        // V11, SPEC 11.8.4: the chunk checksums taken before a war and after its rollback.
+        schema.put("war_chunk_hashes", List.of("war_id", "world", "chunk_x", "chunk_z",
+                "hash_before", "hash_after"));
+        // V11, SPEC 17.4 case 57: what a rollback could not put back, kept for the admin who
+        // has to explain it. SPEC 3 lists neither table.
+        schema.put("war_rollback_issues", List.of("id", "war_id", "kind", "world", "x", "y", "z",
+                "detail", "detected_at"));
         return schema;
     }
 

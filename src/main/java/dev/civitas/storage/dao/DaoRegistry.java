@@ -18,6 +18,8 @@ public final class DaoRegistry {
     private final PlayerStatDao playerStats;
     private final PlayerLoginDao playerLogins;
     private final ServerEventDao serverEvents;
+    private final WarChunkHashDao warChunkHashes;
+    private final WarRollbackIssueDao warRollbackIssues;
     private final CityDao cities;
     private final CityRankDao cityRanks;
     private final CityMemberDao cityMembers;
@@ -52,6 +54,8 @@ public final class DaoRegistry {
         this.playerStats = new PlayerStatDao(db);
         this.playerLogins = new PlayerLoginDao(db);
         this.serverEvents = new ServerEventDao(db);
+        this.warChunkHashes = new WarChunkHashDao(db);
+        this.warRollbackIssues = new WarRollbackIssueDao(db);
         this.cities = new CityDao(db);
         this.cityRanks = new CityRankDao(db);
         this.cityMembers = new CityMemberDao(db);
@@ -95,6 +99,14 @@ public final class DaoRegistry {
 
     public ServerEventDao serverEvents() {
         return serverEvents;
+    }
+
+    public WarChunkHashDao warChunkHashes() {
+        return warChunkHashes;
+    }
+
+    public WarRollbackIssueDao warRollbackIssues() {
+        return warRollbackIssues;
     }
 
     public CityDao cities() {
@@ -207,7 +219,7 @@ public final class DaoRegistry {
 
     /** Every DAO, in no particular order. Used by tests that assert across the whole set. */
     public List<Dao<?>> all() {
-        return List.of(players, playerStats, playerLogins, serverEvents, cities, cityRanks, cityMembers, cityInvites, cityBans, claims, outposts,
+        return List.of(players, playerStats, playerLogins, serverEvents, warChunkHashes, warRollbackIssues, cities, cityRanks, cityMembers, cityInvites, cityBans, claims, outposts,
                 ledger, economySnapshots, wars, warBlockLog, warContainerLog, warParticipants, warKills, alliances,
                 truces, marketStock, playerShops, playerQuests, cityChallenges, contests, contestEntries, contestVotes,
                 cityUpgrades, cityVault, defenseUnits, auditLog);

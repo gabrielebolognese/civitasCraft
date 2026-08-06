@@ -4,6 +4,48 @@ All notable changes to CivitasCraft. One section per milestone from `PLAN.md`.
 
 ## [Unreleased]
 
+### M18, War: rollback engine
+
+The read side. SPEC 11.8 calls this "the most important code in the plugin", and SPEC 11.1
+says why: the whole design rests on players believing their builds come back. Still no war
+gameplay, and the engine is driven by a hand-written block log exactly as SPEC 19 prescribes.
+
+Added:
+- `RollbackEngine`: paged reverse replay, throttled application, checkpointing, verification
+  sampling, chunk-hash comparison, and the terminal `ROLLBACK_FAILED` state.
+- `BlockApplier`: the physics-suppressed write and SPEC 11.8.2 step 7's boundary-only second
+  pass, plus SPEC 17.4 case 49's load-on-demand and case 50's trapped-player check.
+- `ChunkHasher`: SPEC 11.8.4's failsafe, which does not repair anything and is not meant to.
+- `RollbackJob` and `RollbackStatus`: progress and outcome, for M21's `/ca war rollbackstatus`.
+- V11 `war_chunk_hashes` and `war_rollback_issues`: both findings outlive the process that
+  produced them, because an admin reads them after the war and possibly after a restart.
+- `WarBlockLogger.freeze`: SPEC 11.8.2 step 2.
+
+Notes:
+- **Replay runs newest first, and that is what makes SPEC 17.4 case 42 work.** A block placed,
+  broken and placed again produces three entries; applying them in descending sequence means
+  the oldest lands last and wins, so a position ends as it began with no special case for
+  history.
+- **Physics is suppressed on every write.** SPEC 11.8.2 step 4 and CLAUDE.md both warn about
+  it: restore one sand block with physics on and it falls before its neighbour is placed, a
+  water source floods the hole the next entry would have filled, and the restore corrupts
+  itself while every individual write looks correct.
+- **The verification sample tracks the last value written at a position, not a random entry.**
+  The naive reading of SPEC 11.8.2 step 8 fails for every block changed twice, and SPEC 17.4
+  case 42 guarantees those exist.
+- **A failed rollback is terminal.** SPEC 11.8.5: "It must never silently give up and reopen a
+  griefed city." Nothing in the engine clears that state.
+
+Three bugs the tests found, all in failure paths:
+- An unreadable log threw synchronously out of the DAO, so `exceptionally` never ran and the
+  war never reached `ROLLBACK_FAILED` — losing SPEC 11.8.5's guarantee at the one moment it
+  matters. **This is the third time this shape has bitten** (StatsService at M14, WarBlockLogger
+  at M17); the pattern is now recorded in OPEN_QUESTIONS.
+- `failJob` then wrote the failure to the same closed database and threw again. It now fails in
+  memory first, so a dead database cannot leave a job reporting RUNNING.
+- Checkpoint writes were fired independently and could land out of order, making a resume
+  non-deterministic. They are chained now.
+
 ### M17, War: block logging
 
 The write side of the rollback engine. No war gameplay: SPEC 19 orders M17 and M18 before

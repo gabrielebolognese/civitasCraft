@@ -82,6 +82,9 @@ public final class WarBlockLogger {
     /** Wars already warned about, so the 80% warning is logged once rather than per block. */
     private final java.util.Set<Integer> warned = ConcurrentHashMap.newKeySet();
 
+    /** Wars whose log is closed because a rollback is replaying it, SPEC 11.8.2 step 2. */
+    private final java.util.Set<Integer> frozen = ConcurrentHashMap.newKeySet();
+
     /** True while a flush is in flight, so two do not race for the same entries. */
     private final AtomicBoolean flushing = new AtomicBoolean();
 
@@ -171,6 +174,12 @@ public final class WarBlockLogger {
      * <p>The listeners consult this before allowing grief. False means cancel the event.
      */
     public boolean isAcceptingChanges(int warId) {
+        if (frozen.contains(warId)) {
+            // SPEC 11.8.2 step 2: once a rollback starts, the log takes nothing more for that
+            // war. An entry arriving mid-replay would be a change the replay has already gone
+            // past, so it would survive the rollback that was meant to undo it.
+            return false;
+        }
         if (bufferedCount() >= maxBufferedEntries()) {
             if (refusing.compareAndSet(false, true)) {
                 logger.severe("The war block log buffer is full (" + maxBufferedEntries()
@@ -244,8 +253,24 @@ public final class WarBlockLogger {
         pending.put(warId, new AtomicLong());
     }
 
+    /**
+     * Closes a war's log, SPEC 11.8.2 step 2.
+     *
+     * <p>Called when a rollback begins. Anything still buffered is kept and will be written:
+     * those entries describe damage that happened before the freeze and the replay has not
+     * reached them yet.
+     */
+    public void freeze(int warId) {
+        frozen.add(warId);
+    }
+
+    public boolean isFrozen(int warId) {
+        return frozen.contains(warId);
+    }
+
     /** Forgets a finished war's counters, once its rollback has completed. */
     public void forget(int warId) {
+        frozen.remove(warId);
         sequences.remove(warId);
         written.remove(warId);
         pending.remove(warId);

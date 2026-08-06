@@ -145,6 +145,7 @@ public final class CivitasPlugin extends JavaPlugin {
     private StatsService stats;
     private EventBossBar eventBar;
     private WarBlockLogger warBlockLog;
+    private dev.civitas.core.war.RollbackEngine rollbackEngine;
     private DatabaseManager database;
     private DaoRegistry daos;
     private BackupService backups;
@@ -210,6 +211,12 @@ public final class CivitasPlugin extends JavaPlugin {
         if (outposts != null) {
             outposts.stopAll();
             outposts = null;
+        }
+        if (rollbackEngine != null) {
+            // SPEC 11.8.5: a checkpoint that never reached disk is work the next boot
+            // repeats. Waiting costs a moment here; not waiting costs it on every restart.
+            rollbackEngine.awaitAllCheckpoints();
+            rollbackEngine = null;
         }
         if (warBlockLog != null) {
             // SPEC 17.7 case 84: "Flush the log buffer synchronously in onDisable(). Never
@@ -761,6 +768,14 @@ public final class CivitasPlugin extends JavaPlugin {
             getLogger().info("War rollback limitation: " + limitation);
         }
 
+        // SPEC 11.8.2, the rollback engine. Built here with the logger because the two share
+        // the codec: what M17 wrote is exactly what M18 has to read back.
+        dev.civitas.core.war.RollbackEngine rollback = new dev.civitas.core.war.RollbackEngine(
+                loadedDaos, configs, codec, new dev.civitas.core.war.ChunkHasher(configs),
+                getLogger());
+        this.rollbackEngine = rollback;
+        resumeInterruptedRollbacks(rollback, blockLog);
+
         WarBlockRecorder recorder = new WarBlockRecorder(WarZones.none(), blockLog);
         var manager = getServer().getPluginManager();
         manager.registerEvents(new dev.civitas.listener.war.WarBlockListener(recorder), this);
@@ -769,6 +784,70 @@ public final class CivitasPlugin extends JavaPlugin {
 
         long ticks = Math.max(1L, blockLog.flushIntervalSeconds()) * 20L;
         Bukkit.getScheduler().runTaskTimerAsynchronously(this, blockLog::flush, ticks, ticks);
+    }
+
+    /**
+     * SPEC 11.8.5: a rollback interrupted by a crash is picked up on the next boot.
+     *
+     * <p>Driven from a repeating task that alternates the engine's two halves: a page is read
+     * off the server thread, then at most {@code blocks-per-tick} of it is applied on it. The
+     * war zone stays closed throughout, and a war whose log cannot be read is left FAILED for
+     * an administrator rather than quietly reopened.
+     */
+    private void resumeInterruptedRollbacks(dev.civitas.core.war.RollbackEngine rollback,
+                                            WarBlockLogger blockLog) {
+        if (!rollback.isEnabled()) {
+            getLogger().severe("war.yml has rollback.enabled: false, so an interrupted rollback "
+                    + "will NOT be resumed. War damage stays permanent.");
+            return;
+        }
+
+        rollback.findInterrupted().thenAccept(warIds -> {
+            if (warIds.isEmpty()) {
+                return;
+            }
+            getLogger().warning("Found " + warIds.size() + " war(s) interrupted mid-rollback. "
+                    + "Resuming; their zones stay closed until it completes.");
+            for (int warId : warIds) {
+                blockLog.freeze(warId);
+                rollback.begin(warId).thenAccept(job ->
+                        Bukkit.getScheduler().runTaskTimer(this, task -> {
+                            if (job.status() != dev.civitas.core.war.RollbackStatus.RUNNING) {
+                                task.cancel();
+                                return;
+                            }
+                            if (!job.hasPending()) {
+                                rollback.fetchNextPage(job).thenAccept(read -> {
+                                    if (read == 0 && !job.hasPending()) {
+                                        Bukkit.getScheduler().runTask(this, () -> finishRollback(
+                                                rollback, blockLog, job));
+                                    }
+                                });
+                                return;
+                            }
+                            rollback.applySlice(job);
+                        }, 1L, 1L));
+            }
+        });
+    }
+
+    private void finishRollback(dev.civitas.core.war.RollbackEngine rollback,
+                                WarBlockLogger blockLog,
+                                dev.civitas.core.war.RollbackJob job) {
+        if (job.status() != dev.civitas.core.war.RollbackStatus.RUNNING) {
+            return;
+        }
+        rollback.finish(job).thenAccept(issues -> {
+            if (issues.isEmpty()) {
+                getLogger().info("Rollback of war " + job.warId() + " completed cleanly, "
+                        + job.applied() + " blocks restored.");
+            } else {
+                getLogger().warning("Rollback of war " + job.warId() + " completed with "
+                        + issues.size() + " issue(s). See /ca war rollbackstatus.");
+            }
+            blockLog.forget(job.warId());
+            rollback.forget(job.warId());
+        });
     }
 
     /**

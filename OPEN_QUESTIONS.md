@@ -791,3 +791,50 @@ Format:
   `MAX(sequence)` on disk when a war is loaded. Without it a restarted server would hand out
   sequence numbers that already exist, and a replay ordered by sequence would apply two
   different changes in an order that is not the order they happened. *Date:* 2026-08-06
+
+- **[M18]** A recurring hazard, now hit three times, worth stating once as a rule. Several DAO
+  calls throw **synchronously** rather than returning a failed future: `DatabaseManager.call`
+  checks `requireOpen()` before it ever reaches the executor, so a closed pool throws out of
+  the call itself and any `.exceptionally(...)` attached to the result never runs. It cost
+  `StatsService` a dropped batch at M14, `WarBlockLogger` the same at M17, and at M18 it meant
+  an unreadable block log never reached `ROLLBACK_FAILED`, which is precisely the guarantee
+  SPEC 11.8.5 exists to give. *Implemented default:* every async DAO call on a failure path is
+  wrapped in `try/catch (RuntimeException)` **as well as** `.exceptionally`, and the two share
+  one handler. Anything added later that must not lose work on a dead database needs both.
+  *Date:* 2026-08-06
+
+- **[M18]** SPEC 11.8.2 step 8 says to "re-read a random 2% sample of logged positions and
+  confirm they match `old_block_data`", which taken literally is wrong for any position that
+  changed more than once: a random entry's `old_block_data` is the state before *that* change,
+  not before the war, and SPEC 17.4 case 42 guarantees such positions exist. *Implemented
+  default:* a sampled position keeps the value most recently written to it during the replay.
+  Because the replay runs newest to oldest, that is the oldest entry's value, which is the
+  state the block had before the war. *Date:* 2026-08-06
+
+- **[M18]** SPEC 11.8.4 requires a chunk hash "at war start and again after rollback" but SPEC
+  3 defines no table, and SPEC 17.4 case 57 requires verification mismatches to be surfaced in
+  `/ca war rollbackstatus`, which is M21 and therefore a different process. *Implemented
+  default:* V11 adds `war_chunk_hashes` and `war_rollback_issues`. The issues table is
+  append-only in the spirit of the SPEC 3.6 ledger: these rows are the evidence that a restore
+  was imperfect, and evidence that can be edited is not evidence. *Date:* 2026-08-06
+
+- **[M18]** SPEC 11.8.4 asks for "a rolling checksum over block state IDs" per chunk, which on
+  a modern world height is about 98,000 block reads per chunk, twice per war. *Implemented
+  default:* a full hash by default, with `rollback.chunk-hash-stride` to sample every Nth block
+  instead. A stride still catches a wall that vanished and can miss a single block; that is a
+  trade an operator makes knowingly rather than one made for them. The whole failsafe is behind
+  `rollback.chunk-hash-failsafe`, which SPEC 16.3 already ships as true. *Date:* 2026-08-06
+
+- **[M18]** SPEC 11.8.2 step 7 says to apply physics "only at the boundary of restored
+  regions", without defining boundary. *Implemented default:* a restored position with at least
+  one of its six neighbours not restored. Inside a restored region every block is already
+  consistent with its neighbours, and updating it would start the cascade step 4 spent the
+  whole first pass avoiding. *Date:* 2026-08-06
+
+- **[M18]** SPEC 11.8.2 step 1 (evacuate the zone), SPEC 11.8.3's villager and animal
+  restoration, and SPEC 11.8.3's no-drops rule all belong to a rollback but none can be built
+  yet: evacuation needs war zones and players, the animal snapshot is taken *at war start*, and
+  the no-drops rule is a wartime gameplay listener. *Implemented default:* all three are M19's.
+  M18 restores blocks and their tile payloads, which is what a synthetic log can exercise and
+  what SPEC 19 assigns to this milestone. Hanging entities are logged by M17 and skipped by the
+  replay for now, so M19 adds their restore rather than their capture. *Date:* 2026-08-06
