@@ -924,7 +924,15 @@ public final class CivitasPlugin extends JavaPlugin {
         rollback.useEntitySnapshots(entitySnapshots);
         manager.registerEvents(
                 new dev.civitas.listener.war.WarEntityListener(entitySnapshots), this);
-        phases.useWorldStateCapture(war -> captureWorldStateAt(war, entitySnapshots, rollback));
+        // SPEC 17.4 case 51. Runs at war start, before anything can be logged against this
+        // war, so the seeded rows take the lowest sequences and the replay reaches them last.
+        dev.civitas.core.war.OverlapSeeder overlapSeeder =
+                new dev.civitas.core.war.OverlapSeeder(loadedDaos.warBlockLog(), warRegistry,
+                        getLogger());
+        phases.useWorldStateCapture(war -> {
+            overlapSeeder.seed(war);
+            captureWorldStateAt(war, entitySnapshots, rollback);
+        });
 
         // SPEC 11.6's score table.
         dev.civitas.core.war.WarScoring warScoring =

@@ -84,12 +84,18 @@ public final class Evacuation {
      * per-war check that {@link #destinationFor} makes does not apply, because a player who
      * just joined is not being evacuated ahead of a restore that is about to reach them.
      */
-    public void moveOut(Player player) {
-        Optional<City> city = cities.cityOf(player.getUniqueId());
-        Location spawn = city.map(this::spawnOf).orElse(null);
-        player.teleportAsync(spawn != null && spawn.getWorld() != null
-                ? spawn
-                : fallback(player));
+    public void moveOut(Player player, War war) {
+        // Through the same destination rule the bulk evacuation uses, and for the reason that
+        // rule exists: a defender's own city spawn is inside the zone being restored, so
+        // sending them "home" would move them out of the war and back into it in one step.
+        // Getting this wrong is invisible in the common case — an attacker's spawn is
+        // somewhere else — and wrong for exactly the people whose city it is.
+        //
+        // Synchronous, unlike the bulk evacuation. That one may move thirty players at once,
+        // each possibly needing a chunk loaded, which is what teleportAsync is for. This one
+        // moves a single player who has just joined, standing in a chunk the server has
+        // necessarily already loaded.
+        player.teleport(destinationFor(player, war));
     }
 
     /**

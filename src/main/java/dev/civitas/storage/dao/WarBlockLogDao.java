@@ -118,6 +118,31 @@ public final class WarBlockLogDao extends Dao<WarBlockLogRow> {
                 rs -> rs.getLong("total"), warId).orElse(0L);
     }
 
+    /**
+     * The oldest entry this war holds for each position inside a block range.
+     *
+     * <p>For SPEC 17.4 case 51. When a war starts on ground an older war is already fighting
+     * over, the new war has no record of what was there before the older one damaged it — and
+     * its rollback would restore the damage. These rows are what the new war is seeded with,
+     * so that its own oldest entry is the true pre-war state.
+     *
+     * <p>The oldest entry per position is the one with the lowest sequence, because a replay
+     * runs newest to oldest and the last value written wins.
+     *
+     * <p>Bounded by a block range rather than run over the whole log: two zones overlap in a
+     * perimeter, not in their entirety, and a war log can hold two million rows (SPEC 17.7
+     * case 83).
+     */
+    public CompletableFuture<List<WarBlockLogRow>> oldestPerPositionIn(
+            int warId, String world, int minX, int maxX, int minZ, int maxZ) {
+        return queryList("SELECT " + COLUMNS + " FROM war_block_log WHERE sequence IN ("
+                        + "SELECT MIN(sequence) FROM war_block_log "
+                        + "WHERE war_id = ? AND world = ? "
+                        + "AND x BETWEEN ? AND ? AND z BETWEEN ? AND ? "
+                        + "GROUP BY x, y, z)",
+                warId, world, minX, maxX, minZ, maxZ);
+    }
+
     /** The highest sequence written so far, so the logger resumes numbering after a restart. */
     public CompletableFuture<Long> maxSequence(int warId) {
         return db.call(connection -> maxSequence(connection, warId));

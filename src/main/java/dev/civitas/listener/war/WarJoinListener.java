@@ -60,7 +60,7 @@ public final class WarJoinListener implements Listener {
         Optional<War> closed = warWithClosedZoneAt(at);
         if (closed.isPresent()) {
             // Case 48: the land under them has just been restored, or is being restored now.
-            evacuation.moveOut(player);
+            evacuation.moveOut(player, closed.get());
             lang.send(player, "war.evacuated-rollback");
             return;
         }
@@ -75,7 +75,7 @@ public final class WarJoinListener implements Listener {
         }
 
         // Case 41.
-        evacuation.moveOut(player);
+        evacuation.moveOut(player, live.get());
         lang.send(player, "war.evacuated-bystander");
     }
 

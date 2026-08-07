@@ -1007,3 +1007,43 @@ Format:
   during a war takes 15 seconds rather than 5 — plus a refusal to teleport into any zone that
   is closed for a restore, which SPEC 11.8.2 step 1 requires and SPEC 5.6 does not mention.
   *Date:* 2026-08-07
+
+- **[M20]** SPEC 17.4 case 51 says two overlapping wars are handled by rolling back "in war end
+  time" order, and that ordering is not sufficient. Each war's log records, per position, the
+  state before *that war* first touched it, so a war that started later has no record of damage
+  the earlier one had already done — and its rollback restores the damage. Proved with a failing
+  test before it was fixed: block broken during war A, replaced during A and B, A restores it,
+  B puts the hole back. *Implemented default:* when a war becomes ACTIVE, `OverlapSeeder` copies
+  the oldest-per-position entries of any older war it shares ground with into the new war's log,
+  at negative sequence numbers so the replay reaches them last. The new war's log is then
+  complete and the replay needs no knowledge that overlapping wars exist. Fixing it in the
+  replay instead would mean a join across the highest-write-volume table during the one
+  operation SPEC 11.1 says must be reliable above all else. *Date:* 2026-08-07
+
+- **[M20]** SPEC 17.4 case 46 requires fluid flow across the war zone boundary to be "cancelled
+  outright", and the ownership rule that predates it very nearly does that. A zone's perimeter
+  (SPEC 11.4) is usually wilderness and wilderness counts as its own owner, so lava inside the
+  perimeter was free to flow on into the wilderness beyond — outside every zone, so never logged
+  by M17 and never restored by M18, which is permanent damage from a war. *Implemented default:*
+  an explicit zone-boundary check in `ProtectionService.allowsSpreadBetween`, so the rule says
+  what SPEC means rather than resting on a coincidence of the ownership rule. *Date:* 2026-08-07
+
+- **[M20]** SPEC 18.3's structure cannot be fully verified by any automated test, and the reason
+  is worth stating precisely. MockBukkit builds a block's state class when the *material* is
+  set and does not rebuild it when `setBlockData` writes one — and the rollback must use
+  `setBlockData(data, false)`, because SPEC 11.8.2 step 4 requires physics to be suppressed. So
+  under test a restored chest is a chest with no chest state. **The contents of chests, the text
+  on signs, banner patterns and spawner types are therefore verified by the manual protocol and
+  by nothing else.** *Implemented default:* `Spec18ProtocolTest` covers what it can (plain
+  blocks, fluids, the sand-on-a-torch physics case, repeated damage, a clean verification pass)
+  and skips the tile-state assertions with that reason attached rather than passing them
+  silently; `WAR_TEST_PROTOCOL.md` carries the rest. *Date:* 2026-08-07
+
+- **[M20]** `Evacuation.moveOut`, added in M19 for SPEC 17.4 cases 41 and 48, sent a player to
+  their own city spawn without checking whether that spawn was inside the zone they were being
+  taken out of. For a defender it always is, so the one group the rule most needed to protect
+  was moved out of the war and back into it in a single step. Invisible in the common case,
+  because an attacker's spawn is elsewhere. *Fixed:* it now uses the same `destinationFor` rule
+  the bulk evacuation uses. It also teleports synchronously rather than asynchronously, which is
+  correct for a single player whose chunk is necessarily loaded and has the side benefit of
+  being testable. *Date:* 2026-08-07

@@ -161,4 +161,16 @@ public final class WarRestrictions {
     public boolean isAnyWarActive() {
         return registry.isAnyWarActive();
     }
+
+    /**
+     * Whether this position is inside the zone of any war being fought right now.
+     *
+     * <p>SPEC 17.4 case 46 and SPEC 11.4's flat statement that "nothing outside the war zone is
+     * ever affected". Fire and fluid crossing the boundary is the one way damage escapes a war
+     * without a player carrying it: nobody places the lava that flows, so nothing outside is
+     * logged, and what is not logged is not restored.
+     */
+    public boolean isInActiveZone(String world, int blockX, int blockZ) {
+        return !registry.activeWarsCovering(world, blockX, blockZ).isEmpty();
+    }
 }

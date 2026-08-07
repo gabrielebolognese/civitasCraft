@@ -172,7 +172,27 @@ public final class ProtectionService {
      * city's own lava is its own problem.
      */
     public boolean allowsSpreadBetween(String world, int fromX, int fromZ, int toX, int toZ) {
+        // SPEC 17.4 case 46: "Fluid flow across the war zone boundary is cancelled outright."
+        //
+        // Ownership alone very nearly covers this and not quite. A war zone includes a
+        // one-chunk perimeter (SPEC 11.4) which is usually wilderness, and wilderness counts
+        // as its own owner, so lava inside the perimeter would be free to flow on into the
+        // wilderness beyond it. That flow is outside every zone, so M17 never logs it and M18
+        // never restores it — permanent damage from a war, which SPEC 11.4 forbids outright:
+        // "Nothing outside the war zone is ever affected."
+        if (crossesZoneBoundary(world, fromX, fromZ, toX, toZ)) {
+            return false;
+        }
         return sameOwner(world, fromX, fromZ, toX, toZ);
+    }
+
+    /** Whether exactly one of these two chunks is inside a live war zone. */
+    private boolean crossesZoneBoundary(String world, int fromX, int fromZ, int toX, int toZ) {
+        if (wars == null || !wars.isAnyWarActive()) {
+            return false;
+        }
+        return wars.isInActiveZone(world, fromX << 4, fromZ << 4)
+                != wars.isInActiveZone(world, toX << 4, toZ << 4);
     }
 
     /** Whether a block at this position may be destroyed by an explosion, SPEC 5.5. */

@@ -5,7 +5,7 @@
 
 ## Current session focus
 
-**Next milestone:** M20, War: hardening
+**Next milestone:** M21, Admin tooling
 
 ## Session protocol
 
@@ -43,7 +43,7 @@
 | 17 | War: block logging | M4 | DONE | Every SPEC 11.8.1 source, ring buffer, async batching, crash-safe flush, per-war row ceiling. **Benchmark: 1,546,472/sec record path, 93,567/sec end to end against SPEC's 2,000 target.** No war gameplay, per SPEC 19's ordering note. **SPEC 11.8.1's NBT API does not exist in paper-api; capture is per-type Bukkit and a hive's bees do not round-trip.** |
 | 18 | War: rollback engine | M17 | DONE | Reverse replay with physics suppressed, paging, throttling, checkpoint and resume, verification sampling, SPEC 11.8.4 chunk hashes, ROLLBACK_FAILED. V11. Driven by a synthetic log exactly as SPEC 19 asks. **Evacuation, living-entity restore and the no-drops rule are M19: all three need war start.** |
 | 19 | War: lifecycle | M18, M13 | DONE | V12, the state machine, `WarService` (all 12 SPEC 11.3 preconditions + escrow + decline), payouts, scoring, `WarPhaseTask` with outage catch-up, evacuation, restrictions, no-drops, and `RegistryWarZones` wired in so **M17 logs and M18 restores for real**. Resolution, loser immunity, winner market bonus, war record. `WarScoringListener` and `CapturePoints` (three points at the defender's extremes, 60s holds, the 30s City Hall stand). `WarAllies` (SPEC 11.10) and `PeaceOffer` (SPEC 8.8), full `/war` tree, `WarsMenu` (SPEC 8.8's three faces) and `WarScoreboard` (SPEC 9.3). SPEC 11.7 item-theft log (`WarLootLog`, diffed across the open). SPEC 11.8.3 entity restore: hangings from M17's log, plus villagers and animals snapshotted at war start. SPEC 11.8.4 pre-war chunk hashes now taken. SPEC 4.7 bounties end to end. SPEC 12.3's leash ticked. SPEC 17.4 cases 41 and 48. **All 14 war seams closed and each tested refused-then-allowed.** 1406 tests. |
-| 20 | War: hardening | M19 | TODO | Manual protocol SPEC 18.3 must pass 3x |
+| 20 | War: hardening | M19 | DONE | Every SPEC 17.4 case now has a test that names it. **Three real bugs found and fixed:** overlapping wars corrupted each other's restores (SPEC's stated end-time ordering is not sufficient — `OverlapSeeder` now completes a new war's log from any older war it shares ground with), fluid could escape a zone into wilderness and never be restored (case 46 rested on a coincidence of the ownership rule), and `moveOut` sent a defender to a spawn inside the zone it was evacuating them from. `Spec18ProtocolTest` runs the automatable half of SPEC 18.3; `WAR_TEST_PROTOCOL.md` carries the rest. **MockBukkit does not rebuild a tile state after `setBlockData`, so chest contents, sign text, banner patterns and spawner types are verified by the manual protocol and by nothing else** — 5 tests skip with that reason attached. 1446 tests. **SPEC 18.3 has not been run: it needs a live server, two accounts and three clean passes, and the beehive exception needs a decision first.** |
 | 21 | Admin tooling | all | TODO | |
 | 22 | Anti-toxicity pass | all | TODO | |
 | 23 | Polish | all | TODO | |
