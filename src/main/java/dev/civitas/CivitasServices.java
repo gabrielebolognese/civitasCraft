@@ -5,6 +5,7 @@ import dev.civitas.core.admin.AuditService;
 import dev.civitas.core.admin.FraudHeuristics;
 import dev.civitas.core.admin.InspectMode;
 import dev.civitas.core.admin.LedgerExport;
+import dev.civitas.core.admin.UpkeepOverrides;
 import dev.civitas.core.city.CityRegistry;
 import dev.civitas.core.city.CityService;
 import dev.civitas.core.city.CityHall;
@@ -97,6 +98,7 @@ public record CivitasServices(
         FraudHeuristics fraud,
         InspectMode inspect,
         LedgerExport ledgerExport,
+        UpkeepOverrides upkeepOverrides,
         dev.civitas.storage.dao.DaoRegistry daos,
         WarScoreboard warScoreboard,
         OutpostService outposts,

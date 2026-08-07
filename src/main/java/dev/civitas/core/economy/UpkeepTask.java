@@ -334,8 +334,25 @@ public final class UpkeepTask implements Runnable {
         // Outposts are M10 and defense units are M12; both are zero until then, and the
         // upgrade level is M11. Passing them explicitly keeps the formula honest about what
         // it is not yet counting.
-        return calculator.dailyUpkeep(landValue, outpostCount(city), defenseUpkeep(city),
-                treasuryInterestLevel(city));
+        BigDecimal standard = calculator.dailyUpkeep(landValue, outpostCount(city),
+                defenseUpkeep(city), treasuryInterestLevel(city));
+
+        // SPEC 9.4.2's per-city override, applied last. An admin who halved a returning
+        // city's upkeep meant half of what it would otherwise owe, including its SPEC 5.7
+        // discount and any SPEC 13.5 event multiplier — not half of the raw land value.
+        return overrides == null
+                ? standard
+                : standard.multiply(overrides.multiplierFor(city.id(),
+                                System.currentTimeMillis()))
+                        .setScale(dev.civitas.storage.SqlDialect.MONEY_SCALE,
+                                java.math.RoundingMode.DOWN);
+    }
+
+    private dev.civitas.core.admin.UpkeepOverrides overrides;
+
+    /** SPEC 9.4.2's {@code /ca city setupkeep}, wired by M21. */
+    public void useOverrides(dev.civitas.core.admin.UpkeepOverrides adminOverrides) {
+        this.overrides = adminOverrides;
     }
 
     /** SPEC 7.2: each outpost costs a flat daily fee on top of the land. */

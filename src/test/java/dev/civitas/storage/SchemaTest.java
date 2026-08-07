@@ -150,6 +150,10 @@ class SchemaTest {
         // V13, SPEC 15.3: the moderation queue.
         schema.put("reports", List.of("id", "reporter_uuid", "target_uuid", "reason",
                 "created_at", "state", "handled_by", "handled_at", "resolution"));
+        // V14, SPEC 9.4.2: a temporary per-city upkeep multiplier. Its own table because SPEC
+        // calls it temporary and because an absent row is cheaper than a column of 1.0.
+        schema.put("city_upkeep_multipliers", List.of("city_id", "multiplier", "set_by",
+                "set_at", "expires_at", "reason"));
         return schema;
     }
 

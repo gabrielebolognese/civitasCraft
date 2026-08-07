@@ -568,6 +568,12 @@ public final class CivitasPlugin extends JavaPlugin {
                 new dev.civitas.core.admin.InspectMode(claimRegistry, cityRegistry);
         dev.civitas.core.admin.LedgerExport ledgerExport =
                 new dev.civitas.core.admin.LedgerExport(getDataFolder());
+        dev.civitas.core.admin.UpkeepOverrides upkeepOverrides =
+                new dev.civitas.core.admin.UpkeepOverrides(loadedDaos.upkeepMultipliers(),
+                        getLogger());
+        upkeepOverrides.loadAll();
+        upkeepTask.useOverrides(upkeepOverrides);
+        cityService.onCityDisbanded(upkeepOverrides::forgetCity);
 
         // SPEC 4.7's bounties. Beside the economy rather than inside the war package: the
         // money moves whether or not a war ever happens, and only the payout is war-gated.
@@ -614,7 +620,7 @@ public final class CivitasPlugin extends JavaPlugin {
                 eventService, warWiring.service(), warWiring.allies(), warWiring.peace(),
                 warWiring.capturePoints(), warWiring.rollback(), warWiring.trigger(),
                 auditService, adminProtection, fraudHeuristics, inspectMode,
-                ledgerExport,
+                ledgerExport, upkeepOverrides,
                 loadedDaos, warWiring.scoreboard(),
                 outpostService, outpostTeleport, upgradeService,
                 defenseService, diplomacyService, vaultService, vaultView,

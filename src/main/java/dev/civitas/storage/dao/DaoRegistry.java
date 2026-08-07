@@ -38,6 +38,7 @@ public final class DaoRegistry {
     private final BountyDao bounties;
     private final ProtectedChunkDao protectedChunks;
     private final ReportDao reports;
+    private final UpkeepMultiplierDao upkeepMultipliers;
     private final AllianceDao alliances;
     private final TruceDao truces;
     private final MarketStockDao marketStock;
@@ -78,6 +79,7 @@ public final class DaoRegistry {
         this.bounties = new BountyDao(db);
         this.protectedChunks = new ProtectedChunkDao(db);
         this.reports = new ReportDao(db);
+        this.upkeepMultipliers = new UpkeepMultiplierDao(db);
         this.alliances = new AllianceDao(db);
         this.truces = new TruceDao(db);
         this.marketStock = new MarketStockDao(db);
@@ -189,6 +191,10 @@ public final class DaoRegistry {
         return reports;
     }
 
+    public UpkeepMultiplierDao upkeepMultipliers() {
+        return upkeepMultipliers;
+    }
+
     public AllianceDao alliances() {
         return alliances;
     }
@@ -245,7 +251,8 @@ public final class DaoRegistry {
     public List<Dao<?>> all() {
         return List.of(players, playerStats, playerLogins, serverEvents, warChunkHashes, warRollbackIssues, cities, cityRanks, cityMembers, cityInvites, cityBans, claims, outposts,
                 ledger, economySnapshots, wars, warBlockLog, warContainerLog, warParticipants, warKills,
-                warEntitySnapshots, bounties, protectedChunks, reports, alliances,
+                warEntitySnapshots, bounties, protectedChunks, reports,
+                upkeepMultipliers, alliances,
                 truces, marketStock, playerShops, playerQuests, cityChallenges, contests, contestEntries, contestVotes,
                 cityUpgrades, cityVault, defenseUnits, auditLog);
     }

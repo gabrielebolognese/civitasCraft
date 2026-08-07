@@ -158,6 +158,8 @@ final class MenuTestSupport implements AutoCloseable {
                 new dev.civitas.core.admin.FraudHeuristics(cities.configs),
                 new dev.civitas.core.admin.InspectMode(cities.claimRegistry, cities.registry),
                 new dev.civitas.core.admin.LedgerExport(dataFolder),
+                new dev.civitas.core.admin.UpkeepOverrides(
+                        cities.daos.upkeepMultipliers(), quiet()),
                 cities.daos,
                 scoreboard, outposts,
                 outpostTeleport, upgradeService, defenseService, diplomacyService, vaultService,

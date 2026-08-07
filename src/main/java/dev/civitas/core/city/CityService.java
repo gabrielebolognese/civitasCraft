@@ -1051,6 +1051,221 @@ public final class CityService {
         this.wars = restrictions;
     }
 
+    // ==================================================================================
+    // SPEC 9.4.2, the admin paths
+    // ==================================================================================
+
+    /**
+     * The shape every admin city mutation shares.
+     *
+     * <p>Deliberately not {@link #updateSettings}: that one checks EDIT_SETTINGS and refuses a
+     * frozen city, and both are rules an admin is expected to be able to ignore. Above all,
+     * unfreezing a city must work on a city that is frozen. Sharing the method and passing a
+     * flag would put that bypass inside the path a player takes.
+     */
+    private CompletableFuture<Result<City>> adminUpdate(
+            City city,
+            java.util.function.UnaryOperator<CityRow> change,
+            java.util.function.Consumer<City> applyToCache) {
+
+        return db.transaction(connection -> {
+            Optional<CityRow> current = daos.cities().findById(connection, city.id());
+            if (current.isEmpty()) {
+                return Result.<City>failure("CITY_GONE", "city.unknown");
+            }
+            daos.cities().update(connection, change.apply(current.get()));
+            return Result.success(city);
+        }).thenApply(result -> applyOnMain(result, applyToCache));
+    }
+
+    /** Rebuilds a row with one field changed, since {@link CityRow} has twenty-three. */
+    private static CityRow with(CityRow row, UUID mayor, Boolean frozen, Long deletedAt,
+                                Long delinquentSince, boolean clearDelinquent) {
+        return new CityRow(row.id(), row.name(), row.displayName(), row.tag(),
+                mayor == null ? row.mayorUuid() : mayor, row.foundedAt(), row.treasury(),
+                row.coreWorld(), row.coreChunkX(), row.coreChunkZ(), row.spawnX(), row.spawnY(),
+                row.spawnZ(), row.spawnYaw(), row.spawnPitch(), row.openJoin(), row.motd(),
+                row.upkeepDue(),
+                clearDelinquent ? null : (delinquentSince == null ? row.delinquentSince()
+                        : delinquentSince),
+                row.warProtectionUntil(),
+                frozen == null ? row.frozen() : frozen,
+                deletedAt == null ? row.deletedAt() : (deletedAt < 0 ? null : deletedAt));
+    }
+
+    /**
+     * SPEC 9.4.2: "Force mayorship transfer (offline-safe)."
+     *
+     * <p>The parenthesis is the whole reason this exists separately. SPEC 5.3 requires the
+     * target to be online and to accept within sixty seconds, and SPEC 17.1 case 5 describes
+     * exactly the situation that rule cannot handle: a mayor banned from the server, whose
+     * city now has nobody able to act for it. An admin has to hand it to somebody asleep.
+     */
+    public CompletableFuture<Result<City>> adminSetMayor(City city, UUID newMayor) {
+        if (!city.isMember(newMayor)) {
+            return completed(Result.failure("NOT_A_MEMBER", "city.not-a-member"));
+        }
+        if (city.isMayor(newMayor)) {
+            return completed(Result.failure("ALREADY_MAYOR", "city.transfer.self"));
+        }
+        return adminUpdate(city,
+                row -> with(row, newMayor, null, null, null, false),
+                updated -> updated.setMayorUuid(newMayor));
+    }
+
+    /**
+     * SPEC 9.4.2: "Force rename, free."
+     *
+     * <p>Free, and it waives the SPEC 5.5 rules that are policy while keeping the ones that
+     * are structure: the 15,000 C fee and the EDIT_SETTINGS check go, the shape and the
+     * uniqueness of the name stay. A duplicate would break the unique index, and a name the
+     * validator rejects is one no player could ever type back.
+     */
+    public CompletableFuture<Result<City>> adminRename(City city, String rawName) {
+        Result<String> checked = nameValidator.validate(rawName);
+        if (checked instanceof Result.Failure<String> failure) {
+            return completed(Result.propagate(failure));
+        }
+        String newName = checked.orElseThrow();
+        if (registry.isNameTaken(newName) && !city.name().equalsIgnoreCase(newName)) {
+            return completed(Result.failure("NAME_TAKEN", "city.create.name-taken",
+                    Map.of("name", newName)));
+        }
+        String oldName = city.name();
+
+        return db.transaction(connection -> {
+            Optional<CityRow> current = daos.cities().findById(connection, city.id());
+            if (current.isEmpty()) {
+                return Result.<City>failure("CITY_GONE", "city.unknown");
+            }
+            CityRow row = current.get();
+            try {
+                daos.cities().update(connection, new CityRow(row.id(), newName,
+                        row.displayName(), row.tag(), row.mayorUuid(), row.foundedAt(),
+                        row.treasury(), row.coreWorld(), row.coreChunkX(), row.coreChunkZ(),
+                        row.spawnX(), row.spawnY(), row.spawnZ(), row.spawnYaw(),
+                        row.spawnPitch(), row.openJoin(), row.motd(), row.upkeepDue(),
+                        row.delinquentSince(), row.warProtectionUntil(), row.frozen(),
+                        row.deletedAt()));
+            } catch (SQLException e) {
+                if (isUniqueViolation(e)) {
+                    return Result.<City>failure("NAME_TAKEN", "city.create.name-taken",
+                            Map.of("name", newName));
+                }
+                throw e;
+            }
+            return Result.success(city);
+        }).thenApply(result -> applyOnMain(result, renamed -> {
+            renamed.setName(newName);
+            registry.reindexName(renamed, oldName);
+        }));
+    }
+
+    /**
+     * SPEC 9.4.2: "Soft delete, requires typing the city name."
+     *
+     * <p>Soft, so SPEC 9.4.2's restore has something to restore. The claims stay in place
+     * rather than being released: a restore that gave back a city with no land would be a
+     * restore in name only, and fourteen days is short enough that the land can wait.
+     */
+    public CompletableFuture<Result<City>> adminDelete(City city, long now) {
+        if (city.isDeleted()) {
+            return completed(Result.failure("ALREADY_DELETED", "admin.city.already-deleted"));
+        }
+        return adminUpdate(city,
+                row -> with(row, null, null, now, null, false),
+                deleted -> deleted.setDeletedAt(now));
+    }
+
+    /** SPEC 9.4.2: "Restore a soft-deleted city within 14 days." */
+    public CompletableFuture<Result<City>> adminRestore(City city, long now) {
+        if (!city.isDeleted()) {
+            return completed(Result.failure("NOT_DELETED", "admin.city.not-deleted"));
+        }
+        long window = configs.get(ConfigFile.CITIES)
+                .getLong("admin.restore-window-days", 14) * 86_400_000L;
+        if (now - city.deletedAt() > window) {
+            return completed(Result.failure("RESTORE_WINDOW_PASSED",
+                    "admin.city.restore-too-late",
+                    Map.of("days", String.valueOf(window / 86_400_000L))));
+        }
+        return adminUpdate(city,
+                row -> with(row, null, null, -1L, null, false),
+                restored -> restored.setDeletedAt(null));
+    }
+
+    /**
+     * SPEC 9.4.2: "Blocks ALL mutations: no claims, no transactions, no war, no member
+     * changes. City becomes read-only."
+     *
+     * <p>Nothing new is enforced here. Every service has checked {@code isFrozen} on every
+     * mutation since M2; this is the switch those checks were written for.
+     */
+    public CompletableFuture<Result<City>> adminFreeze(City city, boolean frozen) {
+        return adminUpdate(city,
+                row -> with(row, null, frozen, null, null, false),
+                updated -> updated.setFrozen(frozen));
+    }
+
+    /** SPEC 9.4.2: "Clears delinquency without payment." */
+    public CompletableFuture<Result<City>> adminForgiveDebt(City city) {
+        if (!city.isDelinquent()) {
+            return completed(Result.failure("NOT_DELINQUENT", "admin.city.not-delinquent"));
+        }
+        return adminUpdate(city,
+                row -> with(row, null, null, null, null, true),
+                updated -> updated.setDelinquentSince(null));
+    }
+
+    /**
+     * SPEC 9.4.2: "Force-add a member (bypasses cooldowns and caps)."
+     *
+     * <p>Bypasses the SPEC 5.2 switch cooldown, the member cap and the SPEC 11.5 war freeze.
+     * It does not bypass the one thing that is not a rule: a player already in another city
+     * would end up in two, and the data model has one city per player.
+     */
+    public CompletableFuture<Result<City>> adminForceAdd(City city, UUID player, long now) {
+        if (city.isMember(player)) {
+            return completed(Result.failure("ALREADY_MEMBER", "city.invite.already-member"));
+        }
+        if (registry.isInAnyCity(player)) {
+            return completed(Result.failure("ALREADY_IN_CITY", "city.join.already-in-city"));
+        }
+        CityRank rank = city.defaultRank().orElse(null);
+        if (rank == null) {
+            return completed(Result.failure("NO_RANK", "city.join.no-rank"));
+        }
+
+        return db.transaction(connection -> {
+            CityMemberRow row = new CityMemberRow(player, city.id(), rank.id(), now,
+                    BigDecimal.ZERO);
+            daos.cityMembers().insert(connection, row);
+            daos.players().updateCity(connection, player, city.id(), rank.id());
+            return Result.success(row);
+        }).thenApply(result -> applyMembership(result, city, player));
+    }
+
+    /** SPEC 9.4.2: "Force-remove." */
+    public CompletableFuture<Result<City>> adminForceRemove(City city, UUID player) {
+        if (!city.isMember(player)) {
+            return completed(Result.failure("NOT_A_MEMBER", "city.not-a-member"));
+        }
+        if (city.isMayor(player)) {
+            // Removing the mayor leaves a city nobody can act for. SPEC 9.4.2 has setmayor
+            // for exactly this, and an admin should use it first.
+            return completed(Result.failure("CANNOT_REMOVE_MAYOR", "city.kick.mayor"));
+        }
+
+        return db.transaction(connection -> {
+            daos.cityMembers().delete(connection, player);
+            daos.players().updateCity(connection, player, null, null);
+            return Result.success(city);
+        }).thenApply(result -> applyOnMain(result, updated -> {
+            updated.removeMember(player);
+            registry.forgetMember(player);
+        }));
+    }
+
     /** Checks a city permission, treating the mayor as holding everything. */
     public Result<Void> requirePermission(City city, UUID actor, CityPermission permission) {
         if (!city.isMember(actor)) {
