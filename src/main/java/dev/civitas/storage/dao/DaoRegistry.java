@@ -36,6 +36,7 @@ public final class DaoRegistry {
     private final WarKillDao warKills;
     private final WarEntitySnapshotDao warEntitySnapshots;
     private final BountyDao bounties;
+    private final PlayerNoticeDao playerNotices;
     private final ProtectedChunkDao protectedChunks;
     private final ReportDao reports;
     private final UpkeepMultiplierDao upkeepMultipliers;
@@ -77,6 +78,7 @@ public final class DaoRegistry {
         this.warKills = new WarKillDao(db);
         this.warEntitySnapshots = new WarEntitySnapshotDao(db);
         this.bounties = new BountyDao(db);
+        this.playerNotices = new PlayerNoticeDao(db);
         this.protectedChunks = new ProtectedChunkDao(db);
         this.reports = new ReportDao(db);
         this.upkeepMultipliers = new UpkeepMultiplierDao(db);
@@ -181,6 +183,11 @@ public final class DaoRegistry {
 
     public BountyDao bounties() {
         return bounties;
+    }
+
+    /** SPEC 17.1 case 1's deferred notices. */
+    public PlayerNoticeDao playerNotices() {
+        return playerNotices;
     }
 
     public ProtectedChunkDao protectedChunks() {

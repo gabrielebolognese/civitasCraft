@@ -1277,3 +1277,82 @@ Format:
   to be assumed: no load or concurrency testing of the pool, no MySQL 8 server, and **backups
   still do nothing on MySQL**, which is M1's deliberate decision and means an operator running
   MySQL must arrange their own. *Date:* 2026-08-07
+
+- **[SPEC 17.1 cases 1-3]** These three were specified in M0's SPEC, deferred by M2 to M4,
+  deferred again by M4 to "a later milestone", and then **never built**. What made that
+  survivable for twenty-one milestones is also what made it invisible: `cities.yml` has shipped
+  an `inactivity:` block carrying all four of SPEC's numbers, commented "SPEC 17.1 cases 1, 2
+  and 3", since M2 — so the feature looked present to anyone reading the configuration, and
+  **nothing read a single key**. M22's audit did not catch it because its scope was SPEC 15.
+  `ProtectionService.isDormant` had been returning a hardcoded false since M4. *Implemented
+  default:* `InactivityTask` and `DormancyCache`, with every rule asserted twice in the shape
+  M22 established — that it happens, and that changing its config key changes the behaviour.
+  *Date:* 2026-08-07
+
+- **[SPEC 17.1 case 1]** SPEC says the successor is "the highest-weight member with the most
+  recent login", which is two orderings and does not say which is primary. *Implemented
+  default:* weight first, recency as the tiebreak, which is the order SPEC writes them in and
+  the one a city would want — the point is to hand the city to whoever was most trusted with
+  it, and among equals to whoever is most likely to be there tomorrow. The other reading hands
+  a Recruit who logged in yesterday a city over a Co-Mayor who logged in last week. Candidates
+  who are themselves past the threshold are skipped: promoting one would leave the city in the
+  state the rule exists to fix, and the next sweep would do it all again. *Date:* 2026-08-07
+
+- **[SPEC 17.1 case 1]** "Old mayor is demoted to Co-Mayor, **notified on next login**" needs
+  storage, because the person it is for is absent by definition — that absence is why the
+  transfer happened. *Implemented default:* V15 adds `player_notices`, holding a `lang/` key
+  and a placeholder blob rather than rendered text: a notice stored in English would be
+  unreadable to an Italian player and unfixable afterwards, and SPEC 2.1 keeps player-facing
+  strings out of Java for the same reason. Delivered notices are deleted rather than flagged,
+  and only *after* they have been shown — a notice that cleared itself before delivery would be
+  lost for good on a disconnect at the wrong moment. *Date:* 2026-08-07
+
+- **[SPEC 17.1 case 2]** Dormancy is asked about on **every block event**, which SPEC 17.7 case
+  81 requires to stay O(1) and SPEC 2.1 forbids from touching the database — and the answer
+  lives in `players.last_seen`, which `CityMember` does not carry. *Implemented default:* a
+  `DormancyCache` the sweep publishes into and the hot path reads as a set lookup, rather than a
+  column. Deriving it also gets SPEC's "restores instantly" honestly: a member logging in calls
+  `wake`, which takes effect on the very next block event rather than at the next sweep an hour
+  away. **An empty cache means nothing is dormant**, so a sweep that never runs, a database that
+  will not answer, or a startup that has not finished all fail in the direction that keeps
+  cities protected. *Date:* 2026-08-07
+
+- **[SPEC 17.1 case 3]** SPEC says "soft-deleted, claims released, treasury burned. 14-day admin
+  restore window", which cannot reuse `adminDelete`: M21 made `/ca city delete` deliberately
+  **keep** the claims, on the grounds that "a restore that gave back a city with no land would
+  be a restore in name only". Both are right for their own case and they are different
+  operations sharing a column. *Implemented default:* `expireInactive` is its own path — it
+  releases the land as SPEC 17.1 case 3 says, and the restore window still applies to the row,
+  so an admin can bring the name and members back but the land will be gone. It is also not
+  `disband`, which refunds half the land cost and splits the treasury: case 3 says burned, and
+  paying out the treasury of a city dead for four months would reward abandoning it.
+  *Date:* 2026-08-07
+
+- **[SPEC 17.1 case 3]** SPEC 4.6 calls its transaction-type list exhaustive and none of the
+  thirty-five types means "a dead city's treasury was destroyed". *Implemented default:*
+  `UPKEEP_CHARGE` with `{"reason":"inactive_city_expired"}` in the metadata, because both are
+  treasury money destroyed by the passage of time and inventing a type would break SPEC 4.6's
+  stated exhaustiveness. Recorded because an admin summing `UPKEEP_CHARGE` will see these rows
+  and the metadata is the only thing that distinguishes them. *Date:* 2026-08-07
+
+- **[SPEC 17.1 case 3]** Automatic deletion is by a distance the most destructive thing this
+  plugin does without a human asking: it fires on a timer against cities whose members may
+  simply have been away for a season. *Implemented default:* its own switch,
+  `inactivity.soft-delete-enabled`, separate from the master `inactivity.enabled`, so an
+  operator can keep succession and dormancy without ever losing a city automatically. It
+  **defaults true**, because that is what SPEC 17.1 case 3 says happens, and the deviation would
+  be silently not doing what the specification describes. The first sweep is also delayed a full
+  interval rather than firing at startup, so a server returning from a long outage does not
+  delete a city in the same second the operator started it. *Date:* 2026-08-07
+
+- **[SPEC 17.1]** All three rules measure `players.last_seen`, not the anti-AFK
+  `active_playtime_ms` that SPEC 4.2.1 uses for income. *Implemented default:* deliberate. These
+  rules are about abandonment, and somebody who logs in weekly to stand in their city has not
+  abandoned it, whatever the stipend filter thinks of them. A city with no members at all falls
+  back to its founding date, which is what stops a city founded by a long-dormant account being
+  deleted before anybody could join it. *Date:* 2026-08-07
+
+- **[SPEC 17.1]** V15 is the first migration written *after* the MySQL pass existed, so for the
+  first time in this project a new migration's MySQL file was **executed before it shipped**
+  rather than reviewed by eye. It applies cleanly and `player_notices` matches on both dialects.
+  Every migration up to V14 was written blind. *Date:* 2026-08-07

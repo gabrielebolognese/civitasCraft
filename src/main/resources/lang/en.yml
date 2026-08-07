@@ -45,6 +45,7 @@ economy:
     debt-cleared: "<green>The land sale covered your city's upkeep. The debt is settled."
 
 city:
+  inactive-demoted: "<yellow>You were away for a while, so <white><city></white> chose a new mayor. You are now <white><rank></white>."
   none: "<gray>You are not in a city. Use <white>/city create <name></white> to found one."
   unknown: "<red>No city by that name."
   frozen: "<red>This city is frozen by an administrator and cannot be changed."

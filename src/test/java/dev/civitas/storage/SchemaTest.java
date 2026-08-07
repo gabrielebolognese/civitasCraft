@@ -94,6 +94,10 @@ class SchemaTest {
         // V5, SPEC 13.1: target and reward are stored with the assignment, because SPEC 13.1
         // scales both with playtime and recomputing them later would move the goalposts under
         // a player who is halfway through one.
+        // V15, SPEC 17.1 case 1's deferred notice: the demoted mayor is offline by
+        // definition, so the message has to wait somewhere until they come back.
+        schema.put("player_notices", List.of("id", "uuid", "message_key", "placeholders",
+                "created_at"));
         schema.put("player_quests", List.of("id", "uuid", "quest_id", "progress", "assigned_at",
                 "completed_at", "target", "reward"));
         // V5, SPEC 13.2: weekly challenges, which SPEC 3 lists no table for. Keyed by city

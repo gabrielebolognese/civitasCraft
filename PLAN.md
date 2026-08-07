@@ -7,6 +7,11 @@
 
 **Next milestone:** none. M0 to M23 are DONE.
 
+**Built after M23:** SPEC 17.7's scale sweep, the MySQL dialect pass, and **SPEC 17.1
+cases 1 to 3** — the inactivity sweep, which M2 deferred to M4, M4 deferred to "a later
+milestone", and no milestone ever built. `cities.yml` had shipped its four numbers since
+M2 with nothing reading them.
+
 **Before a public launch:** SPEC 18.3's manual war protocol has still not been run --
 it needs a live server, two accounts and three clean passes, and `WAR_TEST_PROTOCOL.md`
 carries the checklist. The beehive NBT exception recorded at M17 needs a decision

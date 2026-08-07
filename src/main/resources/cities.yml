@@ -74,10 +74,22 @@ spawn:
   cooldown-seconds: 30
 
 inactivity:
-  # SPEC 17.1 cases 1, 2 and 3.
+  # SPEC 17.1 cases 1, 2 and 3. Read by InactivityTask, which sweeps on the interval below.
+  enabled: true
+  check-interval-minutes: 60
+  # Case 1: the mayor has not logged in for this long, so the city gets a new one and the old
+  # mayor is demoted to the next rank down and told about it when they next log in.
   mayor-transfer-days: 30
+  # Case 2: nobody has logged in for this long, so the city's claims stop being protected.
+  # Nothing is removed, and any member logging in restores protection immediately.
   dormant-days: 60
+  # Case 3: nobody has logged in for this long, so the city is soft-deleted, its land released
+  # and its treasury burned.
   soft-delete-days: 120
+  # Case 3 on its own switch. It is the most destructive thing this plugin does without a
+  # human asking for it: it fires on a timer against cities whose members may simply have been
+  # away. Set false to keep succession and dormancy but never delete a city automatically.
+  soft-delete-enabled: true
   restore-window-days: 14
 
 outposts:

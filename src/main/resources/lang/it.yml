@@ -45,6 +45,7 @@ economy:
     debt-cleared: "<green>La vendita del territorio ha coperto il mantenimento. Il debito e saldato."
 
 city:
+  inactive-demoted: "<yellow>Sei stato via per un po', quindi <white><city></white> ha scelto un nuovo sindaco. Ora sei <white><rank></white>."
   none: "<gray>Non fai parte di nessuna citta. Usa <white>/city create <nome></white> per fondarne una."
   unknown: "<red>Nessuna citta con quel nome."
   frozen: "<red>Questa citta e bloccata da un amministratore e non puo essere modificata."

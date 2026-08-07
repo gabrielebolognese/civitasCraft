@@ -420,6 +420,14 @@ public final class CivitasPlugin extends JavaPlugin {
                 treasuryService, upkeepCalculator, UpkeepTask.Notifier.online(lang), scheduler,
                 getLogger(), java.time.ZoneId.systemDefault());
 
+        // SPEC 17.1 cases 1, 2 and 3. The cache is handed to ProtectionService, which has
+        // carried the isDormant seam unfilled since M4.
+        dev.civitas.core.city.DormancyCache dormancy = new dev.civitas.core.city.DormancyCache();
+        dev.civitas.core.city.InactivityTask inactivityTask =
+                new dev.civitas.core.city.InactivityTask(loadedDaos, cityRegistry, cityService,
+                        dormancy, configs, getLogger());
+        protection.useDormancy(dormancy);
+
         // SPEC 4.2, 13.1 and 13.2, the income systems.
         ActivityTracker activityTracker = new ActivityTracker(configs);
         IncomeMultipliers incomeMultipliers = new IncomeMultipliers(configs);
@@ -681,6 +689,9 @@ public final class CivitasPlugin extends JavaPlugin {
         registerProtection(protectionGuard, protection, blockClassifier);
 
         // SPEC 4.5, chest shops.
+        getServer().getPluginManager().registerEvents(
+                new dev.civitas.listener.InactivityJoinListener(cityRegistry, dormancy,
+                        loadedDaos.playerNotices(), lang, scheduler, getLogger()), this);
         getServer().getPluginManager().registerEvents(new ShopSignListener(shopService,
                 new ShopSign(configs), protectionGuard, configs, lang, scheduler, getLogger()), this);
         getServer().getPluginManager().registerEvents(
@@ -730,6 +741,7 @@ public final class CivitasPlugin extends JavaPlugin {
         }
 
         scheduleEconomy(loadedDaos, economyService, treasuryService, upkeepTask);
+        scheduleInactivity(inactivityTask);
         registerIntegrations(economyService);
 
         getLogger().info(() -> "Storage ready on " + settings.dialect() + ".");
@@ -757,6 +769,25 @@ public final class CivitasPlugin extends JavaPlugin {
      * because a city becomes due at a wall-clock hour and the server may have been offline
      * when it passed; the sweep itself does nothing for a city that is not yet due.
      */
+    /**
+     * SPEC 17.1's inactivity sweep.
+     *
+     * <p>Asynchronous, like the upkeep sweep beside it, and for the same reason: it reads
+     * every city member's last login, which SPEC 2.1 forbids on the server thread. The first
+     * run is delayed by one full interval rather than firing at startup, so a server coming
+     * back after a long outage does not delete a city in the same second the operator started
+     * it and before anybody has had a chance to log in.
+     */
+    private void scheduleInactivity(dev.civitas.core.city.InactivityTask task) {
+        if (!task.enabled()) {
+            getLogger().info("The SPEC 17.1 inactivity sweep is disabled; no city will be "
+                    + "marked dormant, have its mayor replaced, or be expired.");
+            return;
+        }
+        long ticks = Math.max(1L, task.checkIntervalMinutes()) * 60L * 20L;
+        Bukkit.getScheduler().runTaskTimerAsynchronously(this, task, ticks, ticks);
+    }
+
     private void scheduleEconomy(DaoRegistry loadedDaos, EconomyService economyService,
                                  TreasuryService treasuryService, UpkeepTask upkeep) {
         long checkTicks = configs.get(ConfigFile.CITIES)

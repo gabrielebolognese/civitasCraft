@@ -32,6 +32,14 @@ public final class ProtectionService {
     private final CityRegistry cities;
     private final ConfigManager configs;
 
+    /**
+     * SPEC 17.1 case 2's dormancy, set after construction.
+     *
+     * <p>Null until the sweep exists, and {@link #isDormant} reads that as "nothing is
+     * dormant" — the direction that keeps cities protected rather than exposing them.
+     */
+    private dev.civitas.core.city.DormancyCache dormancy;
+
     public ProtectionService(ClaimRegistry claims, CityRegistry cities, ConfigManager configs) {
         this.claims = Objects.requireNonNull(claims, "claims");
         this.cities = Objects.requireNonNull(cities, "cities");
@@ -264,12 +272,22 @@ public final class ProtectionService {
      * SPEC 17.1 case 2: a city inactive for long enough has unprotected claims until any
      * member logs in.
      *
-     * <p>Always false until the inactivity sweep exists. Written out so the protection path
-     * already has the branch, and so the milestone that adds dormancy changes one method
-     * rather than auditing eight listeners.
+     * <p>Filled in by the inactivity sweep. This is what M4 wrote the seam for — one method,
+     * not eight listeners — and it stayed false for eleven milestones because the sweep that
+     * sets dormancy was deferred twice and then had no owner.
+     *
+     * <p>A set lookup, never a query: this runs on every block event, which SPEC 17.7 case 81
+     * requires to stay O(1) and SPEC 2.1 forbids from touching the database. It reads false
+     * until {@link #useDormancy} is called, so a server whose sweep has not run yet keeps
+     * every city protected.
      */
     private boolean isDormant(City city) {
-        return false;
+        return dormancy != null && dormancy.isDormant(city.id());
+    }
+
+    /** Wires SPEC 17.1 case 2's dormancy cache in once storage is open. */
+    public void useDormancy(dev.civitas.core.city.DormancyCache cache) {
+        this.dormancy = java.util.Objects.requireNonNull(cache, "cache");
     }
 
     /**

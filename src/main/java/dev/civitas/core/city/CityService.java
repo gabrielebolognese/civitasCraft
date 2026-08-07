@@ -754,6 +754,135 @@ public final class CityService {
         }));
     }
 
+    /**
+     * SPEC 17.1 case 1: the mayor has been gone too long, so the city gets a new one.
+     *
+     * <p>"Mayorship auto-transfers to the highest-weight member with the most recent login.
+     * Old mayor is demoted to Co-Mayor, notified on next login."
+     *
+     * <p>Deliberately not routed through {@link #transfer}: that path requires the outgoing
+     * mayor to initiate it and the incoming one to be online and accept within sixty seconds
+     * (SPEC 5.3), and every one of those conditions is impossible here — the whole reason this
+     * runs is that the mayor is absent. What it does share is the rank movement, so an
+     * involuntary transfer leaves a city in exactly the shape a voluntary one does.
+     *
+     * <p>The notice is written to storage rather than sent. The person it is for is offline by
+     * definition; there is nowhere to send it.
+     *
+     * @param newMayor the member chosen by the sweep, which owns the choosing rule
+     */
+    public CompletableFuture<Result<City>> transferInactiveMayor(City city, UUID newMayor,
+                                                                long now) {
+        if (!city.isMember(newMayor)) {
+            return completed(Result.failure("NOT_A_MEMBER", "city.not-a-member"));
+        }
+        if (city.isMayor(newMayor)) {
+            return completed(Result.failure("ALREADY_MAYOR", "city.transfer.self"));
+        }
+        CityRank mayorRank = city.mayorRank().orElse(null);
+        if (mayorRank == null) {
+            return completed(Result.failure("NO_MAYOR_RANK", "city.transfer.no-rank"));
+        }
+        CityRank secondRank = city.ranks().stream()
+                .filter(rank -> rank.id() != mayorRank.id())
+                .max((a, b) -> Integer.compare(a.weight(), b.weight()))
+                .orElse(mayorRank);
+        UUID previousMayor = city.mayorUuid();
+
+        return db.transaction(connection -> {
+            CityRow row = city.toRow();
+            daos.cities().update(connection, new CityRow(row.id(), row.name(),
+                    row.displayName(), row.tag(), newMayor, row.foundedAt(), row.treasury(),
+                    row.coreWorld(), row.coreChunkX(), row.coreChunkZ(), row.spawnX(),
+                    row.spawnY(), row.spawnZ(), row.spawnYaw(), row.spawnPitch(),
+                    row.openJoin(), row.motd(), row.upkeepDue(), row.delinquentSince(),
+                    row.warProtectionUntil(), row.frozen(), row.deletedAt()));
+
+            daos.cityMembers().updateRank(connection, newMayor, mayorRank.id());
+            daos.players().updateCity(connection, newMayor, city.id(), mayorRank.id());
+            daos.cityMembers().updateRank(connection, previousMayor, secondRank.id());
+            daos.players().updateCity(connection, previousMayor, city.id(), secondRank.id());
+
+            daos.playerNotices().insert(connection, new dev.civitas.storage.row.PlayerNoticeRow(
+                    0, previousMayor, "city.inactive-demoted",
+                    "{\"city\":" + jsonString(city.name()) + ",\"rank\":"
+                            + jsonString(secondRank.name()) + "}", now));
+
+            // A system action, so the actor is null: SPEC 3.6 allows that and it is the honest
+            // record. Writing the outgoing mayor's uuid would read as though they did this.
+            daos.auditLog().insert(connection, new dev.civitas.storage.row.AuditLogRow(0, now,
+                    null, "CITY_AUTO_TRANSFER", city.name(),
+                    "inactive mayor " + previousMayor + " replaced by " + newMayor, null));
+
+            return Result.success(city);
+        }).thenApply(result -> applyOnMain(result, transferred -> {
+            transferred.setMayorUuid(newMayor);
+            transferred.member(newMayor).ifPresent(m -> m.setRankId(mayorRank.id()));
+            transferred.member(previousMayor).ifPresent(m -> m.setRankId(secondRank.id()));
+        }));
+    }
+
+    /**
+     * SPEC 17.1 case 3: a city nobody has visited for long enough stops existing.
+     *
+     * <p>"City is soft-deleted, claims released, treasury burned. 14-day admin restore window."
+     *
+     * <p>Deliberately <b>not</b> {@link #adminDelete}, which keeps the claims so that SPEC
+     * 9.4.2's restore gives back a real city. The two are different operations that happen to
+     * share a column: an admin deleting a city expects to be able to undo it in full, and SPEC
+     * 17.1 case 3 explicitly frees the land for other people to use. The restore window still
+     * applies to the row, so an admin can bring the name and the members back — but the land
+     * will be gone, and that is what SPEC asks for.
+     *
+     * <p>Also not {@link #disband}, which refunds half the land cost to the mayor and splits
+     * the treasury among the members. Case 3 says burned, and paying out the treasury of a
+     * city that has been dead for four months would be a reward for abandoning it.
+     */
+    public CompletableFuture<Result<City>> expireInactive(City city, long now) {
+        if (city.isDeleted()) {
+            return completed(Result.failure("ALREADY_DELETED", "admin.city.already-deleted"));
+        }
+        java.math.BigDecimal burned = city.treasury();
+
+        return db.transaction(connection -> {
+            if (burned.signum() > 0) {
+                // Recorded, not silently vanished. SPEC 1.5 makes every coin movement
+                // auditable, and money leaving circulation is exactly the kind of thing an
+                // admin investigating a discrepancy needs to be able to find.
+                daos.ledger().insert(connection, new dev.civitas.storage.row.LedgerRow(0, now,
+                        TransactionType.UPKEEP_CHARGE.name(), null, null, city.id(),
+                        burned.negate(), dev.civitas.storage.SqlDialect.zero(),
+                        "{\"reason\":\"inactive_city_expired\"}"));
+            }
+            daos.cities().updateTreasury(connection, city.id(),
+                    dev.civitas.storage.SqlDialect.zero());
+            daos.claims().deleteByCity(connection, city.id());
+            daos.cityMembers().deleteByCity(connection, city.id());
+            daos.players().clearCity(connection, city.id());
+            daos.cityInvites().deleteByCity(connection, city.id());
+            daos.cities().softDelete(connection, city.id(), now);
+
+            daos.auditLog().insert(connection, new dev.civitas.storage.row.AuditLogRow(0, now,
+                    null, "CITY_EXPIRED", city.name(),
+                    "inactive, treasury " + burned + " burned", null));
+
+            return Result.success(city);
+        }).thenApply(result -> applyOnMain(result, expired -> {
+            expired.setDeletedAt(now);
+            expired.setTreasury(dev.civitas.storage.SqlDialect.zero());
+            claims.forgetCity(expired.id());
+            for (java.util.function.IntConsumer hook : disbandHooks) {
+                hook.accept(expired.id());
+            }
+            registry.unregister(expired);
+        }));
+    }
+
+    /** Minimal JSON string escaping, for the placeholder blobs written above. */
+    private static String jsonString(String value) {
+        return "\"" + value.replace("\\", "\\\\").replace("\"", "\\\"") + "\"";
+    }
+
     /** Discards a pending offer, for use when the offerer cancels or logs out. */
     public void cancelTransfer(UUID target) {
         pendingTransfers.remove(target);
