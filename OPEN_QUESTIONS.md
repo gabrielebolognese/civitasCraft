@@ -1128,3 +1128,26 @@ Format:
   and prints a line naming the two that are not measured. Printing a plausible figure would be
   worse than useless: an operator diagnosing a stall would chase a number nobody ever took.
   *Date:* 2026-08-07
+
+- **[M22]** SPEC 15.2 lists "Seven leaderboards" as an anti-toxicity mechanism and SPEC 13.3's
+  table lists nine, which M14 already recorded. M22 is where it stops mattering: the audit
+  asserts what SPEC 15.2 is protecting — that there is more than one ladder, and that a player
+  who cannot compete on wealth can be the top Builder or Farmer — rather than a count the
+  specification gives twice and differently. A test on the number would have to pick one of
+  SPEC's two answers and would fail if a later milestone added a tenth board, which would not
+  be a regression. *Date:* 2026-08-07
+
+- **[M22]** The audit found no unenforced mechanism, which is worth recording because a
+  milestone that finds nothing looks the same as one that did not look. Three tests failed on
+  the first run and all three were the test being wrong about the environment rather than the
+  product: the shop-tax key is `player-shops.tax-percent` rather than `shops.tax-percent`, the
+  member cap and the ten-claim war precondition both sit in front of the size-mismatch rule, and
+  a `NOW` captured at class load makes a city founded in `@BeforeEach` younger than zero — the
+  same trap recorded at M19. *Date:* 2026-08-07
+
+- **[M22]** SPEC 15.2's "no passive income from land" is a property proved by absence, which no
+  test can assert directly: there is no code to point at. *Implemented default:* the audit
+  asserts the two things that would have to be true if it held — that holding land costs upkeep,
+  and that a city's treasury does not move when nothing happens — and states in
+  `ANTI_TOXICITY.md` that this is weaker evidence than the other fifteen rows. A future income
+  source keyed on claim count would pass this test. *Date:* 2026-08-07

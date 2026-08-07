@@ -128,6 +128,19 @@ public final class WarService {
     }
 
     /**
+     * Whether this city could declare war on that one right now, without declaring.
+     *
+     * <p>The same twelve SPEC 11.3 preconditions the declaration runs, asked ahead of time.
+     * SPEC 8.8's Wars screen wants this to explain why its button will refuse before a player
+     * spends 50,000 C finding out, and an audit of SPEC 15's protections needs to ask the
+     * question without starting a war to hear the answer.
+     */
+    public Result<Void> canDeclare(UUID actor, City attacker, City defender, BigDecimal wager,
+                                    long now) {
+        return checkDeclaration(actor, attacker, defender, wager, now);
+    }
+
+    /**
      * SPEC 11.3's twelve preconditions, in order.
      *
      * <p>Order matters for the message rather than the outcome: a player told "that city is
