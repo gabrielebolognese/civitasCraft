@@ -1097,3 +1097,34 @@ Format:
   reload. An operator tuning a price live wants to see its effect before committing it, and a
   chat command that silently rewrote their configuration file would be worse than one whose
   change they have to remember to persist. The message says so. *Date:* 2026-08-07
+
+- **[M21]** SPEC 15.3 specifies `/report` with no rate limit, and a player-facing command that
+  writes to a moderation queue needs one: without it a single player can bury the queue and make
+  the feature useless for everybody, which defeats it rather than serving it. *Implemented
+  default:* `moderation.reports-per-window` (5) in `moderation.report-window-hours` (24), with
+  the reason trimmed to `moderation.max-reason-length` (200) rather than refused — somebody
+  typing a long complaint has a complaint, and discarding it to protect a column would be the
+  wrong trade. **None of these four numbers is from SPEC.** *Date:* 2026-08-07
+
+- **[M21]** SPEC 15.3 asks that a report carry "the reported player's last 50 ledger entries and
+  last 50 war actions". It does not say when to gather them. *Implemented default:* when the
+  report is **read**, not when it is written. Copying fifty ledger rows into a text column would
+  fork the record SPEC 1.5 makes authoritative, and the copy — the one a moderator would be
+  looking at — could then disagree with the ledger. Reading on demand also means a report filed
+  on Monday and read on Friday shows the week. "War actions" is read as kills: block-level war
+  damage is M17's log, which is scoped per war and far too large to attach to a chat message.
+  *Date:* 2026-08-07
+
+- **[M21]** SPEC 9.4.6 gives `/ca reload` a module argument, implying the modules reload
+  independently. They do not: the configuration files reference each other — a defense unit's
+  cost is in `defense.yml` and its upkeep is charged by the economy — so reloading one of a pair
+  leaves the plugin holding two halves of two different configurations. *Implemented default:*
+  the argument is accepted and everything reloads, read as naming what an operator is interested
+  in rather than promising isolation the files do not have. *Date:* 2026-08-07
+
+- **[M21]** SPEC 9.4.6 asks `/ca perf` for "avg claim lookup, block-log write rate, GUI open
+  time, DB pool status". Two of those are measured; **claim-lookup and GUI-open times are not
+  instrumented anywhere in the plugin.** *Implemented default:* the command reports what is real
+  and prints a line naming the two that are not measured. Printing a plausible figure would be
+  worse than useless: an operator diagnosing a stall would chase a number nobody ever took.
+  *Date:* 2026-08-07

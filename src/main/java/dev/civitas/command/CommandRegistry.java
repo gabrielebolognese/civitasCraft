@@ -39,9 +39,6 @@ public final class CommandRegistry {
             // SPEC 9.3, war and diplomacy.
 
 
-            // SPEC 15.3, moderation.
-            CommandSpec.of("report", "civitas.use", 22, "Report a player to the moderation queue."),
-
             // SPEC 9.1, the rules book.
             CommandSpec.of("civitas", "civitas.use", 23, "Plugin information and server rules."));
 

@@ -231,9 +231,9 @@ class LedgerRollbackTest {
         @Test
         @DisplayName("but the transactions that followed are counted, so the admin knows")
         void reportsDownstream() {
-            // The count is "how much happened after this", not an exact tally: ledger
-            // timestamps are milliseconds and two payments a moment apart can share one, so
-            // the assertion is on the contrast rather than on a number the clock decides.
+            // Exact, because the count is keyed on row ids rather than on millisecond
+            // timestamps: two payments a moment apart share a clock reading and never share
+            // an id, and an admin deciding whether the job is finished needs the real number.
             UUID other = support.givenEligiblePlayer("Cato");
             LedgerRow grant = givenGrant("10000");
             await(support.economy.pay(player, other, new BigDecimal("1000")));
@@ -242,8 +242,8 @@ class LedgerRollbackTest {
             LedgerRollback.Reversal reversal = await(rollback.reverse(ADMIN, grant.id(),
                     "duplicated")).orElseThrow();
 
-            assertTrue(reversal.downstream() > 0,
-                    "payments followed the grant and the admin has to be told");
+            assertEquals(2, reversal.downstream(),
+                    "two payments followed the grant");
         }
 
         @Test

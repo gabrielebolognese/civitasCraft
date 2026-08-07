@@ -64,6 +64,17 @@ public final class WarKillDao extends Dao<WarKillRow> {
                 + "ORDER BY timestamp", warId, killer);
     }
 
+    /**
+     * A player's recent kills across every war, for SPEC 15.3's report context.
+     *
+     * <p>Unlike {@link #findByKiller}, which answers about one war: a moderator
+     * reading a complaint wants the pattern, not one battle.
+     */
+    public CompletableFuture<List<WarKillRow>> findRecentByKiller(UUID killer, int limit) {
+        return queryList("SELECT " + COLUMNS + " FROM war_kills WHERE killer_uuid = ? "
+                + "ORDER BY timestamp DESC LIMIT ?", killer, limit);
+    }
+
     public CompletableFuture<Integer> deleteByWar(int warId) {
         return db.call(connection ->
                 updateSync(connection, "DELETE FROM war_kills WHERE war_id = ?", warId));

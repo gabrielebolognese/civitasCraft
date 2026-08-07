@@ -85,6 +85,32 @@ public final class MigrationRunner {
     }
 
     /** The migrations packaged for this dialect, ascending by version. */
+    /**
+     * SPEC 9.4.6's {@code /ca migrate check}: what would be applied, applying nothing.
+     *
+     * <p>Read-only, which is the entire point. A check that applied migrations would
+     * not be a check, and an operator running it on a live server before a maintenance
+     * window needs to know it is safe to run.
+     */
+    public List<Migration> pending(javax.sql.DataSource dataSource) {
+        List<Migration> all = discover();
+        try (Connection connection = dataSource.getConnection()) {
+            // The version table may not exist yet on a database that has never been opened,
+            // in which case every migration is pending and that is the honest answer.
+            TreeSet<Integer> applied;
+            try {
+                applied = readAppliedVersions(connection);
+            } catch (SQLException e) {
+                return all;
+            }
+            return all.stream()
+                    .filter(migration -> !applied.contains(migration.version()))
+                    .toList();
+        } catch (SQLException e) {
+            throw new StorageException("Could not read the applied migrations", e);
+        }
+    }
+
     public List<Migration> discover() {
         String folder = dialect.migrationFolder();
         List<String> fileNames = readIndex(folder);

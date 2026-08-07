@@ -176,7 +176,7 @@ public final class LedgerRollback {
         }).thenCompose(result -> {
             if (result instanceof Result.Success<Reversal>(Reversal reversal)) {
                 economy.remember(subject, closing.get());
-                return countDownstream(subject, original.timestamp())
+                return countDownstream(subject, original)
                         .thenApply(count -> Result.success(new Reversal(reversal.originalId(),
                                 reversal.subject(), reversal.original(), reversal.recovered(),
                                 reversal.debt(), count)));
@@ -227,9 +227,14 @@ public final class LedgerRollback {
      * tells an admin whether they have finished: reversing a grant that the player has since
      * spent in twelve places is not the end of the investigation.
      */
-    private CompletableFuture<Integer> countDownstream(UUID subject, long since) {
-        return daos.ledger().findByPlayer(subject, since + 1, 1000)
+    private CompletableFuture<Integer> countDownstream(UUID subject, LedgerRow original) {
+        // Ordered by row id rather than by timestamp. Ledger timestamps are milliseconds and
+        // several transactions can share one, so "after this" measured by clock is ambiguous
+        // exactly when a player is acting fast — which is the case an admin is investigating.
+        // Ids are monotonic, so they answer it exactly.
+        return daos.ledger().findByPlayer(subject, original.timestamp(), 1000)
                 .thenApply(rows -> (int) rows.stream()
+                        .filter(row -> row.id() > original.id())
                         // The compensating entry was written a moment ago and is itself after
                         // the original. Counting it would tell every admin that one
                         // transaction followed, whatever actually happened.

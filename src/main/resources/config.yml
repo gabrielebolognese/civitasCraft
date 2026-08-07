@@ -46,3 +46,18 @@ performance:
 
 # Verbose logging, toggleable in-game with /ca debug <on|off>.
 debug: false
+
+# SPEC 15.3's moderation queue.
+#
+# SPEC specifies no rate limit on /report, and a player-facing command that writes to a
+# queue needs one: without it a single player can bury the queue and make the feature
+# useless for everybody. These four numbers are this implementation's, not SPEC's, and are
+# deliberately generous — nobody with a real complaint should meet them.
+moderation:
+  reports-per-window: 5
+  report-window-hours: 24
+  max-reason-length: 200
+  queue-size: 25
+  # How much of the reported player's history SPEC 15.3 asks to be attached.
+  context-entries: 50
+  context-days: 30

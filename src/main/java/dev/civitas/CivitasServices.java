@@ -6,6 +6,8 @@ import dev.civitas.core.admin.FraudHeuristics;
 import dev.civitas.core.admin.InspectMode;
 import dev.civitas.core.admin.LedgerExport;
 import dev.civitas.core.admin.UpkeepOverrides;
+import dev.civitas.core.moderation.ReportService;
+import dev.civitas.storage.BackupService;
 import dev.civitas.core.city.CityRegistry;
 import dev.civitas.core.city.CityService;
 import dev.civitas.core.city.CityHall;
@@ -101,6 +103,11 @@ public record CivitasServices(
         InspectMode inspect,
         LedgerExport ledgerExport,
         UpkeepOverrides upkeepOverrides,
+        ReportService reports,
+        BackupService backups,
+        int backupKeepCount,
+        java.util.function.Supplier<java.util.List<String>> pendingMigrationSupplier,
+        java.util.function.IntSupplier warBlockLogBufferedSupplier,
         dev.civitas.storage.dao.DaoRegistry daos,
         WarScoreboard warScoreboard,
         OutpostService outposts,
@@ -118,4 +125,14 @@ public record CivitasServices(
         PlayerAccountService accounts,
         PlayerLookup lookup,
         Scheduler scheduler) {
+
+    /** Migrations discovered but not applied, for SPEC 9.4.6's {@code /ca migrate check}. */
+    public java.util.List<String> pendingMigrations() {
+        return pendingMigrationSupplier.get();
+    }
+
+    /** Rows waiting to be written by the war block logger, for {@code /ca perf}. */
+    public int warBlockLogBuffered() {
+        return warBlockLogBufferedSupplier.getAsInt();
+    }
 }

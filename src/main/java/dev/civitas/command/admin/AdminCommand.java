@@ -33,12 +33,15 @@ public final class AdminCommand {
     private final Scheduler scheduler;
     private final Logger logger;
 
+    private final Runnable reloadHook;
+
     public AdminCommand(Supplier<CivitasServices> services, LangManager lang,
-                        Scheduler scheduler, Logger logger) {
+                        Scheduler scheduler, Logger logger, Runnable reloadHook) {
         this.services = Objects.requireNonNull(services, "services");
         this.lang = Objects.requireNonNull(lang, "lang");
         this.scheduler = Objects.requireNonNull(scheduler, "scheduler");
         this.logger = Objects.requireNonNull(logger, "logger");
+        this.reloadHook = Objects.requireNonNull(reloadHook, "reloadHook");
     }
 
     public LiteralCommandNode<CommandSourceStack> build() {
@@ -54,6 +57,8 @@ public final class AdminCommand {
         AdminEconomyCommands economy = new AdminEconomyCommands(services, lang, scheduler,
                 logger);
         root.then(economy.build()).then(economy.buildMarket());
+        new AdminSystemCommands(services, lang, scheduler, logger, reloadHook).build()
+                .forEach(root::then);
         new AdminInspectCommands(services, lang, scheduler, logger).build()
                 .forEach(root::then);
         return root.build();
@@ -65,6 +70,7 @@ public final class AdminCommand {
         lang.sendRaw(audience, "admin.help-city");
         lang.sendRaw(audience, "admin.help-claim");
         lang.sendRaw(audience, "admin.help-eco");
+        lang.sendRaw(audience, "admin.help-system");
         lang.sendRaw(audience, "admin.help-war");
     }
 }

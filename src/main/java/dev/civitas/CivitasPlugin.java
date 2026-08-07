@@ -11,6 +11,7 @@ import dev.civitas.command.city.CityCommand;
 import dev.civitas.command.player.MoneyCommand;
 import dev.civitas.command.admin.AdminCommand;
 import dev.civitas.command.player.BountyCommand;
+import dev.civitas.command.player.ReportCommand;
 import dev.civitas.command.player.PayCommand;
 import dev.civitas.command.diplomacy.AllianceChatCommand;
 import dev.civitas.command.diplomacy.AllyCommand;
@@ -176,7 +177,9 @@ public final class CivitasPlugin extends JavaPlugin {
         BountyCommand bountyCommand =
                 new BountyCommand(services::get, lang, scheduler, getLogger());
         AdminCommand adminCommand =
-                new AdminCommand(services::get, lang, scheduler, getLogger());
+                new AdminCommand(services::get, lang, scheduler, getLogger(), this::reloadConfigs);
+        ReportCommand reportCommand =
+                new ReportCommand(services::get, lang, scheduler, getLogger());
         ShopCommand shopCommand = new ShopCommand(services::get, lang, scheduler, getLogger());
         SellCommand sellCommand = new SellCommand(services::get, lang, scheduler, getLogger());
         WorthCommand worthCommand = new WorthCommand(services::get, lang);
@@ -195,7 +198,8 @@ public final class CivitasPlugin extends JavaPlugin {
                         allyCommand.buildAlly(), allyCommand.buildTruce(),
                         allianceChat.build(), leaderboardCommand.build(),
                         contestCommand.build(), warCommand.build(),
-                        bountyCommand.build(), adminCommand.build()));
+                        bountyCommand.build(), adminCommand.build(),
+                        reportCommand.build()));
 
         warnIfRollbackDisabled();
         openDatabaseAsync(scheduler);
@@ -568,6 +572,9 @@ public final class CivitasPlugin extends JavaPlugin {
                 new dev.civitas.core.admin.InspectMode(claimRegistry, cityRegistry);
         dev.civitas.core.admin.LedgerExport ledgerExport =
                 new dev.civitas.core.admin.LedgerExport(getDataFolder());
+        dev.civitas.core.moderation.ReportService reportService =
+                new dev.civitas.core.moderation.ReportService(loadedDaos, configs);
+
         dev.civitas.core.admin.UpkeepOverrides upkeepOverrides =
                 new dev.civitas.core.admin.UpkeepOverrides(loadedDaos.upkeepMultipliers(),
                         getLogger());
@@ -627,7 +634,10 @@ public final class CivitasPlugin extends JavaPlugin {
                 eventService, warWiring.service(), warWiring.allies(), warWiring.peace(),
                 warWiring.capturePoints(), warWiring.rollback(), warWiring.trigger(),
                 auditService, adminProtection, fraudHeuristics, inspectMode,
-                ledgerExport, upkeepOverrides,
+                ledgerExport, upkeepOverrides, reportService, backups,
+                configs.get(ConfigFile.CONFIG).getInt("storage.backup.keep-count", 28),
+                this::pendingMigrationNames,
+                () -> warBlockLog == null ? 0 : warBlockLog.bufferedCount(),
                 loadedDaos, warWiring.scoreboard(),
                 outpostService, outpostTeleport, upgradeService,
                 defenseService, diplomacyService, vaultService, vaultView,
@@ -1251,6 +1261,41 @@ public final class CivitasPlugin extends JavaPlugin {
      * <p>Shared so a war that ends normally and one picked up after a crash follow exactly the
      * same path: SPEC 18.3 has to sign off one behaviour, not two.
      */
+    /**
+     * SPEC 9.4.6's {@code /ca reload}, and the plugin's own startup path.
+     *
+     * <p>Configuration only. Reloading the services would mean rebuilding caches players are
+     * mid-interaction with, and SPEC 9.4.6 asks for a config reload rather than a restart.
+     */
+    private void reloadConfigs() {
+        configs.reloadAll();
+        lang.load();
+    }
+
+    /**
+     * Migrations discovered but not applied, for SPEC 9.4.6's {@code /ca migrate check}.
+     *
+     * <p>Read-only. On a healthy server this is always empty, because migrations run at
+     * startup; a non-empty answer means the plugin jar is newer than the database it opened,
+     * which is worth knowing before a maintenance window rather than during one.
+     */
+    private java.util.List<String> pendingMigrationNames() {
+        if (database == null) {
+            return java.util.List.of();
+        }
+        try {
+            return new dev.civitas.storage.migration.MigrationRunner(getLogger(),
+                    database.dialect())
+                    .pending(database.dataSource()).stream()
+                    .map(dev.civitas.storage.migration.Migration::resourcePath)
+                    .toList();
+        } catch (RuntimeException e) {
+            getLogger().log(java.util.logging.Level.WARNING,
+                    "Could not check for pending migrations", e);
+            return java.util.List.of();
+        }
+    }
+
     private void beginRollbackFor(dev.civitas.core.war.RollbackEngine rollback,
                                   WarBlockLogger blockLog, int warId) {
         rollback.begin(warId).thenAccept(job ->

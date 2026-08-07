@@ -53,6 +53,17 @@ public final class DatabaseManager implements AutoCloseable {
         this.onMainThread = Objects.requireNonNull(onMainThread, "onMainThread");
     }
 
+    /**
+     * The pool, for the migration runner and for SPEC 9.4.6's read-only check.
+     *
+     * <p>Exposed narrowly as {@code DataSource} rather than as the Hikari type, so a
+     * caller can open a connection and cannot reconfigure the pool.
+     */
+    public javax.sql.DataSource dataSource() {
+        requireOpen();
+        return dataSource;
+    }
+
     public SqlDialect dialect() {
         return settings.dialect();
     }

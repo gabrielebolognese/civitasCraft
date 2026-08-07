@@ -163,6 +163,12 @@ final class MenuTestSupport implements AutoCloseable {
                 new dev.civitas.core.admin.LedgerExport(dataFolder),
                 new dev.civitas.core.admin.UpkeepOverrides(
                         cities.daos.upkeepMultipliers(), quiet()),
+                new dev.civitas.core.moderation.ReportService(cities.daos, cities.configs),
+                new dev.civitas.storage.BackupService(quiet(), cities.db,
+                        directory.resolve("backups").toFile()),
+                28,
+                java.util.List::of,
+                () -> 0,
                 cities.daos,
                 scoreboard, outposts,
                 outpostTeleport, upgradeService, defenseService, diplomacyService, vaultService,
