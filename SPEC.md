@@ -1856,3 +1856,2595 @@ Items the developer should decide before the relevant milestone. The agent shoul
 | 7 | Vault and PlaceholderAPI integration | Yes for PlaceholderAPI, optional Vault economy provider | M5 |
 | 8 | Discord webhook for wars and contests | Post-1.0 | later |
 | 9 | Dynmap or BlueMap claim rendering | Post-1.0, but design the claim API to support it | later |
+
+---
+
+# PART II, Economy Hardening, Command Completeness, and Player Feedback
+
+> Appended to SPEC.md. Sections 21 to 24 continue the numbering of Part I.
+> **Section 21 supersedes Section 4.4 where the two conflict.** The market item
+> table in 4.4 is retained only as a historical record of the original design and
+> must not be implemented. Implement Section 21.10 instead.
+
+---
+
+## 21. Economy threat model
+
+### 21.1 Why this section exists
+
+The economy in Part I was designed for balance but not for adversaries. Two audits were run against it. Both found breaking flaws. This section documents the flaws, the reasoning, and the corrected design.
+
+The governing principle: **a Minecraft economy is not broken by players spending too much, it is broken by money being created faster than it is destroyed.** Every exploit below is a variant of "a player found a way to create money at a rate the designer did not anticipate." Sinks do not save you, because sinks scale with what a player chooses to spend and sources scale with what a machine can produce while the player sleeps.
+
+The second governing principle: **automation is the enemy of a priced economy.** Minecraft is a game about building machines. Any item a machine can produce without a human present will eventually be produced in unlimited quantity. Pricing such an item at any non-zero value creates an infinite money generator. This is not a hypothetical, it is the single most common cause of death for server economies.
+
+### 21.2 Audit result 1: the market table in Section 4.4 is unusable
+
+Measured throughput of standard vanilla farms, priced against the Part I market table:
+
+| Farm | Output per hour | Value per hour | Value per AFK day (20h) |
+|---|---|---|---|
+| Raid farm (emeralds) | 600 | 150,000 C | **3,000,000 C** |
+| Nether portal gold farm | 2,000 | 140,000 C | **2,800,000 C** |
+| Iron farm, 4 module | 1,600 | 72,000 C | **1,440,000 C** |
+| Bonemeal wheat farm | 6,000 | 18,000 C | 360,000 C |
+| Iron farm, 1 module | 400 | 18,000 C | 360,000 C |
+| Sugarcane farm | 4,000 | 16,000 C | 320,000 C |
+| Melon farm | 8,000 | 16,000 C | 320,000 C |
+| Bamboo farm | 12,000 | 12,000 C | 240,000 C |
+| **Human farming, actively playing** | 900 | 2,700 C | 54,000 C |
+
+Part I targets roughly 60,000 to 100,000 C per day for an entire ten-member city. A single player with one raid farm produces **thirty to fifty times the intended income of an entire city**, while asleep.
+
+This is not a tuning problem that smaller numbers fix. Lowering emerald price to 1 C still yields 12,000 C/day for zero effort, and any price that makes a raid farm reasonable makes manual mining worthless. **The item must not be purchasable by the server at any price.**
+
+Note the ratio in the last two rows: an automated iron farm and an actively-playing human farmer both produce 360,000 C/day. The machine wins because it runs 20 hours a day and the human does not. Any economy where these compete is an economy that punishes playing the game.
+
+### 21.3 Audit result 2: dynamic pricing creates crafting arbitrage
+
+This flaw is subtle and would not have been found by playtesting until someone exploited it for millions.
+
+The 1.35x buy/sell spread protects against wash trading the *same* item. It does **not** protect across a crafting recipe, because the two items have independent prices that move independently.
+
+Take iron ingots (base 45) and iron blocks (base 405, priced fairly at 9x). Nine ingots craft into one block, and one block crafts back into nine ingots.
+
+| Market state | Ingot spot | Block spot | Buy 9 ingots, craft block, sell | Buy block, craft 9 ingots, sell |
+|---|---|---|---|---|
+| Both at equilibrium | 45.00 | 405.00 | -141.75 | -141.75 |
+| Ingots dumped to floor | 11.25 | 405.00 | **+268.31** | -445.50 |
+| Blocks dumped to floor | 45.00 | 101.25 | -445.50 | **+268.31** |
+| Ingots bought to cap | 135.00 | 405.00 | -1235.25 | **+668.25** |
+
+Three of four states contain an infinite money loop. Worse, **a player can create the exploitable state deliberately** by dumping one side of the pair, then farming the loop until the prices converge. The dynamic pricing that was supposed to protect the economy is the mechanism that breaks it.
+
+The same flaw applies to every reversible recipe in the game:
+
+```
+iron ingot <-> iron block          gold ingot <-> gold block
+diamond <-> diamond block          emerald <-> emerald block
+lapis <-> lapis block              redstone <-> redstone block
+coal <-> coal block                copper ingot <-> copper block
+netherite <-> netherite block      slimeball <-> slime block
+bone meal <-> bone block           wheat <-> hay bale
+dried kelp <-> dried kelp block    snowball <-> snow block
+amethyst shard <-> amethyst block  quartz <-> quartz block
+raw iron <-> raw iron block        raw gold <-> raw gold block
+raw copper <-> raw copper block    honeycomb <-> honeycomb block
+glowstone dust <-> glowstone       wheat seeds, melon, and all 1:9 pairs
+```
+
+And to every irreversible recipe where both sides are traded (log to planks, sand to glass via smelting, raw ore to ingot via smelting, cane to paper).
+
+**Fix, and it is structural rather than numerical:** the market trades **exactly one item per crafting equivalence class**, always the most raw form. If ingots are tradeable, blocks are not. If logs are tradeable, planks are not. If raw iron is tradeable, ingots are not. With only one side listed, **no loop exists in the graph**, and arbitrage is impossible by construction rather than by careful price tuning.
+
+This must be enforced in code, not left to config discipline. See 21.10.4.
+
+### 21.4 Threat catalogue
+
+Every threat below must have a test in Section 18 and a mitigation implemented.
+
+#### Class A: automated production
+
+| # | Vector | Rate | Mitigation |
+|---|---|---|---|
+| A1 | Iron farm | 400 to 1,600 ingot/h | Iron not purchasable |
+| A2 | Nether portal gold farm | 2,000 ingot/h | Gold not purchasable |
+| A3 | Raid farm | 600 emerald/h plus totems | Emeralds not purchasable, ever |
+| A4 | Villager trading hall | unbounded | See Class D |
+| A5 | Mob grinder (drops) | 5,000 items/h | No mob drops purchasable |
+| A6 | Sugarcane, bamboo, cactus, kelp | 4,000 to 12,000/h | Not purchasable |
+| A7 | Melon and pumpkin farm | 8,000/h | Not purchasable |
+| A8 | Bonemeal-accelerated crop farm | 6,000/h | Crops purchasable but quota-capped, see 21.5 |
+| A9 | Automatic tree farm | 3,000 log/h | Logs quota-capped, planks not purchasable |
+| A10 | Honey and cocoa farm | fully auto | Not purchasable |
+| A11 | AFK fish farm (treasure loot) | 1 item/30s plus enchanted books | Fishing loot not purchasable |
+| A12 | Squid and glow squid ink farm | fully auto | Not purchasable |
+| A13 | Cobblestone and stone generator | unbounded | Not purchasable |
+| A14 | Amethyst budding farm | semi-auto | Not purchasable |
+| A15 | Wither skeleton skull farm | slow but auto | Not purchasable |
+| A16 | Creeper and gunpowder farm | fully auto | Not purchasable |
+| A17 | Chicken and egg cooker | fully auto | Not purchasable |
+| A18 | Villager-based automatic crop harvester | fully auto | Crops are quota-capped, which bounds this |
+
+**The rule that generalises all of the above:** before any item is added to the market buy list, the developer must answer in writing, in a comment next to the config entry, the question *"can this item be produced by a machine with no player present?"* If the answer is yes or unknown, the item is not purchasable. This comment is a required part of the config file format.
+
+#### Class B: crafting and smelting arbitrage
+
+| # | Vector | Mitigation |
+|---|---|---|
+| B1 | Reversible n:1 recipes (see 21.3 list) | One item per equivalence class |
+| B2 | Irreversible recipes with both sides listed (log to plank) | One item per equivalence class |
+| B3 | Smelting arbitrage (raw ore to ingot, sand to glass, log to charcoal) | Smelting counts as a crafting edge for equivalence purposes |
+| B4 | Stonecutter arbitrage (1 stone to 1 slab, slabs craft back at 2:1 loss but stonecutter is 1:1 for many) | Stonecutter recipes included in the recipe graph |
+| B5 | Multi-step laundering (A to B to C where A and C are both listed) | Graph reachability check, not just direct-edge check |
+| B6 | Crafting-table 2x2 vs 3x3 asymmetries | Covered by the graph check |
+
+#### Class C: duplication glitches
+
+Vanilla and near-vanilla duplication exists in 1.21 and will not be fully patched. Anything dupeable must be worthless to the server.
+
+| # | Vector | Mitigation |
+|---|---|---|
+| C1 | TNT duping | TNT, gunpowder, and sand not purchasable |
+| C2 | Sand and gravel duping | Not purchasable |
+| C3 | Carpet, rail, and string duping | Not purchasable |
+| C4 | Shulker box item duplication variants | Containers with contents rejected by market (Part I case 30) |
+| C5 | Bedrock breaking to reach void loot | No mitigation needed, no items involved |
+| C6 | Any future unknown dupe | **Circuit breaker, see 21.7** |
+
+C6 is the important one. You cannot enumerate future exploits. The circuit breaker is the mitigation for the exploits you have not thought of yet, and it is the single most valuable safety mechanism in this section.
+
+#### Class D: the villager economy
+
+Villagers are a parallel economy with fixed prices that the plugin does not control. They are the most common way a server economy is destroyed after automated farms.
+
+| # | Vector | Mechanism | Mitigation |
+|---|---|---|---|
+| D1 | Farmer villager crop-to-emerald | 20 carrots buys 1 emerald, infinitely | Emeralds not purchasable |
+| D2 | Emerald-to-item then item-to-market | Buy any villager good with farmed emeralds, sell to market | Nothing a villager sells is purchasable by the market |
+| D3 | Librarian book farming | Mending and other books have real value | Enchanted items not accepted by market (Part I case 29) |
+| D4 | Cleric rotten flesh to emerald | Zombie farm becomes an emerald farm | Emeralds not purchasable |
+| D5 | Fletcher stick to emerald | Tree farm becomes an emerald farm | Emeralds not purchasable |
+| D6 | Wandering trader rare items | Low volume | Not purchasable |
+
+**Rule:** the set of items the server market buys and the set of items obtainable from villager trades must be **disjoint**. This must be validated at plugin startup against a hardcoded list of villager trade outputs, and the plugin must log a severe warning and refuse to enable the market module if the sets intersect. This is a startup assertion, not a documentation note.
+
+#### Class E: market manipulation
+
+Tested and analysed in detail.
+
+| # | Vector | Analysis | Verdict |
+|---|---|---|---|
+| E1 | Wash trading one item | Buy at spot x 1.35, sell at spot. Net loss at every price level (-3.94 at floor, -15.75 at equilibrium, -47.25 at cap per unit). | **Safe** |
+| E2 | Dump to crash, rebuy cheap, wait for recovery | Stock decay pulls stock toward target, so a dumped market's stock falls back and price rises. The rebuy therefore happens at a higher price than the dump average. | **Safe** |
+| E3 | Buy out stock to spike price, then sell own reserves | The buy-out itself costs 1.35x on a rising curve. Selling into the spike immediately depresses it. Modelled net is negative. | **Safe, but see E4** |
+| E4 | Coordinated multi-player corner (10 players buy out, 1 sells) | Cost is socialised across attackers, profit concentrated. Theoretically positive for the seller if the buyers act as an unpaid cartel. | **Mitigated by the daily quota, which caps the seller's extraction regardless** |
+| E5 | Cross-item arbitrage | See Class B | Fixed structurally |
+| E6 | Timing the stock decay | Decay is 2%/hour toward target, deterministic and public. A player could sell just before decay raises the price. Gain is a few percent. | **Acceptable, this is legitimate market play** |
+
+E1 through E3 confirm the spread plus mean reversion design from Part I is sound in isolation. The flaws were never in the pricing curve, they were in the item list and the crafting graph.
+
+#### Class F: exploits internal to this plugin
+
+| # | Vector | Analysis | Mitigation |
+|---|---|---|---|
+| F1 | Claim then unclaim for profit | Refund is 50% of `cost_paid`, and the next claim at the same index costs full price. Strictly a 50% loss every cycle. | Safe by design, no change |
+| F2 | Claim cheap during Founders' Week, unclaim later | Refund is 50% of the discounted price paid, not of current price. | Safe, but the implementation **must** refund from `cost_paid`, never recompute. Add a test. |
+| F3 | Unclaim before upkeep, reclaim after | Each cycle costs 50% of the chunk price. Upkeep is 0.4% of land value per day. Dodging costs roughly 125x more than paying. | Safe by design |
+| F4 | Wash-warring for the War leaderboard | Two friendly cities alternate wins. The 21-day cooldown caps this at roughly 17 wars per year, and each burns 20% of the wager. | Add: a war only counts toward the leaderboard if the losing side scored at least 25% of the winner's score. Collusive wars with a walkover score are recorded but not ranked. |
+| F5 | Wash-warring to transfer money past the withdrawal cap | 20% is burned each transfer, making it a bad laundering channel. | Acceptable, and the burn makes it a net sink |
+| F6 | Treasury laundering via disband | Create a city with alts, deposit, disband, treasury splits evenly among members. Bypasses the 25% withdrawal cap. | On disband, the treasury is split **proportionally to lifetime contribution**, not evenly. A member who contributed nothing receives nothing. |
+| F7 | Bounty self-claiming | Place a bounty on an alt, kill the alt, reclaim. | A player may not claim a bounty they placed. A player may not claim a bounty on an account sharing their IP. Both are silent rejections that refund to the placer. |
+| F8 | Contest prize farming with alt cities | Covered in Part I 13.4, but incomplete. | Add: a city must have at least 3 members with 5+ hours playtime to submit. Prize is paid to treasury, and treasury disband now splits by contribution (F6), closing the extraction path. |
+| F9 | Quest exploit: place-and-break the same block | "Place 512 blocks" completed by placing and breaking one block 512 times. | Blocks placed by a player are tagged in a per-chunk placed-block cache. Breaking a player-placed block does not count for mining quests, and re-placing in a recently-broken position does not count for building quests. Cache TTL 24 hours. |
+| F10 | Quest exploit: silk-touch ore replacement | "Mine 128 iron ore" completed by placing and mining the same ore repeatedly. | Same placed-block cache. Player-placed ore never counts. |
+| F11 | Stipend farming with a macro or AFK pool | Part I requires 3 distinct actions per 15 minutes. A single macro could satisfy this. | Strengthened: the 3 actions must be of **3 different types**, and must occur in at least 3 different minutes of the 15-minute window. A single repeating macro produces one action type and fails. |
+| F12 | Alt farming daily login and quests | Part I gates on playtime. | Strengthened: no income of any kind for the first 60 minutes of *active* playtime on a new account, and daily login rewards require 30 minutes of active playtime that day before paying out. |
+| F13 | Selling into the market from a city vault during war | Vault is war-immune, so it is a safe store. Not an exploit, this is intended. | No change, working as designed |
+| F14 | Upgrade purchase then city disband for refund | Upgrades are not refundable. | Explicitly: upgrades refund nothing on disband. Document in the GUI lore. |
+| F15 | Outpost create then delete cycling | 50% refund of creation cost to treasury. Strict loss. | Safe by design |
+| F16 | Joining a city, withdrawing 25%, leaving, repeat | The 24h city-switch cooldown limits this, but a rank with WITHDRAW should never be given to a new member. | Add: a member cannot withdraw from the treasury during their first 72 hours in a city, regardless of rank. Mayor is exempt. |
+
+#### Class G: money supply accounting
+
+The plugin must be able to answer, at any moment, "how much money exists and where did it come from." Without this you cannot detect an exploit you did not predict.
+
+Every hour the plugin records a snapshot to a `money_supply` table: total player balances, total treasury balances, total escrowed (wagers and bounties), sum of all income by ledger type for the hour, and sum of all sinks by ledger type for the hour.
+
+### 21.5 The daily sell quota, primary defense
+
+This is the single most important mechanism in the revised economy, because it is **exploit-agnostic**. It bounds money creation regardless of how clever the exploit is.
+
+**Rule:** each player may sell at most `economy.market.daily-sell-quota` (default **25,000 C**) of value to the server market per day. Past the quota, sell prices are multiplied by `economy.market.over-quota-multiplier` (default **0.2**).
+
+Design notes:
+- It is a **soft cap, not a hard block.** A player who hits it can still sell, just at a fifth of the value. Hard blocks feel like punishment and generate support tickets. Soft caps feel like diminishing returns and generate shrugs.
+- Quota is measured in **value**, not item count, so it cannot be gamed by switching items.
+- Quota resets at 00:00 server time along with quests.
+- The newcomer 1.5x multiplier applies **within** the quota, not to the quota itself.
+- **Player-to-player shops are not subject to the quota**, deliberately. Peer trade moves money, it does not create it. This makes the peer economy strictly more attractive than the server market for high-volume producers, which is exactly the behaviour we want: a player with a huge farm should be selling to other players, not to the void.
+
+**What this buys you:** total daily money creation becomes a known, bounded, predictable number.
+
+| Online players | Market cap/day | Stipend + login + quests | Total money creation/day |
+|---|---|---|---|
+| 10 | 250,000 | 34,400 | 284,400 |
+| 30 | 750,000 | 103,200 | 853,200 |
+| 60 | 1,500,000 | 206,400 | 1,706,400 |
+| 100 | 2,500,000 | 344,000 | 2,844,000 |
+
+Against this, a mature 100-chunk city sinks roughly 22,700 C/day in upkeep alone. The economy is now dimensionable: you can compute in advance whether the server inflates or deflates, and tune one number to fix it.
+
+Compare this to the unbounded design: a single undetected exploit could add 3,000,000 C/day. With the quota, that same exploit adds at most 25,000 C/day per participating account, which the circuit breaker in 21.7 will catch within hours.
+
+### 21.6 The market should mostly sell, not buy
+
+A course correction that follows directly from pillar 1.4 (building and farming are the point).
+
+Part I framed the market as primarily a *buyer* of player goods. That framing is what created the exploit surface, because every item the server buys is a potential money faucet. Every item the server *sells* is a money sink and carries no exploit risk at all.
+
+**Revised framing:** the server market is primarily a **shop for builders**. It sells decorative and building blocks that are tedious or impossible to gather in quantity, in exchange for money. It buys only a narrow whitelist.
+
+This does three things at once. It makes the market a large, permanent money sink instead of a faucet. It directly serves a building-focused server, because a player designing a cathedral wants 20,000 quartz blocks and does not want to mine them. And it collapses the exploit surface to the small buy list.
+
+**Sell-only catalogue (server sells to players, no exploit risk, priced as a sink):** all stone and deepslate variants, all wood types and processed wood, terracotta and glazed terracotta, all concrete and powder, all wool and carpet, glass and stained glass and panes, quartz blocks and variants, prismarine, purpur, copper and its oxidation and waxed states, all slabs, stairs, walls, and fences, all dyes, banners and patterns, flowers and foliage, candles, amethyst blocks, mud and mangrove variants, tuff and its 1.21 variants, bricks, and every decorative block added in 1.20 and 1.21.
+
+Price these at 1.5x to 4x the value of their raw inputs. A builder buying 20,000 quartz blocks removes a large amount of money from circulation in one transaction, which is exactly what a sink should do.
+
+### 21.7 Circuit breakers
+
+Mitigation for the exploits nobody has thought of yet. This is not optional.
+
+The plugin monitors and acts automatically:
+
+| Trigger | Threshold (config) | Automatic action |
+|---|---|---|
+| Server-wide money creation in 1 hour | > 3x the 7-day hourly average | Log SEVERE, alert online admins, **freeze all market sell operations server-wide**, broadcast a maintenance notice |
+| Single player income in 24h | > 10x their own 30-day daily average | Log WARNING, flag in `/ca audit suspicious`, apply the over-quota multiplier immediately |
+| Single item's server-wide sell volume in 1 hour | > 20x its 7-day hourly average | Automatically remove that item from the buy list, log SEVERE, alert admins |
+| Total circulation growth | > 15% week over week | Console warning (already in Part I 4.8) |
+| Total circulation growth | > 40% week over week | Freeze market sells, alert admins |
+| Item count audit after a war rollback | Unexplained server-wide item growth | Log SEVERE with the item and delta (Part I case 73) |
+
+**Freezing sells rather than the whole economy is deliberate.** Players can still buy, trade with each other, claim, and play. Only the money faucet closes. A server that halts entirely because of a suspected exploit does more damage than the exploit.
+
+Every circuit breaker trip writes to `audit_log` and produces an in-game message to online admins and a console message with the full triggering data.
+
+### 21.8 Removed from the market entirely
+
+Never purchasable by the server, at any price, under any config. This list is enforced in code as a hardcoded blacklist that config cannot override, because a well-meaning admin editing a yml is exactly how a server dies.
+
+```
+HARD BLACKLIST (code-enforced, config cannot add these to the buy list):
+
+  Emeralds and emerald blocks
+  Iron (raw, ingot, nugget, block) and gold (raw, ingot, nugget, block)
+  All mob drops: rotten flesh, bone, bonemeal, string, spider eye, gunpowder,
+    blaze rod, ender pearl, slimeball, magma cream, phantom membrane, leather,
+    feather, ink sac, glow ink sac, wither skeleton skull, shulker shell,
+    all raw and cooked meat, all eggs
+  Sugar cane, paper, sugar, bamboo, cactus, kelp and dried kelp, sea pickle
+  Melon and melon slice, pumpkin and carved pumpkin
+  Honey, honeycomb, cocoa beans, sweet berries, glow berries
+  Cobblestone, stone, deepslate, sand, red sand, gravel, TNT, string, rails,
+    carpet, snow and snowballs, ice of all kinds
+  All fishing loot and all fish
+  Nether wart, chorus fruit
+  Any enchanted item, any damaged item, any renamed item, any container with
+    contents, any item with custom NBT
+  Any item obtainable from any villager trade
+  Any item that is the non-raw side of a crafting equivalence class
+```
+
+Note what is missing from Part I's list that should have been there: **iron and gold**, which Part I priced at 45 and 70. Those two entries alone would have ended the server's economy within a week of launch.
+
+### 21.9 What the market may buy
+
+A deliberately small list. Everything here is either impossible to fully automate in vanilla, or is quota-bounded manual labour.
+
+| Item | Base price | Target stock | Elasticity | Automatable? |
+|---|---|---|---|---|
+| Diamond | 400 | 1,500 | 0.60 | No, requires mining |
+| Ancient debris | 2,500 | 150 | 0.70 | No |
+| Nether quartz | 12 | 8,000 | 0.50 | No, requires mining |
+| Wheat | 3 | 20,000 | 0.40 | Semi, quota-bounded |
+| Carrot | 3 | 20,000 | 0.40 | Semi, quota-bounded |
+| Potato | 3 | 20,000 | 0.40 | Semi, quota-bounded |
+| Beetroot | 4 | 15,000 | 0.40 | Semi, quota-bounded |
+| Oak/Birch/Spruce/etc log | 4 | 25,000 | 0.40 | Semi, quota-bounded |
+| Sniffer-grown plants (torchflower, pitcher) | 300 | 300 | 0.65 | No |
+| Archaeology pottery sherds | 400 | 200 | 0.70 | No |
+| Trial chamber loot keys | 600 | 300 | 0.70 | No, requires combat |
+| Echo shard | 800 | 200 | 0.70 | No, ancient city only |
+| Heart of the sea | 1,200 | 100 | 0.75 | No |
+| Nautilus shell | 200 | 500 | 0.60 | Only via AFK fishing, so quota-bounded, review at launch |
+
+Fourteen entries instead of nineteen, but the five removed were the five that broke everything.
+
+**Design intent of this list:** the highest-value income is exploration and mining, which requires a player to be present and actively playing. Farming is present but quota-capped, providing a reliable floor income rather than a path to wealth. The path to real wealth is the **player economy**, selling to other players, which creates no money at all and is therefore unbounded and safe.
+
+### 21.10 Implementation requirements
+
+These are code requirements, not guidance. Each has a test.
+
+**21.10.1 Startup validation.** On enable, the market module runs these assertions and refuses to enable (logging SEVERE with the specific failure) if any fails:
+- No item in the buy list appears in the hard blacklist
+- No item in the buy list is obtainable from any villager trade (validated against a hardcoded trade-output list)
+- No two items in the buy list are in the same crafting equivalence class
+- Every buy-list entry has the required `# automatable: no|semi` comment parsed from config
+
+**21.10.2 The crafting equivalence graph.** Built at startup by walking Bukkit's recipe iterator plus a hardcoded smelting and stonecutter table. Two items are in the same class if either is reachable from the other by any sequence of crafting, smelting, or stonecutting. The check is **transitive reachability, not direct-edge**, so multi-step laundering (A to B to C) is caught.
+
+**21.10.3 The quota tracker.** A per-player daily counter, persisted, reset at 00:00. Every market sell checks the counter before pricing and applies the multiplier past the threshold. Must be exact under concurrency, so it goes through the same synchronised service method as balance mutation.
+
+**21.10.4 Config cannot override safety.** The hard blacklist, the equivalence check, and the villager-disjointness check are code-level and are not readable from config. An admin can change prices, quotas, and elasticity. An admin cannot add emeralds to the buy list, even by editing the yml, even by editing the database.
+
+**21.10.5 The placed-block cache.** A bounded per-chunk cache of positions a player placed a block at, TTL 24 hours, used by F9 and F10. Memory-bounded with LRU eviction. This is also useful for contest verification (Part I 13.4).
+
+### 21.11 Revised `economy.yml` additions
+
+```yaml
+market:
+  daily-sell-quota: 25000
+  over-quota-multiplier: 0.2
+  quota-reset-hour: 0
+  spread: 1.35
+  stock-decay-percent-per-hour: 2.0
+  price-floor-multiplier: 0.25
+  price-cap-multiplier: 3.0
+
+  # Every buy entry REQUIRES an automatable comment. Startup fails without it.
+  buy:
+    DIAMOND:        { base: 400,  target: 1500,  elasticity: 0.60 }  # automatable: no
+    ANCIENT_DEBRIS: { base: 2500, target: 150,   elasticity: 0.70 }  # automatable: no
+    QUARTZ:         { base: 12,   target: 8000,  elasticity: 0.50 }  # automatable: no
+    WHEAT:          { base: 3,    target: 20000, elasticity: 0.40 }  # automatable: semi
+    # ... see 21.9
+
+circuit-breaker:
+  enabled: true
+  hourly-creation-multiplier-trigger: 3.0
+  player-income-multiplier-trigger: 10.0
+  item-volume-multiplier-trigger: 20.0
+  weekly-inflation-warn-percent: 15
+  weekly-inflation-freeze-percent: 40
+  action-on-trip: FREEZE_SELLS   # FREEZE_SELLS | WARN_ONLY
+
+anti-abuse:
+  new-account-income-block-minutes: 60
+  daily-login-requires-active-minutes: 30
+  treasury-withdraw-member-age-hours: 72
+  stipend-required-distinct-action-types: 3
+  stipend-required-distinct-minutes: 3
+  placed-block-cache-ttl-hours: 24
+  war-leaderboard-min-loser-score-percent: 25
+  disband-treasury-split: BY_CONTRIBUTION   # BY_CONTRIBUTION | EVEN
+```
+
+---
+
+## 22. Complete command reference
+
+### 22.1 Audit of Part I
+
+Part I Section 9 was incomplete. It covered the *actions* a player can take but not the *questions* a player asks. A player spends far more time asking "how much do I have," "what did I sell," "who is in my city," and "when is upkeep due" than they spend claiming chunks.
+
+Commands missing from Part I, now added below:
+
+| Missing | Severity | Why it matters |
+|---|---|---|
+| `/buy` | **Critical** | Part I had `/sell` but no way to buy from the market by command at all. The market was write-only. |
+| `/transactions` | **Critical** | A player had no way to see their own transaction history. Only admins could. |
+| `/city treasury` | High | Treasury was GUI-only. No command path. |
+| `/city members`, `/city online` | High | Member list was GUI-only. |
+| `/city upkeep` | High | A player could not check when upkeep is due or how much runway the city has. |
+| `/city claims` | Medium | No list of owned chunks. |
+| `/city perms` | Medium | No way to see what a rank can do without opening the editor. |
+| `/city invites` | Medium | No way to see pending invites. |
+| `/city log` | Medium | No city-level action history. |
+| `/toggle` | High | Section 23 adds many messages. Without a toggle, chat becomes unusable. |
+| `/playtime` | Low | Gates several systems, so players need to see it. |
+| `/market history` | Medium | Dynamic pricing is invisible without a price history view. |
+| `/quota` | High | The quota in 21.5 is meaningless if players cannot see their remaining quota. |
+| `/city relations` | Low | Diplomacy state was GUI-only. |
+| `/ca history` | High | Admins needed a market-filtered view, not the full ledger. |
+| `/ca eco top` | Medium | Wealth concentration is the first thing to check for an exploit. |
+| `/ca spy` | Medium | City chat monitoring for moderation. |
+| `/ca quota` | Medium | Inspect and reset a player's quota. |
+
+### 22.2 Command design rules
+
+1. Every command has a tab completion for every argument. No exceptions.
+2. Every command with a destructive effect requires an explicit confirm argument or a GUI confirmation.
+3. Every command prints something. A command that succeeds silently is a bug.
+4. Every command that fails explains **why** and **what to do next**, never just "you cannot do that."
+5. Every list command is paginated at 10 entries with clickable page navigation.
+6. Every command works from the GUI too. The GUI is the primary interface, commands are the power-user path.
+7. Aliases are short and predictable. `/c` for city, `/b` for balance.
+8. Amounts accept suffixes: `10k`, `1.5m`, `2b`, and `all` where meaningful.
+
+### 22.3 Player economy commands
+
+| Command | Aliases | Description | Output |
+|---|---|---|---|
+| `/balance [player]` | `/bal`, `/money`, `/b` | Own or another player's balance | Balance, plus today's net change |
+| `/pay <player> <amount>` | | Transfer money | Confirms amount, recipient, new balance |
+| `/transactions [page]` | `/txn`, `/history` | Own transaction history, last 30 days | Paginated, newest first, with type icons |
+| `/transactions <type> [page]` | | Filtered by ledger type | Same |
+| `/quota` | | Remaining daily market sell quota | Used, remaining, reset time, current multiplier |
+| `/playtime [player]` | | Total and active playtime | Both figures, plus what it unlocks |
+| **Market** | | | |
+| `/shop` | `/market` | Opens the market GUI | |
+| `/buy <item> [amount]` | | Buy from the server market | Item, qty, unit price, total, new balance |
+| `/sell hand [amount]` | | Sell held item | Item, qty, unit price, total, tax, quota status |
+| `/sell all <item>` | | Sell all of an item in inventory | Same |
+| `/sell all` | | Sell everything sellable in inventory | Itemised breakdown, then total |
+| `/worth [item]` | `/price` | Current buy and sell price | Both prices, stock level, 24h change |
+| `/market history <item>` | | Price history | ASCII sparkline, 7-day high, low, current |
+| `/market list [page]` | `/sellable` | Everything the market buys, with prices | Paginated |
+| `/market buylist [page]` | | Everything the market sells | Paginated |
+| **Player shops** | | | |
+| `/shops [player]` | | List a player's chest shops with locations | |
+| `/shops find <item>` | | Find player shops selling an item, nearest first | Distance, price, stock |
+| **Bounties** | | | |
+| `/bounty <player> <amount>` | | Place a bounty | |
+| `/bounty list [page]` | | Active bounties | |
+| `/bounty cancel <player>` | | Cancel own bounty, refunded | |
+
+### 22.4 City information commands
+
+All readable by anyone unless noted.
+
+| Command | Aliases | Description |
+|---|---|---|
+| `/city` | `/c`, `/town` | Main GUI, or own city info if GUI disabled |
+| `/city info [name]` | | Full city info: mayor, founded, members, claims, treasury, upkeep, war record, relations |
+| `/city list [sort] [page]` | | All cities. Sorts: `size`, `wealth`, `members`, `age`, `name` |
+| `/city members [name] [page]` | | Member list with ranks, last seen, contribution |
+| `/city online [name]` | | Online members only |
+| `/city claims [page]` | | Own city's chunk list with coordinates and claim dates |
+| `/city map [size]` | | ASCII chunk map |
+| `/city here` | `/city who` | Owner of the current chunk, and your permissions in it |
+| `/city treasury` | `/city bank` | Balance, daily upkeep, days of runway, next charge time |
+| `/city upkeep` | | Upkeep breakdown: land value, base rate, upgrade discounts, outpost costs, total, next charge, runway |
+| `/city log [page]` | | City action log: joins, leaves, claims, withdrawals, rank changes, last 30 days |
+| `/city perms [rank]` | | What each rank can do. With no argument, lists all ranks and member counts |
+| `/city ranks` | | Rank list with weights |
+| `/city invites` | | Pending invites you have received, and (with INVITE perm) pending invites your city has sent |
+| `/city relations [name]` | | Allies, truces, wars, enemies, with remaining durations |
+| `/city upgrades` | | Purchased upgrades, current levels, next level cost and effect |
+| `/city outpost list` | | Outposts with names, coordinates, distance, upkeep |
+| `/city outpost info <name>` | | Single outpost detail |
+| `/city top [type]` | `/leaderboard`, `/lb` | Leaderboards, all seven types from Part I 13.3 |
+| `/city stats [name]` | | Aggregate stats: blocks placed, crops harvested, total earned, war record, contest history |
+
+### 22.5 City action commands
+
+Unchanged from Part I 9.2 and 9.3, with these additions:
+
+| Command | City permission | Description |
+|---|---|---|
+| `/city deposit all` | DEPOSIT | Deposit entire personal balance |
+| `/city withdraw max` | WITHDRAW | Withdraw up to the remaining daily cap |
+| `/city invite cancel <player>` | INVITE | Cancel a sent invite |
+| `/city ban <player>` / `/city unban` | KICK | City-level ban list |
+| `/city banlist` | member | View it |
+| `/city rank clone <src> <new>` | MANAGE_RANKS | Copy a rank's permissions |
+| `/city vault sort` | CONTAINER | Sort the shared vault |
+| `/city outpost setwarp <name>` | OUTPOST_MANAGE | Already in Part I 7.3, restated here for completeness |
+
+### 22.6 Preference commands
+
+New. Required because Section 23 introduces a large number of messages.
+
+| Command | Description |
+|---|---|
+| `/toggle` | Opens the notification preferences GUI |
+| `/toggle <category> [on\|off]` | Toggle one category. Categories in 23.6 |
+| `/toggle list` | Show all categories and current state |
+| `/toggle compact [on\|off]` | Compact mode: one-line messages instead of multi-line |
+| `/toggle sounds [on\|off]` | Mute plugin sounds |
+| `/toggle actionbar [on\|off]` | Mute action bar feedback |
+| `/lang <code>` | Set language, `en` or `it` |
+
+### 22.7 Admin commands, additions to Part I 9.4
+
+Part I 9.4 covered management. These add the **investigative** commands an admin actually needs when someone reports "player X has too much money."
+
+#### 22.7.1 Financial investigation
+
+| Command | Permission | Description |
+|---|---|---|
+| `/ca balance <player>` | `civitas.admin.info` | Player balance, plus 7-day and 30-day net change |
+| `/ca treasury <city>` | `civitas.admin.info` | City treasury, plus 7-day and 30-day net change |
+| `/ca history <player> [days]` | `civitas.admin.audit` | **Market activity only**, default 7 days: every buy and sell with item, quantity, unit price, total, timestamp, running balance. This is the command for "what did this player sell." |
+| `/ca history city <city> [days]` | `civitas.admin.audit` | Same, aggregated for a city's members |
+| `/ca history item <material> [days]` | `civitas.admin.audit` | Every transaction of one item server-wide, sorted by volume. Finds the exploit. |
+| `/ca eco top [count]` | `civitas.admin.economy` | Richest players and cities, with 7-day change and percentage of total circulation |
+| `/ca eco supply [days]` | `civitas.admin.economy` | Money supply over time: created, destroyed, net, by ledger type. The inflation dashboard. |
+| `/ca eco sources <player> [days]` | `civitas.admin.audit` | Income broken down by source for one player. Answers "where did this come from." |
+| `/ca quota <player>` | `civitas.admin.economy` | Current quota usage and history |
+| `/ca quota reset <player>` | `civitas.admin.economy` | Reset a player's daily quota |
+| `/ca quota set <player> <amount>` | `civitas.admin.economy` | Temporary quota override |
+| `/ca market volume [hours]` | `civitas.admin.economy` | Sell volume by item, sorted, with deviation from the 7-day average. Circuit breaker view. |
+| `/ca market audit` | `civitas.admin.economy` | Re-runs the 21.10.1 startup validations on the live config and reports failures |
+| `/ca breaker status` | `civitas.admin.economy` | Circuit breaker state, recent trips, current thresholds |
+| `/ca breaker reset` | `civitas.admin.economy` | Clear a tripped breaker and resume market sells |
+
+#### 22.7.2 Moderation
+
+| Command | Permission | Description |
+|---|---|---|
+| `/ca spy [on\|off]` | `civitas.admin.info` | See all city and alliance chat |
+| `/ca reports [page]` | `civitas.admin.info` | Moderation queue from `/report` |
+| `/ca reports view <id>` | `civitas.admin.info` | Report with auto-attached ledger and war context |
+| `/ca reports close <id> <note>` | `civitas.admin.info` | Resolve |
+| `/ca notes <player>` | `civitas.admin.info` | Staff notes on a player |
+| `/ca notes add <player> <text>` | `civitas.admin.info` | Add a note |
+
+#### 22.7.3 Data
+
+| Command | Permission | Description |
+|---|---|---|
+| `/ca export ledger <days>` | `civitas.admin.audit` | Full ledger CSV |
+| `/ca export cities` | `civitas.admin.audit` | All cities with stats CSV |
+| `/ca export market <days>` | `civitas.admin.audit` | All market transactions CSV |
+| `/ca whoami` | `civitas.admin` | Lists which admin permissions you hold. Useful on a staff team with tiers. |
+
+### 22.8 Tab completion requirements
+
+Non-negotiable, and a frequent source of bad plugin UX.
+
+- Player name arguments complete against online players first, then known offline players
+- City name arguments complete against existing cities, filtered by relevance (own city first, then allies, then all)
+- Item arguments complete against the **market list**, not against all Minecraft materials. Suggesting 1,200 materials when 14 are sellable is hostile.
+- Amount arguments suggest `100`, `1k`, `10k`, `100k`, `all`, and `max` where applicable
+- Rank arguments complete against the player's own city's ranks
+- Permission flag arguments complete against the 22 flags in Part I 5.4
+- Admin subcommands complete only for players who hold the specific permission node, so a junior moderator does not see commands they cannot run
+- Enum arguments (sort orders, leaderboard types, toggle categories) complete against their valid values
+
+### 22.9 Command aliases summary
+
+```
+/c      -> /city              /bal, /money, /b -> /balance
+/t      -> /city (town)       /txn, /history   -> /transactions
+/cc     -> /city chat         /market          -> /shop
+/ac     -> /ally chat         /price           -> /worth
+/lb     -> /leaderboard       /sellable        -> /market list
+/ca     -> /cityadmin
+```
+
+Alias conflicts with EssentialsX and similar plugins are likely. All aliases must be configurable in `config.yml` under `commands.aliases`, and the plugin must log a warning at startup listing any alias already registered by another plugin rather than silently losing the command.
+
+---
+
+## 23. Message and feedback system
+
+### 23.1 Principles
+
+1. **Every action produces feedback.** If a player does something and nothing appears, they assume it failed and do it again. Silent success is the most common bug in plugin UX.
+2. **Feedback is private by default.** Transaction messages go to the actor and nobody else. A player selling 3 diamonds does not spam a 40-player server.
+3. **Numbers are always shown.** Never "you sold your items." Always "you sold 64 wheat at 3.12 C each for 199.68 C, minus 9.98 C tax, new balance 12,847.22 C."
+4. **The important number is visually distinct.** In any message, exactly one thing is the subject. That thing is bold and coloured. Everything else is gray.
+5. **Failure messages state the reason and the remedy.** "You cannot claim this chunk" is useless. "This chunk is not adjacent to your city. Your nearest claim is 3 chunks north." is useful.
+6. **Frequency-matched channel.** Constant feedback goes to the action bar, transactional feedback goes to chat, momentous feedback goes to a title, ongoing state goes to a boss bar.
+7. **Everything is toggleable and everything is translatable.** No hardcoded strings, ever.
+8. **Colour has consistent meaning.** Green is always money coming in. Red is always money going out or an error. A player should be able to read the colour before reading the words.
+
+### 23.2 Colour palette
+
+Defined once as MiniMessage tag resolvers, referenced by semantic name everywhere. Changing the palette must never require touching a message string.
+
+| Token | Hex | MiniMessage | Meaning |
+|---|---|---|---|
+| `<pos>` | `#4ADE80` | green | Money in, success, gain |
+| `<neg>` | `#F87171` | red | Money out, failure, loss |
+| `<money>` | `#FBBF24` | gold | Currency amounts, always |
+| `<subject>` | `#FFFFFF` + bold | white bold | The one thing the message is about |
+| `<body>` | `#9CA3AF` | gray | All ordinary text |
+| `<dim>` | `#4B5563` | dark gray | Brackets, separators, secondary detail |
+| `<city>` | `#38BDF8` | aqua | City names |
+| `<land>` | `#4ADE80` | green | Claims and territory |
+| `<war>` | `#DC2626` | dark red | War |
+| `<quest>` | `#C084FC` | light purple | Quests, challenges, contests |
+| `<ally>` | `#FCD34D` | yellow | Allies, diplomacy |
+| `<admin>` | `#EF4444` | red | Admin actions |
+| `<link>` | `#60A5FA` + underlined | blue underlined | Clickable elements |
+
+**Rule:** a message contains at most **three** coloured spans besides `<body>`. More than that and it reads as noise. If a message needs more emphasis than that, it is two messages or a GUI.
+
+### 23.3 Prefixes
+
+```yaml
+prefix:
+  economy: "<dim>[</dim><money>$</money><dim>]</dim> "
+  city:    "<dim>[</dim><city>City</city><dim>]</dim> "
+  land:    "<dim>[</dim><land>Land</land><dim>]</dim> "
+  war:     "<dim>[</dim><war>War</war><dim>]</dim> "
+  quest:   "<dim>[</dim><quest>Quest</quest><dim>]</dim> "
+  ally:    "<dim>[</dim><ally>Diplomacy</ally><dim>]</dim> "
+  server:  "<dim>[</dim><ally>Server</ally><dim>]</dim> "
+  admin:   "<dim>[</dim><admin>Admin</admin><dim>]</dim> "
+  error:   "<dim>[</dim><neg>!</neg><dim>]</dim> "
+  success: "<dim>[</dim><pos>+</pos><dim>]</dim> "
+```
+
+Compact mode (`/toggle compact`) replaces word prefixes with single characters: `$`, `C`, `L`, `W`, `Q`, `D`, `!`, `+`.
+
+### 23.4 Channels
+
+| Channel | Use for | Rules |
+|---|---|---|
+| **Chat** | Transactions, state changes, anything the player may want to scroll back to | Default for everything in 23.5 unless marked otherwise |
+| **Action bar** | Transient status, repeated events, positional info | Never for anything with a number the player needs to remember |
+| **Title / subtitle** | War start, war end, city founded, contest results | Maximum 4 per hour per player, hard-limited in code |
+| **Boss bar** | Ongoing timed state: war countdown, active server event, rollback progress | One at a time, priority ordered |
+| **Sound** | Reinforcement only, never the sole carrier of information | See 23.8 |
+| **Toast / advancement** | Never | Cannot be styled or disabled reliably |
+
+### 23.5 Message catalogue
+
+**Audience codes:** `SELF` actor only, `CITY` all online city members, `CITY-RANK` members with a permission, `BOTH` both cities in a war, `ALLY` allies, `SERVER` everyone, `ADMIN` online admins.
+
+#### 23.5.1 Economy, market
+
+| Key | Trigger | Audience | Channel | Template |
+|---|---|---|---|---|
+| `market.sell.success` | Sell completes | SELF | Chat | `{p.economy}<body>Sold <subject>{qty}x {item}</subject> at <money>{unit}</money> each for <pos>+{gross}</pos><body>, tax <neg>-{tax}</neg><body>. Balance: <money>{balance}</money>` |
+| `market.sell.multi` | `/sell all` | SELF | Chat | Header line, then one `<dim>  •</dim> <body>{qty}x {item} <dim>→</dim> <pos>+{total}</pos>` per item, then a total line |
+| `market.sell.quota_warn` | Crossing 80% of quota | SELF | Chat | `{p.economy}<body>You have used <subject>{pct}%</subject><body> of today's sell quota. <dim>{remaining} C remaining, resets in {time}.</dim>` |
+| `market.sell.quota_hit` | Crossing 100% | SELF | Chat | `{p.economy}<neg>Daily sell quota reached.</neg><body> Further sales earn <subject>{mult}x</subject><body> value until reset in <subject>{time}</subject><body>. <dim>Tip: sell to other players instead, player shops have no quota.</dim>` |
+| `market.sell.over_quota` | Each sale past quota | SELF | Chat | `{p.economy}<body>Sold <subject>{qty}x {item}</subject> for <pos>+{total}</pos> <dim>(reduced, over quota)</dim><body>. Balance: <money>{balance}</money>` |
+| `market.buy.success` | Buy completes | SELF | Chat | `{p.economy}<body>Bought <subject>{qty}x {item}</subject> at <money>{unit}</money> each for <neg>-{total}</neg><body>. Balance: <money>{balance}</money>` |
+| `market.price_moved` | Price moved >10% during a bulk sale | SELF | Chat | `{p.economy}<dim>Price of {item} moved from {old} to {new} during this sale.</dim>` |
+| `market.error.not_sellable` | Item not on buy list | SELF | Chat | `{p.error}<body>The market does not buy <subject>{item}</subject><body>. <dim>Use /market list to see what sells, or sell it to another player.</dim>` |
+| `market.error.enchanted` | Enchanted or damaged | SELF | Chat | `{p.error}<body>The market only accepts undamaged, unenchanted, unnamed items.</body>` |
+| `market.error.container` | Container with contents | SELF | Chat | `{p.error}<body>Empty the <subject>{item}</subject> before selling it.</body>` |
+| `market.error.funds` | Cannot afford | SELF | Chat | `{p.error}<body>You need <money>{needed}</money><body> but have <money>{have}</money><body>. <dim>Short by {short}.</dim>` |
+| `market.error.inventory_full` | No space | SELF | Chat | `{p.error}<body>Not enough inventory space for <subject>{qty}x {item}</subject><body>. <dim>{fits} would fit.</dim>` |
+| `market.error.frozen` | Market frozen by breaker | SELF | Chat | `{p.error}<body>Market sales are temporarily suspended. <dim>Staff have been notified.</dim>` |
+
+#### 23.5.2 Economy, transfers and income
+
+| Key | Trigger | Audience | Channel | Template |
+|---|---|---|---|---|
+| `pay.sent` | `/pay` succeeds | SELF | Chat | `{p.economy}<body>Sent <neg>-{amount}</neg><body> to <subject>{target}</subject><body>. Balance: <money>{balance}</money>` |
+| `pay.received` | Incoming | SELF (target) | Chat + sound | `{p.economy}<subject>{sender}</subject><body> sent you <pos>+{amount}</pos><body>. Balance: <money>{balance}</money>` |
+| `pay.error.self` | Paying self | SELF | Chat | `{p.error}<body>You cannot pay yourself.</body>` |
+| `pay.error.frozen` | Either party frozen | SELF | Chat | `{p.error}<body>That account cannot receive payments right now.</body>` |
+| `income.stipend` | 15-min stipend paid | SELF | **Action bar** | `<pos>+{amount}</pos> <dim>playtime</dim>` |
+| `income.stipend.capped` | Daily stipend cap reached | SELF | Chat | `{p.economy}<dim>Daily playtime earnings capped. Resets in {time}.</dim>` |
+| `income.stipend.inactive` | Failed the activity check | SELF | **Action bar** | `<dim>No playtime earnings while inactive</dim>` |
+| `income.daily` | Daily login | SELF | Chat + sound + title | `{p.economy}<body>Daily reward: <pos>+{amount}</pos><body>. Streak: <subject>{streak} days</subject><body>. <dim>Tomorrow: {next}</dim>` |
+| `income.daily.streak_broken` | Streak reset | SELF | Chat | `{p.economy}<body>Your <subject>{old}-day</subject> streak ended. <dim>Starting over at day 1.</dim>` |
+| `income.newcomer` | While bonus active | SELF | Chat | `{p.economy}<dim>Newcomer bonus applied (+50%). {days} days remaining.</dim>` |
+| `bounty.placed` | Bounty set | SELF + SERVER | Chat | SELF: confirmation. SERVER: `{p.economy}<subject>{placer}</subject><body> placed a <money>{amount}</money><body> bounty on <subject>{target}</subject><body>.` |
+| `bounty.claimed` | Killed a bounty target | SELF + SERVER | Chat + sound | `{p.economy}<subject>{killer}</subject><body> claimed the <money>{amount}</money><body> bounty on <subject>{victim}</subject><body>.` |
+| `bounty.expired` | 30 days | SELF | Chat | `{p.economy}<body>Your bounty on <subject>{target}</subject><body> expired. Refunded <pos>+{amount}</pos><body>.` |
+
+#### 23.5.3 Player shops
+
+| Key | Trigger | Audience | Channel | Template |
+|---|---|---|---|---|
+| `shop.created` | Sign shop made | SELF | Chat | `{p.economy}<body>Shop created: <subject>{qty}x {item}</subject><body> for <money>{price}</money><body>. <dim>{used}/{max} shops used.</dim>` |
+| `shop.sold` | Someone buys from you, online | SELF | Chat + sound | `{p.economy}<subject>{buyer}</subject><body> bought <subject>{qty}x {item}</subject><body> for <pos>+{amount}</pos><body>. <dim>{stock} left in stock.</dim>` |
+| `shop.sold.offline` | Someone buys while offline | SELF | Chat on next join | `{p.economy}<body>While you were away, your shops earned <pos>+{total}</pos><body> across <subject>{count}</subject><body> sales. <dim>/transactions for detail.</dim>` |
+| `shop.bought` | You buy from a shop | SELF | Chat | `{p.economy}<body>Bought <subject>{qty}x {item}</subject><body> from <subject>{owner}</subject><body> for <neg>-{amount}</neg><body>.` |
+| `shop.out_of_stock` | Empty | SELF | Chat | `{p.error}<body>That shop is out of stock.</body>` |
+| `shop.owner_full` | Owner's chest full | SELF | Chat | `{p.error}<body>That shop's storage is full.</body>` |
+| `shop.stock_low` | Below 10% | SELF (owner) | Chat | `{p.economy}<body>Shop low on stock: <subject>{item}</subject><body>, <subject>{stock}</subject><body> left.</body>` |
+
+#### 23.5.4 Land and claims
+
+| Key | Trigger | Audience | Channel | Template |
+|---|---|---|---|---|
+| `claim.success` | Chunk claimed | SELF | Chat | `{p.land}<body>Claimed <subject>({x}, {z})</subject><body> for <neg>-{cost}</neg><body>. <dim>Chunk {n} of your city. Next chunk: {next}. Treasury: {treasury}.</dim>` |
+| `claim.success.broadcast` | Chunk claimed | CITY | Chat | `{p.land}<subject>{player}</subject><body> claimed a chunk at <subject>({x}, {z})</subject><body>. <dim>City now has {total} chunks.</dim>` |
+| `claim.radius` | Radius claim | SELF | Chat | `{p.land}<body>Claimed <subject>{count} chunks</subject><body> for <neg>-{cost}</neg><body>. <dim>Treasury: {treasury}.</dim>` |
+| `claim.error.owned` | Already claimed | SELF | Chat | `{p.error}<body>This chunk belongs to <city>{city}</city><body>.` |
+| `claim.error.adjacency` | Not adjacent | SELF | Chat | `{p.error}<body>Chunks must border your city. <dim>Your nearest claim is {dist} chunks {dir}.</dim>` |
+| `claim.error.funds` | Treasury short | SELF | Chat | `{p.error}<body>Treasury has <money>{have}</money><body>, this chunk costs <money>{need}</money><body>. <dim>Short by {short}. Use /city deposit.</dim>` |
+| `claim.error.buffer` | Too close to another city | SELF | Chat | `{p.error}<body>Too close to <city>{city}</city><body>. <dim>Minimum distance is {min} chunks, this is {actual}.</dim>` |
+| `claim.error.war` | In war | SELF | Chat | `{p.error}<body>Cannot claim during a war.</body>` |
+| `claim.error.delinquent` | Upkeep unpaid | SELF | Chat | `{p.error}<body>Cannot claim while upkeep is unpaid. <dim>Owed: {owed}.</dim>` |
+| `unclaim.success` | Unclaimed | SELF + CITY | Chat | `{p.land}<body>Unclaimed <subject>({x}, {z})</subject><body>. Refunded <pos>+{refund}</pos><body> to treasury. <dim>{total} chunks remaining.</dim>` |
+| `unclaim.error.contiguity` | Would split city | SELF | Chat | `{p.error}<body>Unclaiming this would cut off <subject>{count} chunks</subject><body> from your city. <dim>Nearest orphan: ({x}, {z}).</dim>` |
+| `unclaim.error.core` | Core chunk | SELF | Chat | `{p.error}<body>The core chunk cannot be unclaimed. <dim>Use /city disband to remove the city.</dim>` |
+| `unclaim.error.spawn` | Contains spawn | SELF | Chat | `{p.error}<body>City spawn is in this chunk. <dim>Move it with /city setspawn first.</dim>` |
+| `claim.enter` | Entering a claim | SELF | **Action bar** | `<city>{city}</city> <dim>|</dim> <body>{relation}</body>` |
+| `claim.leave` | Entering wilderness | SELF | **Action bar** | `<dim>Wilderness</dim>` |
+| `claim.enter.enemy` | Entering an enemy claim in war | SELF | **Action bar** + sound | `<war>{city}</war> <dim>|</dim> <war>HOSTILE TERRITORY</war>` |
+| `protect.denied.build` | Build blocked | SELF | **Action bar**, 3s cooldown | `<neg>You cannot build in {city}</neg>` |
+| `protect.denied.container` | Container blocked | SELF | **Action bar**, 3s cooldown | `<neg>You cannot open containers in {city}</neg>` |
+| `protect.denied.rank` | Own city, insufficient rank | SELF | **Action bar**, 3s cooldown | `<neg>Your rank ({rank}) cannot do that</neg>` |
+
+**Note on protection denials.** These fire on every blocked click and would flood chat instantly. Action bar with a per-player 3-second cooldown per message type. This is a required implementation detail, not a suggestion.
+
+#### 23.5.5 City membership
+
+| Key | Trigger | Audience | Channel | Template |
+|---|---|---|---|---|
+| `city.created` | City founded | SELF + SERVER | Title + Chat | SERVER: `{p.city}<body>The city of <city>{name}</city><body> has been founded by <subject>{player}</subject><body>!` |
+| `city.invite.sent` | Invite sent | SELF | Chat | `{p.city}<body>Invited <subject>{target}</subject><body>. <dim>Expires in 5 minutes.</dim>` |
+| `city.invite.received` | Invite received | SELF | Chat + sound | `{p.city}<subject>{inviter}</subject><body> invited you to <city>{city}</city><body>. <link>[Accept]</link> <link>[Decline]</link> <dim>(5 min)</dim>` |
+| `city.invite.expired` | Timeout | SELF | Chat | `{p.city}<dim>Invite from {city} expired.</dim>` |
+| `city.member.joined` | Player joins | CITY | Chat + sound | `{p.city}<subject>{player}</subject><body> joined the city! <dim>{count} members.</dim>` |
+| `city.member.joined.self` | You join | SELF | Title + Chat | `{p.city}<body>Welcome to <city>{city}</city><body>. Your rank: <subject>{rank}</subject><body>. <dim>/city to open the city menu.</dim>` |
+| `city.member.left` | Player leaves | CITY | Chat | `{p.city}<subject>{player}</subject><body> left the city. <dim>{count} members.</dim>` |
+| `city.member.kicked` | Kicked | CITY | Chat | `{p.city}<subject>{player}</subject><body> was kicked by <subject>{actor}</subject><body>.` |
+| `city.member.kicked.self` | You were kicked | SELF | Chat + sound | `{p.city}<neg>You were removed from {city}.</neg><body> <dim>You may join another city in 24 hours.</dim>` |
+| `city.rank.changed` | Rank change | SELF + CITY | Chat | SELF: `{p.city}<body>Your rank is now <subject>{rank}</subject><body>. <dim>/city perms {rank} to see what you can do.</dim>` |
+| `city.rank.promoted` | Promotion | CITY | Chat + sound | `{p.city}<subject>{player}</subject><body> was promoted to <subject>{rank}</subject><body>.` |
+| `city.mayor.transferred` | Transfer | CITY + SERVER | Chat | `{p.city}<city>{city}</city><body> is now led by <subject>{player}</subject><body>.` |
+| `city.disbanded` | Disband | SERVER | Chat | `{p.city}<body>The city of <city>{name}</city><body> has been disbanded.</body>` |
+| `city.frozen` | Admin freeze | CITY | Chat + title | `{p.admin}<neg>Your city has been frozen by staff.</neg><body> Reason: <subject>{reason}</subject><body>. <dim>All city actions are suspended.</dim>` |
+
+#### 23.5.6 Treasury and upkeep
+
+| Key | Trigger | Audience | Channel | Template |
+|---|---|---|---|---|
+| `treasury.deposit` | Deposit | SELF | Chat | `{p.economy}<body>Deposited <neg>-{amount}</neg><body> to <city>{city}</city><body>. Treasury: <money>{treasury}</money><body>. <dim>Your lifetime contribution: {lifetime}.</dim>` |
+| `treasury.deposit.broadcast` | Deposit over 10k | CITY | Chat | `{p.city}<subject>{player}</subject><body> deposited <pos>+{amount}</pos><body>. Treasury: <money>{treasury}</money><body>.` |
+| `treasury.withdraw` | Withdrawal | SELF | Chat | `{p.economy}<body>Withdrew <pos>+{amount}</pos><body> from <city>{city}</city><body>. Treasury: <money>{treasury}</money><body>.` |
+| `treasury.withdraw.broadcast` | **Every** withdrawal | CITY | Chat | `{p.city}<subject>{player}</subject><body> withdrew <neg>-{amount}</neg><body> from the treasury. Treasury: <money>{treasury}</money><body>.` |
+| `treasury.withdraw.cap` | Cap hit | SELF | Chat | `{p.error}<body>Daily withdrawal limit reached. <dim>You may withdraw {remaining} more in {time}.</dim>` |
+| `treasury.withdraw.new_member` | Under 72h | SELF | Chat | `{p.error}<body>New members cannot withdraw for the first 72 hours. <dim>{time} remaining.</dim>` |
+| `upkeep.charged` | Daily charge | CITY-RANK | Chat | `{p.city}<body>Upkeep paid: <neg>-{amount}</neg><body>. Treasury: <money>{treasury}</money><body>. <dim>{days} days of runway.</dim>` |
+| `upkeep.warning` | Runway under 3 days | CITY | Chat + sound | `{p.city}<neg>Treasury low.</neg><body> <subject>{days} days</subject><body> until the city cannot pay upkeep. <dim>Daily cost: {cost}.</dim>` |
+| `upkeep.failed` | Cannot pay | CITY | Chat + title | `{p.city}<neg>UPKEEP UNPAID.</neg><body> Owed: <money>{owed}</money><body>. <dim>Grace period: {days} days, then chunks will be lost.</dim>` |
+| `upkeep.auto_unclaim` | Chunks lost | CITY | Chat + sound | `{p.city}<neg>Lost {count} chunks</neg><body> to unpaid upkeep. <dim>{remaining} chunks left. Deposit to stop this.</dim>` |
+| `upkeep.recovered` | Debt cleared | CITY | Chat | `{p.city}<pos>Upkeep is current again.</pos><body> <dim>Treasury: {treasury}.</dim>` |
+
+**Note on `treasury.withdraw.broadcast`.** Every withdrawal is announced to the whole city, always, with no toggle. This is deliberate and is the primary anti-fraud mechanism in the plugin. Social transparency prevents treasury theft far more effectively than any permission system, because the thief knows everyone will see it happen in real time.
+
+#### 23.5.7 War
+
+| Key | Trigger | Audience | Channel | Template |
+|---|---|---|---|---|
+| `war.declared` | Declaration | SERVER | Chat + title to BOTH + sound | `{p.war}<war>WAR DECLARED.</war><body> <city>{attacker}</city><body> has declared war on <city>{defender}</city><body>. Wager: <money>{wager}</money><body>. <dim>Preparation: 48 hours.</dim>` |
+| `war.declined` | Defender declines | SERVER | Chat | `{p.war}<city>{defender}</city><body> declined war with <city>{attacker}</city><body>, forfeiting <money>{amount}</money><body>.` |
+| `war.prep.countdown` | 24h, 6h, 1h, 10m | BOTH | Chat + boss bar | `{p.war}<body>War begins in <subject>{time}</subject><body>. <dim>Buy defenses with /city defense.</dim>` |
+| `war.started` | ACTIVE begins | BOTH + SERVER | Title + Chat + sound | Title: `<war>WAR</war>` / subtitle: `<body>{attacker} vs {defender}</body>` |
+| `war.kill` | Player killed | BOTH | Chat | `{p.war}<subject>{killer}</subject> <dim>(<city>{city}</city>)</dim> <body>killed</body> <subject>{victim}</subject><body>. <dim>+{points} points.</dim>` |
+| `war.capture.started` | Capture begins | BOTH | Chat + boss bar | `{p.war}<city>{city}</city><body> is capturing <subject>Point {n}</subject><body>. <dim>{time} to hold.</dim>` |
+| `war.capture.complete` | Held 60s | BOTH | Chat + sound | `{p.war}<city>{city}</city><body> captured <subject>Point {n}</subject><body>. <dim>+{points} points.</dim>` |
+| `war.score` | Every 10% score change | BOTH | **Boss bar** | `<war>{attacker} {aScore} - {dScore} {defender}</war> <dim>| {time} left</dim>` |
+| `war.cityhall.reached` | Enemy at City Hall | BOTH | Chat + title + sound | `{p.war}<war>{city} has reached the enemy City Hall!</war><body> <dim>+100 points.</dim>` |
+| `war.ended` | Timer expires | BOTH + SERVER | Title + Chat | `{p.war}<body>War over. <city>{winner}</city><body> wins <subject>{aScore} to {dScore}</subject><body>.` |
+| `war.rollback.started` | Rollback begins | BOTH + SERVER | Chat + boss bar | `{p.war}<body>Restoring the world. <dim>The war zone is closed until this completes.</dim>` |
+| `war.rollback.progress` | Every 10% | BOTH | **Boss bar** | `<body>Restoring: {pct}% <dim>({done}/{total} blocks)</dim>` |
+| `war.rollback.complete` | Done | BOTH + SERVER | Chat + title + sound | `{p.war}<pos>The world has been restored.</pos><body> <subject>{count}</subject><body> blocks returned to their original state. <dim>Nothing was permanently lost.</dim>` |
+| `war.rollback.failed` | Error | ADMIN + BOTH | Chat + console SEVERE | `{p.admin}<neg>Rollback incomplete.</neg><body> <subject>{count}</subject><body> blocks could not be restored. Staff have been notified. <dim>/ca war rollbackstatus {id}</dim>` |
+| `war.payout` | Resolution | BOTH | Chat | Winner: `{p.war}<body>Victory. Treasury received <pos>+{amount}</pos><body>. <dim>Market bonus +10% for 7 days.</dim>` Loser: `{p.war}<body>Defeat. Recovered <pos>+{amount}</pos><body> of your wager. <dim>7 days of war immunity granted.</dim>` |
+| `war.loot.reminder` | On war start | BOTH | Chat | `{p.war}<body>Reminder: destroyed blocks are restored, but <subject>items taken from chests are gone for good</subject><body>. <dim>Move valuables to the city vault, which is war-immune.</dim>` |
+
+**`war.rollback.complete` is the most important message in the plugin.** It is the moment the core promise is delivered. It gets a title, a sound, and explicit wording that nothing was lost, because that reassurance is the entire reason players will agree to fight.
+
+#### 23.5.8 Diplomacy, quests, events
+
+| Key | Trigger | Audience | Channel |
+|---|---|---|---|
+| `ally.proposed` / `ally.accepted` / `ally.broken` / `ally.break_notice` | Alliance changes | Both cities + SERVER on accept | Chat |
+| `truce.offered` / `truce.accepted` / `truce.expiring` (24h warning) / `truce.expired` | Truce changes | Both cities | Chat |
+| `quest.assigned` | Daily reset | SELF | Chat on join |
+| `quest.progress` | Every 25% | SELF | **Action bar** |
+| `quest.complete` | Done | SELF | Chat + sound |
+| `quest.reward` | Paid | SELF | Chat |
+| `challenge.progress` | Every 25% | CITY | Chat |
+| `challenge.complete` | Done | CITY | Chat + sound |
+| `contest.announced` | New theme | SERVER | Chat + title |
+| `contest.deadline` | 48h, 24h, 1h | SERVER | Chat |
+| `contest.submitted` | Entry made | CITY | Chat |
+| `contest.voting_open` | Voting begins | SERVER | Chat |
+| `contest.results` | Scored | SERVER | Chat + title to winners |
+| `event.warning` | 30 min before | SERVER | Chat |
+| `event.started` | Begins | SERVER | Chat + title + **boss bar** |
+| `event.ended` | Ends | SERVER | Chat |
+| `leaderboard.overtaken` | Lost a top-3 spot | SELF | Chat |
+| `leaderboard.entered` | Entered top 10 | SELF + SERVER if top 3 | Chat + sound |
+
+#### 23.5.9 Errors, generic
+
+| Key | Template |
+|---|---|
+| `error.no_permission` | `{p.error}<body>You need <subject>{permission}</subject><body> to do that.</body>` |
+| `error.no_city_permission` | `{p.error}<body>Your rank (<subject>{rank}</subject><body>) lacks <subject>{flag}</subject><body>. <dim>Ask a {higher_rank} to grant it.</dim>` |
+| `error.not_in_city` | `{p.error}<body>You are not in a city. <dim>/city create <name> to found one, or ask for an invite.</dim>` |
+| `error.cooldown` | `{p.error}<body>Wait <subject>{time}</subject><body> before doing that again.</body>` |
+| `error.player_not_found` | `{p.error}<body>No player named <subject>{name}</subject><body>.` |
+| `error.city_not_found` | `{p.error}<body>No city named <subject>{name}</subject><body>. <dim>/city list to see all cities.</dim>` |
+| `error.invalid_amount` | `{p.error}<body>"<subject>{input}</subject>" is not a valid amount. <dim>Try 1000, 10k, or all.</dim>` |
+| `error.frozen` | `{p.error}<body>This action is unavailable while your account or city is frozen.</body>` |
+| `error.usage` | `{p.error}<body>Usage: <subject>{usage}</subject><body>` |
+| `error.internal` | `{p.error}<body>Something went wrong. <dim>Staff have been notified. Error ID: {id}</dim>` |
+
+**`error.internal` must include a generated error ID that is also written to console with the full stack trace.** A player reporting "it broke" with an ID is a bug report. A player reporting "it broke" without one is a mystery.
+
+### 23.6 Toggle categories
+
+```yaml
+toggles:
+  economy_personal:  { default: on,  locked: false }   # own transactions
+  economy_city:      { default: on,  locked: false }   # deposits by others
+  treasury_withdraw: { default: on,  locked: TRUE  }   # ALWAYS ON, anti-fraud
+  land_own:          { default: on,  locked: false }   # own claims
+  land_city:         { default: on,  locked: false }   # others' claims
+  membership:        { default: on,  locked: false }   # joins, leaves, ranks
+  upkeep:            { default: on,  locked: false }
+  upkeep_critical:   { default: on,  locked: TRUE  }   # ALWAYS ON, city survival
+  war:               { default: on,  locked: TRUE  }   # ALWAYS ON, safety
+  diplomacy:         { default: on,  locked: false }
+  quests:            { default: on,  locked: false }
+  contests:          { default: on,  locked: false }
+  events:            { default: on,  locked: false }
+  leaderboard:       { default: on,  locked: false }
+  shop_sales:        { default: on,  locked: false }
+  actionbar:         { default: on,  locked: false }
+  sounds:            { default: on,  locked: false }
+  compact:           { default: off, locked: false }
+```
+
+Four categories are locked on. War messages, critical upkeep warnings, and treasury withdrawals cannot be muted, because muting them enables either fraud or an avoidable loss of the player's own city. Everything else is the player's choice.
+
+### 23.7 Language file structure
+
+```
+resources/lang/
+├── en.yml
+└── it.yml
+```
+
+Requirements:
+- Keys match the catalogue above exactly
+- Placeholders use `{name}` and are validated at startup. A missing or misspelled placeholder logs a warning with the key name, and the message falls back to English rather than rendering broken text.
+- A startup check compares every language file against `en.yml` and logs which keys are missing.
+- Numbers are formatted by a single central formatter. Currency always shows two decimals with thousands separators. Large numbers abbreviate above 1,000,000 (`1.25M`) in action bars and boss bars only, never in chat, because a player reading a transaction wants the exact figure.
+- Durations use a single formatter: `2d 4h`, `18m`, `45s`.
+- Coordinates always as `(x, z)` for chunks and `(x, y, z)` for blocks.
+
+### 23.8 Sound design
+
+Sound reinforces, never carries information alone. Every sound respects `/toggle sounds`.
+
+| Event | Sound | Pitch |
+|---|---|---|
+| Money received | `ENTITY_EXPERIENCE_ORB_PICKUP` | 1.2 |
+| Money spent | `BLOCK_NOTE_BLOCK_BASS` | 0.8 |
+| Transaction failed | `BLOCK_NOTE_BLOCK_BASS` | 0.5 |
+| Claim success | `BLOCK_AMETHYST_BLOCK_CHIME` | 1.0 |
+| Quest or challenge complete | `ENTITY_PLAYER_LEVELUP` | 1.0 |
+| City member joins | `BLOCK_NOTE_BLOCK_CHIME` | 1.4 |
+| Invite received | `BLOCK_NOTE_BLOCK_PLING` | 1.2 |
+| War declared | `ENTITY_ENDER_DRAGON_GROWL` | 0.7 |
+| War kill | `ENTITY_PLAYER_ATTACK_CRIT` | 1.0 |
+| Capture point taken | `BLOCK_BEACON_ACTIVATE` | 1.0 |
+| **Rollback complete** | `UI_TOAST_CHALLENGE_COMPLETE` | 1.0 |
+| Upkeep critical | `BLOCK_BELL_USE` | 0.6 |
+| Contest win | `UI_TOAST_CHALLENGE_COMPLETE` | 1.0 |
+| GUI button denied | `BLOCK_NOTE_BLOCK_BASS` | 0.5 |
+| GUI page turn | `ITEM_BOOK_PAGE_TURN` | 1.0 |
+
+---
+
+## 24. Additional milestones
+
+Append to PLAN.md. These slot into the existing sequence rather than following it.
+
+| M | Milestone | Deliverable | Depends on | Slots after |
+|---|---|---|---|---|
+| 6a | **Crafting equivalence graph** | Recipe graph builder from Bukkit's recipe iterator plus hardcoded smelting and stonecutter tables. Transitive reachability check. Startup validation from 21.10.1. Unit tests proving the reversible pairs in 21.3 are detected, including multi-step (A to B to C). **The market module must not enable if validation fails.** | M6 | before market goes live |
+| 6b | **Market hardening** | Hard blacklist (21.8) as code, not config. Villager-disjointness startup assertion. Revised buy list (21.9). Sell-only builder catalogue (21.6). | M6a | |
+| 6c | **Daily sell quota** | Per-player quota tracker, soft cap multiplier, `/quota`, persistence, concurrency-safe, resets at 00:00 | M6b | |
+| 9a | **Anti-abuse layer** | Placed-block cache (21.10.5), strengthened stipend check (F11), new-account income gate (F12), 72-hour withdrawal hold (F16), contribution-proportional disband split (F6), bounty self-claim block (F7), war leaderboard score threshold (F4) | M9 | |
+| 14a | **Money supply accounting** | Hourly `money_supply` snapshots, `/ca eco supply`, `/ca eco sources`, `/ca eco top`, inflation dashboard | M14 | |
+| 14b | **Circuit breakers** | All triggers in 21.7, automatic market sell freeze, admin alerting, `/ca breaker status` and `reset`, `/ca market volume` | M14a | |
+| 7a | **Message framework** | Palette as MiniMessage tag resolvers, prefix system, channel router (chat, action bar, title, boss bar, sound), per-player toggle store, action-bar cooldown throttling, placeholder validation at startup, number and duration formatters, `en.yml` complete | M7 | build alongside the GUI framework |
+| 23a | **Message catalogue** | Every key in 23.5 implemented and wired. A test that asserts **every** service method that mutates state fires at least one message. | all feature milestones | |
+| 23b | **Italian localisation** | `it.yml` complete, key-parity check green | M23a | |
+| 21a | **Investigative admin tooling** | Everything in 22.7.1 and 22.7.2. `/ca history` is the priority. | M21 | |
+| 22a | **Command completeness pass** | Every command in Section 22 implemented with full tab completion. A test that asserts every registered command has a completer for every argument. | all | |
+
+**Ordering note.** M6a and M6b are **hard blockers on M6**. The market must not be playable before the equivalence graph and the blacklist exist. If the market ships first "just to test it," the test server's economy will be broken within an hour and every subsequent balance measurement you take will be meaningless.
+
+M7a should be built alongside the GUI framework, not after. Retrofitting a message framework onto twenty modules that already print strings directly is significantly more work than building it once up front, and the retrofit always misses cases.
+
+---
+
+# PART III, Defense Units, the City Warden, and Siege
+
+> Appended to SPEC.md. Sections 25 to 31 continue the numbering of Parts I and II.
+> **This part fully supersedes Part I Section 12.** The eight-unit catalogue in
+> Section 12.2 must not be implemented. Implement Section 27 instead.
+
+---
+
+## 25. Combat doctrine
+
+### 25.1 Why Part I Section 12 is replaced
+
+The original catalogue listed eight units. Watchman, City Guard, and Elite Guard were one unit at three price points. Archer and Sharpshooter were one unit at two price points. Five of eight entries performed two jobs, and the only decision a player made was how much to spend.
+
+A roster is interesting when units do **different things** and composition is the decision. Vertical scaling belongs to the Fortification upgrade, not to parallel tiers of the same mob.
+
+### 25.2 The four rules
+
+Every unit, ability, and number in this part is subject to these. Where a design conflicts with a rule, the rule wins.
+
+**Rule 1: defense makes attacking expensive, never impossible.**
+The balance target is explicit and testable: a defending city's full garrison, at any Fortification level, must be beatable by an attacking force **equal in size to the defender's active member count**, equipped with good gear and coordinating. If a configuration exists where this is false, that configuration is a bug.
+
+An unbeatable city is worse than no defense at all, because nobody declares war on it, the wager system goes unused, and the rollback engine (the plugin's defining feature) never runs.
+
+**Rule 2: peacetime is safe.**
+Part I Section 13.4 requires players to travel to other cities to view and vote on contest entries. A defense system that attacks visitors makes contest voting impossible and kills build tourism. On a building-focused server, that is fatal. Units are passive by default. See Section 26.
+
+**Rule 3: every unit has a stated counterplay.**
+No unit is immune to any damage type. Each entry in Section 27 names, in its own row, the specific way an attacker beats it. A unit without a written counterplay does not ship.
+
+**Rule 4: units are consumable, not permanent.**
+Units die permanently in war and cost money to replace. This means every war costs the defender real currency and prevents indefinite turtling. It also means defense spending is a recurring sink, which the economy in Part II needs.
+
+### 25.3 What is technically available
+
+No resource pack exists in this project and none is planned, so every unit must be a recognisable vanilla mob, restyled. The available toolbox:
+
+| Capability | Mechanism | Notes |
+|---|---|---|
+| Stats | Attribute API | Health, damage, speed, armor, toughness, knockback resistance, follow range |
+| Size | `Attribute.SCALE` | 1.20.5+. A 1.8x Iron Golem is one attribute set, no model needed |
+| Appearance | Equipment slots, drop chance 0 | **Dyed leather in the city's colour** is the single highest-value cosmetic here |
+| Persistent buffs | Hidden potion effects | `ambient=true, particles=false, icon=false` |
+| Custom AI | Paper Goal API (`com.destroystokyo.paper.entity.ai`) | Add, remove, and register goals without NMS |
+| Movement | `entity.getPathfinder().moveTo()` | Patrol routes, rally behaviour |
+| Targeting control | `EntityTargetLivingEntityEvent` | **The central hook.** Every targeting decision passes through here |
+| Auras and on-hit effects | Repeating task plus `EntityDamageByEntityEvent` | Slows, buffs, reveals, weak points |
+| Nameplates and health bars | Text Display entities (1.19.4+) | No pack required |
+| Team colour outlines | Scoreboard teams plus Glowing | City colour visible through walls during war |
+| Warden control | `Warden#setAnger`, `#clearAnger`, `DamageCause.SONIC_BOOM` | Anger system and sonic boom are both controllable from the API |
+| Daylight burning | `Zombie#setShouldBurnInDay(false)`, same for Skeleton | Required, or guards ignite every morning |
+
+Not available: custom models, custom hitboxes, genuinely new mob types. Every design below respects that.
+
+### 25.4 Units are data, not entities
+
+**This is an architectural requirement, not an optimisation.**
+
+Two hundred cities times twelve units is 2,400 permanently loaded entities. That will destroy tick rate long before the plugin is feature-complete.
+
+Units live in the `defense_units` table. They **materialize** as real entities only when:
+
+- any player is within `defense.materialize-radius` (default 48 blocks), **or**
+- the owning city is in a war in `PREP` or `ACTIVE` state and the chunk is in the war zone
+
+They **dematerialize** when no player has been within that radius for `defense.dematerialize-delay-seconds` (default 30).
+
+Materialization restores full state from the database row: position, current health, target, and cooldowns. Dematerialization writes current health back. A unit at 40% health that dematerializes returns at 40% health.
+
+**Health regeneration while dematerialized:** units regain `defense.dormant-regen-percent-per-hour` (default 10%) while nobody is nearby, capped at full. This is disabled entirely during a war, so damage dealt in a war sticks.
+
+Consequences to handle explicitly: a unit killed while materialized is dead in the database immediately, before any dematerialization. A server restart while materialized must not lose health state, so health is checkpointed every 30 seconds during combat.
+
+### 25.5 Defense Capacity
+
+Part I capped defense by unit count ("5 units plus 2 per Fortification level"). A count permits fifteen Colossi. A points budget does not.
+
+```
+Defense Capacity = defense.base-capacity + (defense.capacity-per-fortification * fortification_level)
+                 = 100 + 25 * level        (0 to 5)
+                 = 100 to 225
+```
+
+| Unit | Cost in points |
+|---|---|
+| Frost Sentry | 8 |
+| Watchtower Keeper | 10 |
+| Warhound | 12 |
+| Archer | 18 |
+| City Guard | 20 |
+| Colossus | 45 |
+| **City Warden** | **0, excluded from the budget** |
+
+| Fortification | Capacity | Example garrisons |
+|---|---|---|
+| 0 | 100 | 5 City Guards, or 2 Colossi plus a Sentry |
+| 2 | 150 | 7 City Guards, or 3 Colossi |
+| 5 | 225 | 11 City Guards, or 5 Colossi, or a mixed garrison of 12 units |
+
+The Warden is excluded from the budget because it is gated three other ways: one per city ever, Fortification level 5 required, and an enormous purchase price. Charging it against capacity would force a city to choose between its flagship and having any garrison at all, which makes the flagship feel like a punishment.
+
+---
+
+## 26. Aggression model
+
+### 26.1 States
+
+Every unit is in exactly one of four states.
+
+```
+DORMANT      Not materialized. No player nearby. Regenerating.
+   |
+   v
+PASSIVE      Materialized, visible, ignores players entirely.
+   |         Attacks hostile mobs inside the claim. Default peacetime state.
+   |
+   v
+ALERTED      A trespass threshold was crossed. Targets one specific player
+   |         for a limited time. Reverts to PASSIVE when it expires.
+   |
+   v
+HOSTILE      War only. Targets all members of enemy cities on sight.
+```
+
+### 26.2 Trespass response
+
+This is what replaces "attacks foreigners on sight."
+
+A **violation** is any of the following by a non-member inside the city's claims:
+
+- A blocked block break or place
+- A blocked container access attempt
+- A blocked interaction with a door, chest, or protected entity
+- Damaging a city member
+- Damaging a defense unit
+- Killing a city-owned animal or villager
+
+When a single player commits `defense.trespass.violations` (default **3**) violations within `defense.trespass.window-seconds` (default **30**), the city enters trespass response against that player:
+
+1. **Warning phase.** All materialized units in the affected chunk plus a 2-chunk radius roar or play their alert sound. Units glow in the city colour. The trespasser receives a clear chat and title warning naming the city. Duration: `defense.trespass.warning-seconds` (default **5**).
+2. **Alerted phase.** If the trespasser is still inside the city's claims when the warning ends, units enter ALERTED against that player only. Duration `defense.trespass.duration-seconds` (default **45**).
+3. **Reset.** Leaving the city's claims immediately begins a 10-second de-escalation. Units revert to PASSIVE and return to their posts.
+
+Notes that matter:
+
+- ALERTED is **per player**, never per group. A trespasser's teammates standing peacefully nearby are not attacked.
+- The warning phase exists so that no player is ever killed without being told, in plain language, that they are about to be. This matters most for the Warden, which is lethal to an unarmored player.
+- Violations decay. The counter is a sliding window, not a running total.
+- City members and allies with `trust` never generate violations.
+- Violations are logged to `audit_log`, so an admin investigating a grief report can see the pattern.
+
+### 26.3 War aggression
+
+During `ACTIVE`, and only inside the war zone, units of a city party to the war enter HOSTILE toward all members of enemy cities and their allies. Targeting range is per-unit. Trespass response is suspended during war because everything is hostile anyway.
+
+During `PREP`, units remain PASSIVE. Prep is a building phase, not a fighting phase.
+
+### 26.4 Never targeted
+
+Units never target, under any state:
+
+- Members of the owning city
+- Members of allied cities
+- Players with `civitas.bypass.war`
+- Players in Creative or Spectator
+- Players within 5 seconds of joining the server or respawning
+- Any player during the warning phase
+- Other defense units, including enemy ones. **Units never fight units.** Only players kill units. This is deliberate: unit-versus-unit combat produces unwatchable clumps of AI and makes wars resolve without players present.
+
+---
+
+## 27. The roster
+
+Seven units. Every one performs a job no other performs. Two deal no damage at all.
+
+All values are `defense.yml` config keys. Health is in half-hearts (20 = 10 hearts).
+
+### 27.1 Summary
+
+| Unit | Base mob | Role | Cost | Upkeep/day | Points | HP | Damage |
+|---|---|---|---|---|---|---|---|
+| Frost Sentry | Snow Golem | Area denial | 6,000 | 300 | 8 | 30 | **0** |
+| Watchtower Keeper | Armor Stand | Detection | 9,000 | 350 | 10 | n/a | **0** |
+| Warhound | Wolf | Interceptor | 10,000 | 500 | 12 | 45 | 6 |
+| Archer | Skeleton | Ranged | 16,000 | 700 | 18 | 55 | 7 ranged |
+| City Guard | Zombie | Line holder | 20,000 | 900 | 20 | 90 | 8 |
+| Colossus | Iron Golem @1.8x | Heavy tank | 55,000 | 2,600 | 45 | 220 | 16 |
+| **City Warden** | Warden | **Flagship** | **750,000** | **8,000** | **0** | **500** | **10** |
+
+### 27.2 Frost Sentry
+
+**Base:** Snow Golem. **Role:** area denial, non-lethal.
+
+| Property | Value |
+|---|---|
+| Health | 30 |
+| Damage | **0**, deals no damage ever |
+| Speed | Static, does not move from its post |
+| Range | 16 blocks |
+| Ability | Snowballs apply Slowness II for 3 seconds and Mining Fatigue I for 2 seconds |
+
+Mining Fatigue is the interesting half. During a war it directly slows block-breaking, which is the attacker's main activity. It costs almost nothing and shapes a fight without killing anyone.
+
+**Counterplay:** 30 HP, dies to two arrows. Melts in lava or near fire. Any attacker who spends five seconds on it removes it.
+
+**Implementation:** vanilla snow golem AI throws snowballs already. Cancel the snowball's damage in `EntityDamageByEntityEvent`, apply the effects in the same handler. Set `Snowman#setDerp(false)`. Water and rain damage must be disabled via `EntityDamageEvent` cancellation, otherwise sentries die in the first storm.
+
+### 27.3 Watchtower Keeper
+
+**Base:** Armor Stand with arms, dyed leather in city colour, holding a spyglass. **Role:** detection. **Cannot fight and cannot be targeted by mobs.**
+
+| Property | Value |
+|---|---|
+| Health | Invulnerable outside war, 40 during war |
+| Damage | **0** |
+| Detection radius | 32 blocks |
+| Ability | Applies Glowing to non-members and non-allies within radius, 3-second refresh. Posts a message to city chat when an unknown player enters, rate-limited to once per player per 5 minutes. |
+
+This is the unit that makes a city feel inhabited and watched without any threat. It is also genuinely useful in war, because Glowing renders through walls and defeats hiding.
+
+**Counterplay:** during war it has 40 HP and no defense. Killing the Keepers first is the correct opening move for any competent attacker, which creates a real tactical opening beat at the start of a siege.
+
+**Implementation:** `ArmorStand` with `setInvulnerable(true)` outside war, `setGravity(false)`, `setBasePlate(false)`. Detection is a repeating task, not AI. Glowing via a scoreboard team so the outline is the city's colour.
+
+### 27.4 Warhound
+
+**Base:** Wolf, with a dyed collar in the city colour. **Role:** fast interceptor.
+
+| Property | Value |
+|---|---|
+| Health | 45 |
+| Damage | 6 |
+| Speed | 0.42, faster than a sprinting player |
+| Range | Chases up to 24 blocks from post |
+| Ability | Bite applies Slowness I for 2 seconds. Prioritises the **lowest-health** valid target rather than the nearest. |
+
+Targeting the weakest enemy is what makes it feel like a hunting animal rather than a generic melee mob, and it punishes attackers who retreat without healing.
+
+**Counterplay:** 45 HP and no armor. Dies in two hits from any decent weapon. Its speed means it arrives first and therefore dies first.
+
+### 27.5 Archer
+
+**Base:** Skeleton, full dyed leather in the city colour, bow with Power III. **Role:** ranged damage.
+
+| Property | Value |
+|---|---|
+| Health | 55 |
+| Damage | 7 per arrow |
+| Range | **20 blocks, hard capped** |
+| Ability | Will not fire without line of sight. Fire rate halves while any enemy is within 5 blocks. |
+
+The 20-block cap is a deliberate balance decision: a player bow out-ranges it. An attacker who engages archers with a bow from 40 blocks wins for free, which rewards preparation over gear.
+
+**Counterplay:** out-range it, or close to melee where its fire rate halves. Weak in close quarters by design.
+
+**Implementation:** `Skeleton#setShouldBurnInDay(false)` is mandatory. Cap range by clearing targets beyond 20 blocks in the targeting handler rather than relying on `FOLLOW_RANGE` alone.
+
+### 27.6 City Guard
+
+**Base:** Zombie, full dyed leather in the city colour, iron sword, shield in offhand. **Role:** melee line holder. The backbone unit.
+
+| Property | Value |
+|---|---|
+| Health | 90 |
+| Damage | 8 |
+| Speed | 0.28 |
+| Armor | 8 points, plus 2 toughness |
+| Ability | **Alert network.** Damaging one City Guard causes every City Guard within 3 chunks to target the attacker for 20 seconds, regardless of trespass state. |
+
+The alert network is what makes guards feel like a garrison instead of independent mobs. Picking them off one at a time does not work.
+
+**Counterplay:** slow enough to kite. Knockback works normally. The alert network is also its weakness, since pulling one guard pulls a predictable group that can be fought in a chokepoint of the attacker's choosing.
+
+**Implementation:** `Zombie#setShouldBurnInDay(false)`. Disable baby zombie variants. Disable zombie reinforcement spawning, which will otherwise create free extra zombies during a fight.
+
+### 27.7 Colossus
+
+**Base:** Iron Golem with `Attribute.SCALE` at 1.8. **Role:** heavy tank.
+
+| Property | Value |
+|---|---|
+| Health | 220 |
+| Damage | 16 |
+| Speed | 0.20, very slow |
+| Knockback resistance | 1.0, cannot be knocked back |
+| Ability | **Slam.** On hit, targets within 3 blocks of the impact take 4 splash damage and heavy knockback. Arrows dealing under 8 damage are reduced by 80%. |
+
+A 1.8x scale Iron Golem is genuinely imposing on screen and costs one attribute assignment. This is the best value in the entire toolbox.
+
+**Counterplay:** the slowest unit in the game at 0.20 speed. It can be walked away from at any time and cannot climb. Leading a Colossus away from the objective and simply leaving it there is the intended and correct play. Its arrow resistance is explicitly capped at 8 damage so a fully charged Power V bow still hurts it.
+
+### 27.8 Placement
+
+- Units are purchased from the Defense GUI and delivered as a **spawn item** that must be placed inside a claim. Placement is deliberate and visible.
+- Maximum `defense.max-units-per-chunk` (default **3**) per chunk. No stacking a death-blob on the City Hall.
+- A unit is bound to the chunk it is placed in. It may move up to `defense.leash-blocks` (default **8**) past that chunk's border, and is teleported back if it exceeds it.
+- Units placed during `ACTIVE` war cost **double** and enter a 60-second inactive period before functioning, so defense is a preparation decision, not a mid-fight purchase.
+- Removing a unit voluntarily refunds nothing.
+
+---
+
+## 28. The City Warden
+
+The flagship. One per city, ever. Present at all times, not war-gated.
+
+### 28.1 Design intent
+
+The Warden exists to be **the thing your city is known for**. It is a prestige unlock and a landmark, not a weapon. Its purpose is to be nearly impossible to remove and genuinely intimidating to approach, while being incapable of dominating a fight.
+
+The design achieves this through an asymmetry: **full Warden health, drastically reduced damage.** A trespasser without armor is in real danger. A geared raider is barely scratched but faces a 500 HP obstacle standing between them and the City Hall.
+
+### 28.2 Acquisition
+
+| Requirement | Value |
+|---|---|
+| Fortification upgrade | **Level 5**, roughly 2,000,000 C of prior investment |
+| Purchase cost | **750,000 C** |
+| Daily upkeep | **8,000 C** |
+| Limit | One per city, permanently. Never two, even if the first is destroyed. |
+| Defense Capacity cost | **0**, excluded from the budget |
+| Placement | Must be placed in the **core chunk**. Cannot be moved afterwards. |
+
+Total investment to field one is close to 2.75 million coins, which at the Part II money-supply figures is many weeks of a large city's total income. It should be the most significant purchase in the game, and only a handful of cities on a server should ever have one.
+
+### 28.3 Statistics
+
+| Property | Value | Vanilla | Reason for the change |
+|---|---|---|---|
+| Health | **500** | 500 | Unchanged. This is the point of the unit. |
+| Melee damage | **10** | 30 | See the tuning table in 28.4 |
+| **Sonic boom** | **Disabled entirely** | 10 to 15, ignores armor and shields | Unblockable, uncounterable ranged damage has no place in a defense unit |
+| Darkness aura | 10 block radius, ALERTED only | 20 blocks, always | Atmosphere without blinding peaceful visitors |
+| Speed | 0.25 | 0.30 | A sprinting player can always escape |
+| Knockback resistance | 1.0 | 1.0 | Unchanged |
+| Movement | Confined to the core chunk plus 6 blocks | free roaming | It guards the City Hall, it does not patrol the city |
+| Vibration targeting | **Disabled** | core mechanic | Vibration anger would aggro on peaceful visitors walking nearby |
+| Despawn | Disabled | 60s without target | Must persist |
+
+### 28.4 Why 10 damage
+
+Damage taken by a player after vanilla armor and Protection reduction:
+
+| Warden raw damage | Unarmored | Full iron | Full diamond Prot II | Full netherite Prot IV |
+|---|---|---|---|---|
+| 30 (vanilla) | 30.0, **0.7 hits to kill** | 26.4, 0.8 hits | 10.2, 2.0 hits | 4.8, 4.2 hits |
+| 15 | 15.0, 1.3 hits | 10.5, 1.9 hits | 3.6, 5.6 hits | 1.7, 11.6 hits |
+| **10 (chosen)** | **10.0, 2.0 hits** | **6.0, 3.3 hits** | **2.0, 9.8 hits** | **1.0, 19.8 hits** |
+| 6 | 6.0, 3.3 hits | 3.1, 6.4 hits | 1.1, 18.9 hits | 0.5, 37.3 hits |
+
+At 10 damage the unit is a **serious threat to an unequipped trespasser** (two hits) and **nearly harmless to a prepared raider** (twenty hits). That asymmetry is the entire design. It punishes casual intrusion and does not decide wars.
+
+Vanilla 30 damage would kill an unarmored player in under one hit and still take out a netherite player in four, which is the "wall" outcome. Dropping to 6 makes it meaningless to everyone.
+
+### 28.5 Time to remove it
+
+500 HP with no sonic boom and 0.25 speed:
+
+| Attack method | Solo | Three players |
+|---|---|---|
+| Netherite sword, Sharpness V | 28.4s | 9.5s |
+| Diamond sword, Sharpness III | 34.7s | 11.6s |
+| Netherite axe, Sharpness V | 48.1s | 16.0s |
+| Power V bow, fully charged | 63.6s | 21.2s |
+
+A solo raider can kill it in about half a minute of sustained melee while taking 1 damage per hit, which is survivable but requires committing to standing in the core chunk of an enemy city for thirty seconds. Three coordinated players do it in ten. Neither is trivial, neither is impossible.
+
+### 28.6 Peacetime protection
+
+**Outside a war, the City Warden cannot be permanently killed.**
+
+At 0 health in peacetime it plays the burrow animation, dematerializes, and enters a **recovery period** of `defense.warden.recovery-hours` (default **6**), after which it re-emerges at full health. The city is notified when it goes down and when it returns.
+
+The reasoning: a 2.75 million coin asset must not be removable by a single griefer outside the sanctioned combat window. Making it merely *drivable underground* preserves the achievement of killing it without letting a stranger delete a month of a city's investment.
+
+**Inside a war, it dies permanently** like every other unit, and must be repurchased at full price. This is the correct stake, and it means a city with a Warden has a very strong reason to actually win its wars.
+
+### 28.7 States
+
+| State | Behaviour |
+|---|---|
+| DORMANT | Burrowed. Not rendered. The core chunk shows a subtle sculk particle effect and a faint heartbeat within 16 blocks. |
+| PASSIVE | Emerged, standing, stationary. Ignores all players. Ambient Warden sounds. Visitors can walk right past it. |
+| ALERTED | Trespass response. Emerges with the full roar, applies Darkness within 10 blocks to the trespasser only, pursues within the core chunk plus 6 blocks. |
+| HOSTILE | War. Attacks enemy members entering the core chunk. |
+| RECOVERING | Killed in peacetime. Absent for 6 hours. |
+
+The dormant state uses the Warden's own vanilla burrow and emerge animations, which is a rare case where the vanilla mob already contains exactly the behaviour needed.
+
+### 28.8 Implementation requirements
+
+- `Warden#clearAnger()` every tick, and drive targeting **exclusively** from the plugin. The vibration-based anger system must never influence targets, or the Warden will aggro on a member walking past.
+- Cancel `EntityDamageEvent` with `DamageCause.SONIC_BOOM` unconditionally, and cancel the sonic boom goal via the Paper Goal API so the animation never plays. Players must never see a windup for an attack that does nothing.
+- `setPersistent(true)`, `setRemoveWhenFarAway(false)`.
+- Darkness is applied by the plugin to specific players, not by the Warden's aura. Remove the vanilla aura.
+- The heartbeat and ambient audio are played by the plugin at controlled volume, so the city can hear its Warden without it being audible across the server.
+- Health is checkpointed to the database every 10 seconds while in combat.
+
+### 28.9 Synergy with the war scoring system
+
+Part I awards **+100 points** for standing in the enemy City Hall chunk for 30 seconds, the single largest score event in a war. The Warden is confined to that exact chunk.
+
+That is the intended loop: the highest-value objective in the game is guarded by the most expensive unit in the game, and taking it requires holding ground for 30 seconds against a 500 HP obstacle while enemy players contest you. This is the plugin's climax fight and every number in this section is tuned toward making it work.
+
+---
+
+## 29. Siege units
+
+### 29.1 Why attackers need them
+
+With defense units on one side and nothing on the other, war math tilts toward turtling. Fewer declarations, fewer wars, and the rollback engine goes unused. Siege units restore the balance and, importantly, make wars cost the **attacker** money too, which the economy needs.
+
+### 29.2 Siege Capacity scales with the defender
+
+```
+Siege Capacity = round(defender_defense_capacity * defense.siege.budget-ratio)
+               = round(defender_capacity * 0.70)
+```
+
+| Defender Fortification | Defense Capacity | Attacker Siege Capacity |
+|---|---|---|
+| 0 | 100 | 70 |
+| 2 | 150 | 105 |
+| 5 | 225 | 157 |
+
+This is self-balancing and is the mechanism that structurally prevents an unattackable fortress: **the more a city fortifies, the more siege its attacker is permitted to field.** A city cannot outbuild the counter, it can only make the war more expensive for both sides.
+
+Siege Capacity is computed once, at war declaration, and frozen. Allies joining an attack share the attacker's budget rather than adding their own.
+
+### 29.3 Roster
+
+Three units plus one support. Deliberately fewer than the defensive roster, because the attacker's real advantages are choosing the timing, having full player mobility, and being able to retreat.
+
+| Unit | Base mob | Role | Cost | Points | HP | Damage |
+|---|---|---|---|---|---|---|
+| Siege Beast | Ravager | Breaker | 40,000 | 40 | 180 | 14 |
+| Breacher | Vindicator | Anti-unit specialist | 18,000 | 20 | 70 | 9 |
+| Siege Archer | Pillager | Ranged support | 15,000 | 16 | 50 | 7 ranged |
+| Banner Bearer | Pillager (captain) | Buff, **no attack** | 25,000 | 25 | 60 | **0** |
+
+**Siege Beast (Ravager).** Heavy, knocks back hard, 1.0 knockback resistance. Its slam clears space. Counterplay: slow, and a Colossus matches it in a straight fight, so committing one commits the defender's tank too.
+
+**Breacher (Vindicator).** Deals **2x damage to defense units** and **0.6x damage to players**. This is the key balance lever: it exists to break a garrison, not to kill players. It makes the attacker's mob budget a tool against the defender's mob budget without turning wars into mob-versus-mob spectacles.
+
+**Siege Archer (Pillager).** Crossbow, 22-block range, no daylight burning. Mirrors the defensive Archer.
+
+**Banner Bearer.** Deals no damage. Grants **Strength I and Speed I** to attacking players within 12 blocks. The presence of an ominous banner is thematically perfect for a siege, and a support unit that buffs players rather than fighting keeps the emphasis where it belongs, on the players.
+
+### 29.4 Siege rules
+
+| Rule | Value |
+|---|---|
+| When purchasable | `PREP` and `ACTIVE` only, by a city party to the war |
+| Where placed | Inside a **Siege Camp**, see 29.5 |
+| Lifetime | Despawn at war end. **No refund, ever.** |
+| Movement | May enter enemy claims inside the war zone. Never leaves the war zone. |
+| Targeting | Enemy players and enemy defense units. Never neutral players. |
+| Rollback | Siege units are not restored. They are consumed. |
+| Unit versus unit | Only the Breacher engages defense units directly. Others prioritise players. |
+
+### 29.5 Siege Camp
+
+Attackers place a **Siege Camp** banner block in wilderness or their own claims, within `defense.siege.max-camp-distance` (default 12 chunks) of the enemy city. It is the spawn and rally point for all siege units.
+
+- One camp per attacking city
+- Visible on `/city map` to **both** sides, deliberately. The defender should know where the attack is staging, because a siege the defender cannot see is not a siege, it is an ambush.
+- Destroying the camp (it has 200 HP as a block-entity) despawns all siege units of that city and awards the defender **+40 war points**. It can be rebuilt once per war at half cost.
+
+This creates a real secondary objective and gives defenders something to attack rather than only something to defend.
+
+---
+
+## 30. Implementation, edge cases, and config
+
+### 30.1 Central targeting handler
+
+Every targeting decision in the plugin flows through one handler on `EntityTargetLivingEntityEvent`. There must be exactly one such handler and no unit-specific targeting logic anywhere else.
+
+```
+onTarget(unit, candidate):
+  if candidate is not a Player            -> allow only if hostile mob and unit is PASSIVE
+  if candidate is member of owning city    -> CANCEL
+  if candidate is member of allied city    -> CANCEL
+  if candidate has civitas.bypass.war      -> CANCEL
+  if candidate is Creative or Spectator    -> CANCEL
+  if candidate joined/respawned < 5s ago   -> CANCEL
+  if unit state is DORMANT or PASSIVE      -> CANCEL
+  if unit state is ALERTED                 -> allow only if candidate == alerted target
+  if unit state is HOSTILE                 -> allow if candidate is enemy in war zone
+  if distance > unit.range                 -> CANCEL
+  otherwise                                -> ALLOW
+```
+
+### 30.2 Edge cases
+
+Continues the numbering from Part I Section 17.
+
+| # | Case | Required behaviour |
+|---|---|---|
+| 87 | Unit materialized when server restarts | Health checkpointed every 30s during combat, 10s for the Warden. On startup, all units are DORMANT until a player approaches. |
+| 88 | Chunk containing a unit is unclaimed | Unit is refunded 50% to treasury and removed. Mayor notified. |
+| 89 | City disbands with units placed | All units removed, no refund. |
+| 90 | Unit is killed by a city member | Allowed, no refund, no war score. Logged to `audit_log`, since it is a plausible sabotage vector. |
+| 91 | Unit is killed by `/kill` or an admin | Same as 90, plus an `audit_log` entry naming the admin. |
+| 92 | Unit wanders past its leash | Teleported back to post. If teleport fails three times, dematerialized and re-materialized at post. |
+| 93 | Unit is trapped in a hole by an attacker | Intended tactic, allowed. The leash teleport only triggers on distance, not on being stuck. |
+| 94 | Trespasser logs out during ALERTED | Alert state persists for the remaining duration. Logging back in inside the claims resumes it. |
+| 95 | Trespasser is the only player and logs out | Units dematerialize normally after the delay. Alert state expires. |
+| 96 | War ends while units are mid-combat | Units revert to PASSIVE immediately at war end, before rollback evacuation. |
+| 97 | Warden is killed on the final day of a war | Permanent death. Must be repurchased at full price. |
+| 98 | Warden killed in peacetime, then a war is declared during the 6h recovery | Recovery continues. The city fights that war without it. Recovery is not accelerated by war. |
+| 99 | Core chunk is admin-transferred while a Warden is placed | Warden is removed and the city is refunded 100%, because this is an admin action, not a player outcome. |
+| 100 | A city reaches Fortification 5, buys a Warden, then an admin downgrades the city | Warden persists. Downgrades do not retroactively remove purchased units. |
+| 101 | Defense Capacity is exceeded after a Fortification downgrade | Units over budget are marked inactive (dematerialized, upkeep suspended) newest-first until within budget. Not deleted. |
+| 102 | Siege Camp destroyed in the last 60 seconds of a war | Points awarded normally. Units despawn immediately. |
+| 103 | Attacker places a Siege Camp inside a third city's claims | Blocked. Camps go in wilderness or the attacker's own claims only. |
+| 104 | Two allied attacking cities both place camps | Allowed, one per city. Each holds its own units. |
+| 105 | Unit drops equipment on death | **Never.** All equipment drop chances are 0.0. A guard in full dyed leather must not become a loot piñata. |
+| 106 | Units contribute to the vanilla mob cap | They must not. Exclude from spawn calculations and set `setRemoveWhenFarAway(false)`. |
+| 107 | Snow Golem sentry in rain or a warm biome | Water and melting damage cancelled explicitly, or every sentry dies in the first storm. |
+| 108 | Zombie or Skeleton unit at sunrise | `setShouldBurnInDay(false)` on spawn, verified on every materialization. |
+| 109 | Zombie unit spawns reinforcements when damaged | Disabled. Zombie reinforcement produces free untracked mobs. |
+| 110 | Player uses a name tag on a defense unit | Blocked. Renaming would break the identity display. |
+| 111 | Player leads a Warhound away with a lead | Blocked. Units cannot be leashed by players. |
+| 112 | Unit pathfinds into lava or off a cliff | Damage from environment applies normally, but the unit teleports back to post at 20% health rather than dying, once per hour. Prevents terrain from deleting paid assets. |
+| 113 | 200 cities each with 12 units, 40 players online | Materialization architecture (25.4) means only units near those 40 players exist. Benchmark: no more than 60 materialized units server-wide at 40 players. |
+
+### 30.3 `defense.yml`
+
+```yaml
+capacity:
+  base: 100
+  per-fortification-level: 25
+
+materialization:
+  radius-blocks: 48
+  dematerialize-delay-seconds: 30
+  dormant-regen-percent-per-hour: 10
+  regen-disabled-during-war: true
+  health-checkpoint-seconds: 30
+  warden-health-checkpoint-seconds: 10
+
+placement:
+  max-units-per-chunk: 3
+  leash-blocks: 8
+  war-purchase-cost-multiplier: 2.0
+  war-purchase-inactive-seconds: 60
+
+trespass:
+  violations: 3
+  window-seconds: 30
+  warning-seconds: 5
+  duration-seconds: 45
+  de-escalation-seconds: 10
+  alert-radius-chunks: 2
+
+units:
+  frost_sentry:
+    cost: 6000       ; upkeep: 300   ; points: 8
+    health: 30       ; damage: 0
+    slowness-level: 2 ; slowness-seconds: 3
+    mining-fatigue-level: 1 ; mining-fatigue-seconds: 2
+  watchtower_keeper:
+    cost: 9000       ; upkeep: 350   ; points: 10
+    war-health: 40   ; detection-radius: 32
+    chat-alert-cooldown-minutes: 5
+  warhound:
+    cost: 10000      ; upkeep: 500   ; points: 12
+    health: 45       ; damage: 6     ; speed: 0.42
+    chase-range: 24  ; target-priority: LOWEST_HEALTH
+  archer:
+    cost: 16000      ; upkeep: 700   ; points: 18
+    health: 55       ; damage: 7     ; range: 20
+    melee-firerate-penalty: 0.5
+  city_guard:
+    cost: 20000      ; upkeep: 900   ; points: 20
+    health: 90       ; damage: 8     ; speed: 0.28
+    armor: 8         ; toughness: 2
+    alert-network-chunks: 3 ; alert-network-seconds: 20
+  colossus:
+    cost: 55000      ; upkeep: 2600  ; points: 45
+    health: 220      ; damage: 16    ; speed: 0.20
+    scale: 1.8       ; knockback-resistance: 1.0
+    slam-radius: 3   ; slam-damage: 4
+    arrow-resist-threshold: 8 ; arrow-resist-percent: 80
+
+warden:
+  enabled: true
+  cost: 750000
+  upkeep: 8000
+  points: 0
+  required-fortification-level: 5
+  health: 500
+  damage: 10
+  speed: 0.25
+  sonic-boom: false          ; NEVER set true. See 28.3.
+  darkness-radius: 10
+  leash-blocks: 6
+  recovery-hours: 6
+  killable-in-peacetime: false
+  killable-in-war: true
+
+siege:
+  budget-ratio: 0.70
+  max-camp-distance-chunks: 12
+  camp-health: 200
+  camp-destroy-points: 40
+  camp-rebuild-cost-percent: 50
+  units:
+    siege_beast:  { cost: 40000, points: 40, health: 180, damage: 14 }
+    breacher:     { cost: 18000, points: 20, health: 70,  damage: 9,
+                    damage-vs-units: 2.0, damage-vs-players: 0.6 }
+    siege_archer: { cost: 15000, points: 16, health: 50,  damage: 7, range: 22 }
+    banner_bearer:{ cost: 25000, points: 25, health: 60,  damage: 0,
+                    buff-radius: 12, buffs: [STRENGTH_1, SPEED_1] }
+```
+
+### 30.4 New message keys
+
+Added to the Section 23 catalogue.
+
+| Key | Audience | Channel | Template |
+|---|---|---|---|
+| `defense.purchased` | SELF | Chat | `{p.city}<body>Purchased <subject>{unit}</subject> for <neg>-{cost}</neg><body>. <dim>Place it inside a claim. Capacity: {used}/{total}.</dim>` |
+| `defense.placed` | CITY | Chat | `{p.city}<subject>{player}</subject><body> stationed a <subject>{unit}</subject><body> at <subject>({x}, {z})</subject><body>.` |
+| `defense.capacity_full` | SELF | Chat | `{p.error}<body>Defense capacity full: <subject>{used}/{total}</subject><body>. <dim>Upgrade Fortification or remove a unit.</dim>` |
+| `defense.unit_killed` | CITY | Chat + sound | `{p.city}<neg>{unit} destroyed</neg><body> at <subject>({x}, {z})</subject><body> by <subject>{killer}</subject><body>.` |
+| `trespass.warning` | SELF (trespasser) | **Title + Chat + sound** | Title `<war>WARNING</war>` / sub `<body>{city} defenses are activating</body>` / chat `{p.city}<neg>Leave {city} territory within 5 seconds.</neg>` |
+| `trespass.alerted` | SELF (trespasser) | Chat | `{p.error}<neg>{city} defenses are hostile to you for {seconds} seconds.</neg>` |
+| `trespass.city_notice` | CITY | Chat + sound | `{p.city}<neg>Trespasser detected:</neg> <subject>{player}</subject><body> at <subject>({x}, {z})</subject><body>.` |
+| `warden.purchased` | SERVER | **Title + Chat** | `{p.city}<city>{city}</city><body> has awakened a <subject>City Warden</subject><body>.` |
+| `warden.emerged` | SELF (trespasser) | **Title + sound** | Title `<war>The Warden stirs</war>` |
+| `warden.defeated_peacetime` | CITY | Chat + sound | `{p.city}<neg>Your City Warden was driven underground</neg><body> by <subject>{player}</subject><body>. <dim>It returns in {hours} hours.</dim>` |
+| `warden.returned` | CITY | Chat + sound | `{p.city}<pos>Your City Warden has returned.</pos>` |
+| `warden.destroyed_war` | BOTH + SERVER | **Title + Chat** | `{p.war}<war>The City Warden of {city} has fallen.</war>` |
+| `siege.camp_placed` | BOTH | Chat + map marker | `{p.war}<city>{city}</city><body> established a siege camp at <subject>({x}, {z})</subject><body>.` |
+| `siege.camp_destroyed` | BOTH | Chat + sound | `{p.war}<body>Siege camp destroyed. <subject>{city}</subject><body> loses all siege units. <dim>+{points} to defenders.</dim>` |
+| `siege.units_expired` | SELF (attacker) | Chat | `{p.war}<dim>Siege units dismissed at war end.</dim>` |
+
+New sounds: Warden emerge `ENTITY_WARDEN_EMERGE` at 0.8, trespass warning `ENTITY_WARDEN_ROAR` at 1.0, unit destroyed `ENTITY_IRON_GOLEM_DEATH` at 1.2, siege camp destroyed `ENTITY_GENERIC_EXPLODE` at 0.7.
+
+---
+
+## 31. Milestones
+
+Replaces Part I milestone M12, which referenced the superseded Section 12 roster.
+
+| M | Milestone | Deliverable | Depends on |
+|---|---|---|---|
+| 12a | **Unit persistence layer** | `defense_units` schema, materialize and dematerialize architecture (25.4), health checkpointing, dormant regeneration, chunk-load and server-restart recovery. **No combat behaviour yet.** Benchmark case 113 before proceeding. | M5, M8 |
+| 12b | **Central targeting handler** | The single `EntityTargetLivingEntityEvent` handler from 30.1, all four states, the never-target list from 26.4. Unit tests for every branch. | 12a |
+| 12c | **Trespass response** | Violation tracking with sliding window, warning phase, alert phase, de-escalation, alert network, `audit_log` entries, all `trespass.*` messages | 12b, M4 |
+| 12d | **Core roster** | Frost Sentry, Watchtower Keeper, Warhound, Archer, City Guard, Colossus. Dyed leather city colours, all abilities, all counterplay behaviour, edge cases 105 to 112. | 12c |
+| 12e | **Defense Capacity** | Points budget, Defense GUI, purchase and placement flow, per-chunk cap, leash, upkeep integration, downgrade handling (case 101) | 12d, M11 |
+| 12f | **City Warden** | Full Section 28. Sonic boom disabled and verified, vibration anger disabled and verified, peacetime recovery, dormant burrow state, core-chunk confinement. | 12e |
+| 19a | **Siege units and camps** | Full Section 29. Siege Capacity computed at declaration, camp placement and destruction, war-end despawn. | 12f, M19 |
+| 20a | **Combat balance pass** | Verify Rule 1 empirically: an attacking force equal to the defender's active member count beats a full garrison at Fortification 0, 2, and 5. Three trials each. Tune and record results in the spec. | 19a, M20 |
+
+**M12f depends on M12e, not the reverse.** Do not build the Warden first because it is the interesting one. It is the unit with the most ways to go wrong, and it should be built on a targeting system already proven by six simpler units.
+
+**M20a is not optional.** Rule 1 is the only balance claim in this part that cannot be verified by reading code, and a defense system that is accidentally unbeatable will not be discovered until players stop declaring wars, which is a slow and confusing failure to diagnose.
+
+---
+
+# PART IV, World Architecture, Death and PvP, Onboarding, and Seasons
+
+> Appended to SPEC.md. Sections 32 to 38 continue the numbering of Parts I to III.
+> **Section 33 supersedes Part I 5.5 and 11.6 on the subject of PvP.**
+> **Section 32 resolves Part I Open Decisions 1 and 4.**
+
+---
+
+## 32. World architecture
+
+### 32.1 Why this section exists
+
+Parts I to III specified everything inside a city and nothing about the world those cities sit in. Three questions were unanswered and all three are load-bearing: where players mine, how a new player reaches unclaimed ground, and how far apart cities are.
+
+### 32.2 World layout
+
+| World | Name | Claims | Purpose |
+|---|---|---|---|
+| Main overworld | `world` | **Yes** | Cities, outposts, building, farming, contests, wars |
+| Main nether | `world_nether` | **No** | Travel, structures, and long-distance transit |
+| Main end | `world_the_end` | **No** | Endgame content, dragon, elytra |
+| Resource overworld | `resource` | Waystations and mining claims only | Mining, quarrying, raw extraction |
+| Resource nether | `resource_nether` | Waystations and mining claims only | Ancient debris, quartz, blaze rods |
+
+This resolves **Part I Open Decision 1** (Nether and End are not claimable) and **Open Decision 4** (a city and its outposts exist in `world` only).
+
+### 32.3 No world border
+
+**The vanilla Minecraft border stands, unchanged, at roughly 30 million blocks. The plugin does not impose, expand, or manage a border of any kind.**
+
+An earlier draft of this specification proposed a dynamic border that grew with city count, sized so that claimed land stayed between four and seven percent of the map. That design is rejected. It solved a problem that does not exist and destroyed something valuable in the process.
+
+**Extremely low density is the point.** A world where a player can travel two hundred thousand blocks and build entirely alone is doing something no curated server can offer. Density is not a metric to optimise. Emptiness is the atmosphere, and the ability to disappear into it is a feature.
+
+The practical consequences are accepted deliberately:
+
+- Cities may be arbitrarily far apart, and often will be
+- There is no map-full condition, ever, so land scarcity never becomes a design constraint
+- The settled world is defined by where players actually are, not by a line in a config file
+- **Outposts become genuinely load-bearing**, since they are the only mechanism that makes remote territory reachable and useful. See Section 39.
+
+### 32.4 The frontier is created by `/rtp`, not by a border
+
+Structure comes from where the game *sends* people, not from where it *stops* them.
+
+`/rtp` places a player at a random safe location within `travel.rtp.max-radius` (default **15,000 blocks**) of world origin. That single number produces the world's shape:
+
+- **Inside 15k: the settled core.** Every player who ever used `/rtp` started here. Cities cluster, borders touch, the recruitment board matters, and travel between cities is practical.
+- **Beyond 15k: the frontier.** Reachable only by deliberate travel, nether transit, or elytra. A city out here chose to be out here. It is quieter, safer from casual visitors, and requires outposts to function.
+
+A player who wants to found a city eight hundred thousand blocks out is free to do so and always will be. They simply have to walk, and that cost is paid in effort rather than enforced by a wall.
+
+**Rules for `/rtp`:**
+
+| Rule | Value |
+|---|---|
+| Radius | 15,000 blocks from origin, main overworld |
+| Never lands inside | Any claim, any claim buffer, any outpost, any admin-protected region |
+| Never lands within | 200 blocks of another player |
+| Safe location | Solid ground, breathable, not in lava, not in the void, sky access preferred |
+| Cost | 500 C |
+| Cooldown | 5 minutes |
+| Failure | If 40 candidate locations fail validation, report honestly and refund |
+
+`/rtp resource` and `/rtp nether` use `travel.rtp.resource-max-radius` (default **25,000**), larger because the resource worlds exist to be dug into and spreading arrivals wider slows the depletion of ground near spawn.
+
+### 32.5 The resource world, and why it does not reset on a schedule
+
+Standard practice is a monthly resource world reset. **This project does not do that.** Mines are infrastructure. A player who spends three weeks digging a proper quarry with rail lines, lighting, storage, and sorting has built something, and wiping it monthly punishes exactly the long-term investment a building-focused server should reward.
+
+| Property | Value |
+|---|---|
+| Reset schedule | **None automatic** |
+| Manual reset | `/ca world reset resource`, admin only, expected roughly every 6 months |
+| Reset notice | Mandatory 14-day in-game and out-of-game warning, enforced in code. The command refuses to run without a scheduled notice already active. |
+| City claims | Blocked entirely |
+| Waystations | Permitted, see 39.10 |
+| Mining claims | Permitted, see 32.6 |
+| PvP | **Disabled at all times, including during wars**, see 33.5 |
+| Market | Fully functional, so a player can sell from a mining trip |
+| Mob spawning | Vanilla rates, unmodified |
+
+An unreset resource world will be strip-mined near its spawn over time. This is accepted. `/rtp resource` scatters arrivals across 25,000 blocks, and players naturally push outward, which is the intended progression.
+
+### 32.6 Mining claims
+
+The resource worlds have no city territory, but leaving them entirely unprotected means every mine base is griefable and nobody builds there.
+
+**A player may hold one personal Mining Claim**, independent of city membership. This is the only form of land ownership available to a player with no city, and it is deliberately available to them.
+
+| Property | Value |
+|---|---|
+| Size | 1 chunk |
+| Limit | 1 per player, 2 with `civitas.limit.miningclaims.2` |
+| Cost | 15,000 C |
+| Upkeep | 500 C/day from personal balance |
+| Worlds | `resource` and `resource_nether` only |
+| Protection | Full block and container protection, Part I 5.5 rules |
+| Trust | `/mine trust <player>`, max 4 |
+| War | Never part of a war zone, never rolled back |
+| Unpaid upkeep | 7-day grace, then released. Blocks are not removed. |
+
+Commands: `/mine claim`, `/mine unclaim`, `/mine info`, `/mine trust`, `/mine untrust`, `/mine tp`.
+
+### 32.7 Spawn and travel
+
+**Server spawn** is a built hub in `world` inside an admin-protected region. PvP is disabled there under all circumstances including active wars. It holds the onboarding path from Section 34 and the city recruitment board.
+
+| Command | Cost | Cooldown | Warmup | Notes |
+|---|---|---|---|---|
+| `/spawn` | free | 60s | 5s | Blocked for war participants during ACTIVE |
+| `/rtp` | 500 C | 5 min | 5s | 15,000 block radius, main overworld |
+| `/rtp resource` | free | 2 min | 5s | 25,000 block radius |
+| `/rtp nether` | free | 2 min | 5s | 25,000 block radius |
+| `/city spawn` | free | 30s | 5s | Part I 5.6, 15s warmup during war |
+| `/city outpost tp <name>` | scaled | 3 min | 8s | See 39.5 |
+| `/mine tp` | 100 C | 3 min | 8s | Own mining claim |
+| `/warp <name>` | free | 30s | 5s | Admin-defined public warps |
+
+All teleports are cancelled by movement or damage during warmup, and all are blocked while combat tagged, per 33.8.
+
+This resolves **Part I Open Decision 2**: there is no personal `/home`. City spawn, outpost teleports, mining claim, and RTP cover every legitimate need, and a home system would undercut the value of city membership.
+
+### 32.8 Backups in an unbounded world
+
+An unbounded world means region files accumulate wherever anyone has ever travelled. Part IV's original "daily full world backup, keep 7" stops being viable within months once players scatter across hundreds of thousands of blocks.
+
+| Requirement | Value |
+|---|---|
+| **Full world backup** | Weekly, keep 2 |
+| **Incremental backup** | Daily, region files modified since the last run only, keep 14 days |
+| **Pre-war zone snapshot** | Immediately before every war enters ACTIVE. Region files for the war zone only, which is bounded by definition. |
+| Snapshot retention | Until the war reaches RESOLVED plus 7 days |
+| Restore | `/ca world restore war <war_id>`, requires typing the war id twice |
+| Disk guard | Refuse to start a war if free disk is under `world.backup.min-free-gb` (default 10) |
+| Reporting | `/ca backup status` shows world size, region file count, last full, last incremental, and projected growth |
+
+The pre-war zone snapshot is the safety net beneath the safety net. The diff-based rollback in Part I 11.8 is the primary mechanism and handles every normal case. The snapshot exists for the case where it does not, and it turns "the plugin ate my castle" from a catastrophe into a fifteen-minute admin fix.
+
+---
+
+## 33. PvP, death, and combat
+
+> **This section replaces the earlier PvP rules in Part I 5.5 and 11.6 in full.**
+
+### 33.1 The model
+
+PvP is governed by two questions: **where you are**, and **whether you and your attacker are on opposing sides of an active war**. Nothing else.
+
+| Location | Peacetime | Opposing war participants |
+|---|---|---|
+| Wilderness, main overworld | **PvP ON**, keepInventory **ON** | **PvP ON**, keepInventory **OFF** |
+| Main Nether and End (unclaimed) | **PvP ON**, keepInventory **ON** | **PvP ON**, keepInventory **OFF** |
+| Claimed chunks of a city **in this war** | PvP OFF | **PvP ON**, keepInventory **OFF** |
+| Claimed chunks of any **neutral** city | PvP OFF | **PvP OFF**, see 33.4 |
+| Resource overworld and resource nether | **PvP OFF** | **PvP OFF** |
+| Mining claims | PvP OFF | PvP OFF |
+| Server spawn and admin-protected regions | PvP OFF | PvP OFF |
+
+Two design consequences worth stating explicitly:
+
+**Peacetime PvP has no material stakes.** keepInventory is on, so killing someone in the wilderness gains the killer nothing and costs the victim nothing but time. It exists for skirmishing, bounty hunting, and the tension of travel, not for looting. This is what keeps peacetime wilderness PvP compatible with pillar 1.4.
+
+**War is the only place items are ever lost to another player.** Combined with Part I 11.7 (hand-looted container items are not restored), war is the sole mechanism in the entire plugin by which a player permanently loses possessions to another player. Everything else is money, ranking, and reputation.
+
+### 33.2 Friendly fire
+
+**Members of the same city can never damage each other.** This is absolute and applies to every damage source attributable to a player: melee, projectiles, splash and lingering potions, TNT, end crystals, fire, lava placement, fall damage caused by knockback, and bed and respawn anchor explosions.
+
+Implementation: friendly-fire cancellation happens in a single handler that resolves the **damage source to an owning player** first, then checks city membership. Handling only `EntityDamageByEntityEvent` with a direct player attacker is insufficient and will leave potions, TNT, and arrows as friendly-fire vectors.
+
+**Allied cities.** Allies also cannot damage each other by default. This is `pvp.ally-friendly-fire: false`. Cities that want to spar can enable it mutually with `/ally sparring <city> <on|off>`, which requires both mayors to agree and reverts automatically when the alliance ends.
+
+### 33.3 Peacetime
+
+PvP is enabled in all unclaimed land in the main overworld, nether, and end. keepInventory and keepLevel are on for these deaths.
+
+**Anti-harassment.** Because peacetime kills produce no loot, the only motives are recreation and harassment. Two rules address the latter:
+
+- **Repeat-kill decay.** After a player kills the same victim `pvp.repeat-kill-threshold` (default **3**) times within `pvp.repeat-kill-window-minutes` (default **60**), further kills of that victim award no bounty, no statistics, and no leaderboard progress, and each one writes an entry to `audit_log`. The kills still function mechanically; they simply stop being worth anything.
+- **New player immunity.** A player cannot be damaged by another player until they reach `pvp.immunity-playtime-hours` (default **2**) of active playtime. The immune player also cannot damage others. Status is visible with `/pvp status` and cannot be waived early.
+
+**Bounties in peacetime.** Part I restricted bounty claims to active wars. With peacetime wilderness PvP now enabled, bounties are claimable in unclaimed land at any time. This gives peacetime PvP a purpose beyond recreation and gives the bounty system somewhere to live. All the Part II F7 protections still apply: a player cannot claim a bounty they placed, nor one on an IP-linked account, and repeat-kill decay applies to bounty payouts.
+
+### 33.4 War
+
+For the duration of an `ACTIVE` war, members of the two warring cities and their formally joined war allies may damage each other:
+
+- In **all unclaimed land**, in every world where PvP is enabled
+- Inside the **claimed chunks of any city party to that war**, including outposts
+
+**Neutral cities are not battlegrounds.** Inside the claims of a city that is not party to the war, PvP remains off for everyone. Two enemies who meet inside a neutral city cannot fight there. This protects uninvolved players from having their city turned into an arena and prevents wars from spilling onto people who did not opt in.
+
+This departs from a strictly literal reading of "PvP inside and outside chunks," and it is a deliberate narrowing. Without it, any city adjacent to a war becomes collateral, and the anti-toxicity pillar does not survive that.
+
+**Participants versus non-participants.** A war participant meeting a non-participant in the wilderness falls under **peacetime rules**: PvP is on, keepInventory is on for both. War rules apply only when both parties are on opposing sides of the same active war.
+
+### 33.5 Resource worlds
+
+**PvP is disabled everywhere in `resource` and `resource_nether`, at all times, including during wars.**
+
+The resource worlds are extraction zones. Their entire purpose is to be the place where the economy's mining income happens, and that requires being able to mine without watching for ambushes. Enabling war PvP there would make the primary income source unavailable to whichever side is losing a war, which compounds a defeat into an economic collapse.
+
+**Block protection there is a separate question from PvP, and the two are easy to confuse.** No PvP does not mean blocks are safe: another player can still fill a mine with lava or wall off a tunnel. Two consistent positions exist, and one must be chosen:
+
+- **Mining Claims enabled** (Section 32.5, current default): a player may protect one chunk for 15,000 C plus upkeep, which covers a mine entrance, storage, and base. Everything outside it is unprotected. This is the recommended option, because an unreset resource world with persistent mines will accumulate real infrastructure that players will be upset to lose.
+- **Fully unprotected**: no claims of any kind, and the Guide Book states plainly that nothing built in the resource worlds is safe. Simpler, and consistent with treating the resource world as purely extractive.
+
+Set by `worlds.resource.mining-claims-enabled`, default **true**.
+
+### 33.6 Death and item loss
+
+| Situation | Result |
+|---|---|
+| Killed by a player, peacetime, anywhere | **keepInventory and keepLevel** |
+| Killed by an opposing war participant during `ACTIVE` | **Full vanilla drop.** Items and XP drop. |
+| Killed by an opposing participant's TNT, fire, lava, or crystal | **Full vanilla drop**, attributed within `pvp.attribution-window-seconds` (default 30) |
+| Killed by a mob, including defense units | Vanilla drop |
+| Killed by environment (lava, fall, void, drowning, suffocation, starvation) | Vanilla drop, in war and out |
+| Combat logging while tagged | Character is killed, items drop under whichever rule applies to the tagger |
+
+**The honest tradeoff in "no keepInventory during war."**
+
+This makes war genuinely high-stakes and gives raiding real weight, which is a legitimate and defensible design. It also means **wealth converts into war power**, because a city that can replace full netherite kits fifteen times has a durable advantage over one that cannot. That is in tension with pillar 1.3.
+
+Three things already limit the damage. Part I 15.1 blocks cities over 20 members from declaring on cities under 5. The wager is capped at 25% of the *smaller* treasury. And in practice, nobody can afford to lose a top-tier kit repeatedly across a seven-day war, so both sides tend to converge on mid-tier gear, which is levelling.
+
+If the tension proves real in practice, the intended remedy is 33.7 rather than turning keepInventory back on.
+
+### 33.7 War graves, optional alternative
+
+`pvp.war-graves: false` by default. This section documents the alternative so it can be enabled without redesign if 33.6 proves too punishing.
+
+When enabled, a player killed by an opposing war participant does not drop items. Instead a **grave** is created at the death location:
+
+| Property | Value |
+|---|---|
+| Appearance | A player head block with a Text Display showing the owner's name and a countdown |
+| Contents | The full inventory and XP |
+| Owner access | The owner may recover it by returning and right-clicking |
+| Enemy access | Any opposing war participant may loot it after `pvp.grave-enemy-delay-seconds` (default 60) |
+| Lifetime | `pvp.grave-lifetime-minutes` (default 30), after which contents drop normally |
+| Protection | The grave block itself cannot be broken, only interacted with |
+
+This preserves real stakes, since a grave can absolutely be lost to the enemy, while turning body recovery into a contested objective. Fighting over a fallen teammate's grave is one of the better emergent dynamics available in team PvP, and it converts pure attrition into a tactical decision.
+
+### 33.8 Combat tag
+
+A player is combat tagged when they deal or receive damage from another player.
+
+| Context | Duration |
+|---|---|
+| Peacetime | `pvp.combat-tag-seconds` (default **30**) |
+| War, opposing participants | `pvp.war-combat-tag-seconds` (default **120**) |
+
+**120 seconds, not 300.** Five minutes is long enough that a single arrow from an unseen archer locks a player out of teleporting for the length of a real activity, and a harasser who lands one hit every four minutes can keep a target tagged indefinitely. Two minutes is long enough that fleeing an ambush by teleport is impossible, which is the actual goal.
+
+**The tag refreshes, it does not stack.** Each new hit resets the timer to its full duration rather than adding to it.
+
+While tagged:
+
+| Blocked | Notes |
+|---|---|
+| All teleports | `/spawn`, `/rtp`, `/city spawn`, `/mine tp`, `/warp`, `/city outpost tp` |
+| City vault access | Prevents banking loot mid-fight |
+| Safe logout | Logging out kills the character; items drop under the applicable rule |
+| Leaving the war zone by teleport | Covered by the blanket teleport block |
+
+Not blocked: walking, riding, boats, ender pearls, nether portals. Escaping by moving is always legitimate. Escaping by menu is not.
+
+The remaining tag time is shown continuously on the action bar, with a distinct colour for the war duration. A player must never be surprised that a teleport was refused.
+
+### 33.9 Edge cases
+
+Continues from Part III Section 30.2.
+
+| # | Case | Required behaviour |
+|---|---|---|
+| 114 | Player is tagged, then their war ends | Tag immediately shortens to the peacetime remainder |
+| 115 | Player is tagged in peacetime, then a war they are in becomes ACTIVE | Tag extends to the war duration |
+| 116 | War participant is killed inside a neutral city's claims | Cannot happen; PvP is off there. If a damage event somehow resolves, cancel it. |
+| 117 | Player is hit at the exact moment they cross a claim boundary | Evaluated at the moment damage is applied, using the **victim's** location |
+| 118 | Splash potion thrown from wilderness lands inside a claim | Resolved by the victim's location, so it is cancelled |
+| 119 | TNT placed in wilderness during peacetime damages a player | Attributed to the placer, treated as peacetime PvP, keepInventory applies |
+| 120 | Same-city member is caught in a member's TNT | Cancelled entirely, per 33.2 |
+| 121 | Player logs out at 29 seconds of a 30-second tag | Killed. There is no near-miss grace. |
+| 122 | Player is killed while combat logging in war | Items drop at the logout location. Killer is credited and scores. |
+| 123 | New player under PvP immunity attacks someone | Blocked in both directions. Immunity is not a one-way shield. |
+| 124 | Player under PvP immunity joins a city that goes to war | Immunity is overridden by war participation. Joining a warring city is a choice to fight. |
+| 125 | Bounty target is killed in the resource world | No PvP there, so it cannot happen |
+| 126 | Bounty target is killed by the same player four times in an hour | Fourth kill pays nothing, per 33.3 repeat-kill decay |
+| 127 | Player dies to a defense unit during war | Vanilla drop. Defense units are mobs, not war participants. |
+| 128 | Damage source is a player-owned wolf or tamed mob | Resolved to the owning player, then all rules apply normally |
+| 129 | A war ends while a player is mid-flight with an ender pearl in a war zone | Lands normally, then peacetime rules apply on arrival |
+| 130 | Player enters the resource world while combat tagged | Allowed by walking or portal, since only teleports are blocked. The tag continues to run and PvP remains off there. |
+
+### 33.10 Configuration
+
+```yaml
+# combat.yml
+pvp:
+  peacetime-wilderness: true
+  peacetime-claims: false
+  war-in-war-zone-claims: true
+  war-in-neutral-claims: false
+  resource-worlds: false
+
+  friendly-fire-same-city: false
+  ally-friendly-fire: false
+  ally-sparring-opt-in: true
+
+  immunity-playtime-hours: 2
+  repeat-kill-threshold: 3
+  repeat-kill-window-minutes: 60
+
+  attribution-window-seconds: 30
+
+  combat-tag-seconds: 30
+  war-combat-tag-seconds: 120
+  tag-refreshes-not-stacks: true
+  tag-blocks: [TELEPORT, VAULT, SAFE_LOGOUT]
+  tag-actionbar: true
+
+  war-graves: false
+  grave-enemy-delay-seconds: 60
+  grave-lifetime-minutes: 30
+
+death:
+  keep-inventory-peacetime-pvp: true
+  keep-inventory-war-pvp: false
+  keep-inventory-environment: false
+  keep-inventory-mob: false
+
+bounty:
+  claimable-in-peacetime: true
+  claimable-in-war: true
+  requires-unclaimed-land: true
+```
+
+---
+
+## 34. Onboarding
+
+### 34.1 The gap
+
+Parts I to III assume the player already understands cities, claims, quotas, wars, and contests. Nothing describes what happens in a new player's first ten minutes, and nothing answers whether a player who never joins a city is a supported audience or a bug.
+
+**They are a supported audience.** A player may play indefinitely without a city: they can earn, sell, quest, hold a mining claim, and vote in contests. They cannot claim territory, hold a treasury, or fight wars. Roughly 30% of players on any server will never join a group, and designing them out is designing out 30% of the server.
+
+### 34.2 First session
+
+Sequence on first join, all timings in `onboarding.yml`:
+
+1. **Spawn** at the server hub, in a protected region, facing an information board.
+2. **Title:** welcome, plus a subtitle naming the server. One title only. No wall of chat text.
+3. **Chat**, staggered over 20 seconds so it is readable: three lines maximum, telling the player what the server is, that `/guide` exists, and that `/rtp` finds land.
+4. **Guide Book** placed in inventory slot 8. A written book, not a wall of chat. Chapters: Money, Cities, Land, War, Contests, Commands. Every chapter has clickable commands. Re-obtainable with `/guide`.
+5. **Starting balance** of 2,000 C paid, with the message explaining where money comes from.
+6. **Starter quest chain** assigned, see 34.3.
+7. **No forced tutorial, ever.** The player can walk away from all of it. Everything above is a nudge, not a gate.
+
+### 34.3 Starter quest chain
+
+Five steps, once per account, distinct from the daily quests in Part I 13.1. Each pays modestly and teaches exactly one system.
+
+| # | Task | Teaches | Reward |
+|---|---|---|---|
+| 1 | Sell any item to the market | Income, `/sell` | 500 C |
+| 2 | Use `/rtp` and travel 500 blocks from spawn | Travel, finding land | 500 C |
+| 3 | Visit any existing city | Cities exist, claims are visible | 750 C |
+| 4 | Mine 32 iron ore in the resource world | Where mining happens | 750 C |
+| 5 | Either found a city **or** claim a mining claim | Both paths are valid | 2,500 C |
+
+Step 5 is deliberately branched. It is the moment the game tells the player that not joining a city is a real choice and not a failure state.
+
+Total: 5,000 C plus the 2,000 starting balance, which is 70% of a city founding fee. A motivated new player can found a city in their first session or two, which is the correct pace.
+
+### 34.4 Discoverability
+
+- `/guide` reissues the book at any time
+- `/help` and `/city help` are paginated with clickable commands
+- Every GUI has a **Help** button (Book icon, slot 8) explaining that screen and its buttons
+- Every error message names the remedy, per Part II 23.1 rule 5
+- A one-line contextual tip is shown on join, cycling through features, disableable with `/toggle tips`
+- **City recruitment board** at spawn: a GUI listing cities with `open_join` enabled, sorted by member count ascending, so new players are steered toward small cities rather than the biggest one. This directly serves pillar 1.3.
+
+### 34.5 New player protections
+
+Consolidating and extending Part I 15.1 and Part II F12:
+
+| Protection | Duration |
+|---|---|
+| Income multiplier 1.5x | 14 days |
+| Cannot be killed in war PvP | Until 2 hours of active playtime |
+| No income at all | First 60 minutes of active playtime (Part II F12) |
+| Exempt from being declared upon if their city has under 5 members and the attacker has over 20 | Permanent, Part I 15.1 |
+| Cannot be invited to a city in `PREP` or `ACTIVE` war | Always, Part I 11.5 |
+
+---
+
+## 35. Seasons
+
+### 35.1 The problem
+
+Part I has seven leaderboards with permanently cumulative totals. Six months in, the founding cities hold every top slot and a player who joins in month seven cannot ever appear on any of them.
+
+The multi-axis leaderboard design in Part I 13.3 existed specifically to give newcomers a path to visible status. Permanent accumulation removes that path and quietly breaks pillar 1.3.
+
+### 35.2 Season structure
+
+| Property | Value |
+|---|---|
+| Length | 90 days, `seasons.length-days` |
+| What resets | **Leaderboard rankings only** |
+| What never resets | Cities, claims, treasuries, balances, builds, upgrades, member rosters, the world |
+| Hall of Fame | Permanent record of every season's winners in each category, viewable with `/season history` |
+| End of season | 7-day announcement, final standings ceremony, rewards paid |
+
+**Nothing a player built or owns is ever taken away.** This is not a wipe. It is a scoreboard reset. That distinction must be stated explicitly and repeatedly in-game, because "season" on most servers means "your stuff is deleted" and players will assume the worst.
+
+### 35.3 Season rewards
+
+Paid at season end, cosmetic and titular rather than economic, so seasons do not become the dominant income source.
+
+| Placement | Reward |
+|---|---|
+| 1st in any category | A permanent city banner pattern, a chat title, and a Hall of Fame entry |
+| Top 3 | Chat title for the following season |
+| Top 10 | Hall of Fame entry |
+| Participation (any category, any rank) | A commemorative item, non-tradeable |
+
+Small currency prizes are permitted but capped at `seasons.max-currency-prize` (default 100,000 C to a treasury), because a large seasonal payout distorts the money supply accounting in Part II.
+
+### 35.4 Season-long content
+
+Each season has an announced **theme** that shapes the events in Part I 13.5 and the contest themes in 13.4. Examples: a season of exploration weights Gold Rush and mining contests, a season of war reduces war cooldowns and adds a war-focused leaderboard.
+
+This gives an existing server a reason to feel different every three months without any code changes, which is the cheapest possible source of long-term retention.
+
+### 35.5 Commands
+
+| Command | Description |
+|---|---|
+| `/season` | Current season, day, days remaining, theme, own standings |
+| `/season history [n]` | Past seasons and winners |
+| `/season rewards` | What is on offer this season |
+| `/ca season start <name> <theme>` | Admin, begins a season |
+| `/ca season end` | Admin, ends and scores |
+| `/ca season extend <days>` | Admin |
+
+---
+
+## 36. Remaining policies
+
+Short answers to the questions Parts I to III left open. Each is a real decision that must be implemented, not a note.
+
+### 36.1 Wilderness building
+
+Anything built outside a claim in `world` is **unprotected**. This is stated plainly in the Guide Book and on the information board at spawn, because a new player's first house being destroyed is a common reason people quit.
+
+Two mitigations, no more:
+- The starter quest chain (34.3) pushes the player toward a city or a mining claim by step 5, so the window in which they own an unprotected build is short
+- `/city here` in wilderness prints an explicit warning that the chunk is unprotected
+
+**Wilderness griefing is not a punishable offence.** Unclaimed land is unclaimed. Making it a rules matter creates an unenforceable moderation burden, and the claim system is the answer the plugin already provides.
+
+### 36.2 Mob spawning in claims
+
+| Setting | Value |
+|---|---|
+| Hostile spawning in claims | Vanilla rules, unmodified |
+| Reason | Light your city. Removing hostile spawns removes a core reason to build lighting, decorate with lanterns, and construct walls, all of which are the point of a building server. |
+| Exception | The core chunk has hostile spawning disabled, so the City Hall is always safe |
+
+### 36.3 Anticheat
+
+The plugin does not ship an anticheat. It must, however, be compatible with one:
+
+- All plugin-caused teleports (leash returns, rollback safe-placement, RTP, war evacuation) must be flagged so an external anticheat does not read them as cheating
+- Defense unit knockback (the Colossus slam) applies via the Bukkit velocity API, which anticheats generally tolerate
+- The `/ca perf` output includes a note on any detected anticheat plugin
+- Document known-good configurations for the common anticheats in the README once one is chosen
+
+### 36.4 Public API
+
+Part I created an `api/` package with no contents specified.
+
+The plugin exposes: read-only accessors for cities, claims, members, ranks, balances, and war state, and the full set of cancellable custom events already listed in Part I 2.3. All economy mutation goes through the service layer and is **not** exposed, deliberately, so no third-party plugin can create money outside the ledger.
+
+An optional Vault economy provider may be registered so other plugins can read balances, with a config flag defaulting to on. PlaceholderAPI placeholders are provided for city name, tag, rank, balance, treasury, claim count, and war state.
+
+### 36.5 Accessibility
+
+The message system in Part II 23.2 leans heavily on green and red, which is the most common form of colour blindness.
+
+- `/toggle colorblind` switches to a deuteranopia-safe palette (blue and orange in place of green and red)
+- **No message ever conveys meaning by colour alone.** Every positive amount carries a `+`, every negative carries a `-`. A player reading in greyscale loses nothing.
+- All GUI status indicators pair colour with a distinct item, never two dyes of different colours
+
+### 36.6 Metrics
+
+- bStats integration, standard anonymous plugin metrics, disableable
+- `/ca stats server` reports registered players, active players over 7 and 30 days, city count, total claims, average city size, war count, and contest participation
+- These are written to a daily `server_stats` table so a server owner can see trends, which is the only way to notice retention problems before they are terminal
+
+### 36.7 Endgame
+
+A maxed city at Fortification 5 with a Warden and 200 chunks has, in Parts I to III, nothing left to pursue. Three answers, all cheap:
+
+1. **Seasons** (Section 35) provide a recurring competitive objective independent of progression
+2. **Contest Champion and Hall of Fame status** are permanent and unbounded
+3. **A Prestige track**, post-1.0: a maxed city may reset one upgrade line in exchange for a permanent cosmetic marker and a small permanent bonus. Deferred, but the upgrade schema should not preclude it.
+
+---
+
+## 37. Configuration additions
+
+```yaml
+# world.yml
+worlds:
+  main: world
+  main-nether: world_nether
+  main-end: world_the_end
+  resource: resource
+  resource-nether: resource_nether
+  claimable: [world]
+  mining-claimable: [resource, resource_nether]
+
+border:
+  dynamic: true
+  base-radius: 2000
+  expand-per-bracket: 500
+  bracket-size: 25
+  max-radius: 6000
+  nether-ratio: 0.125
+  announce-expansion: true
+
+resource-world:
+  auto-reset: false
+  reset-notice-days: 14
+  reset-requires-active-notice: true
+
+mining-claims:
+  cost: 15000
+  upkeep-per-day: 500
+  base-limit: 1
+  max-trusted: 4
+  grace-days: 7
+
+travel:
+  spawn:        { cost: 0,   cooldown: 60,  warmup: 5 }
+  rtp:          { cost: 500, cooldown: 300, warmup: 5, min-player-distance: 200 }
+  rtp-resource: { cost: 0,   cooldown: 120, warmup: 5 }
+  mine-tp:      { cost: 100, cooldown: 180, warmup: 8 }
+
+backup:
+  world-daily-hour: 5
+  world-keep-count: 7
+  war-zone-snapshot: true
+  war-snapshot-retention-days: 7
+  min-free-gb: 10
+
+# combat.yml
+pvp:
+  peacetime: false
+  war-global: true
+  exclusion-zones: [SPAWN, ADMIN_PROTECTED, MINING_CLAIM]
+  respawn-grace-seconds: 10
+  join-grace-seconds: 10
+
+death:
+  keep-inventory-on-enemy-kill: true
+  keep-inventory-on-environment: false
+  keep-inventory-on-mob: false
+  enemy-attribution-window-seconds: 30
+
+combat-tag:
+  seconds: 15
+  block-logout: true
+  block-teleport: true
+  block-vault: true
+
+war:
+  unopposed-score-multiplier: 0.3
+  walkover-absence-percent: 70
+
+# onboarding.yml
+onboarding:
+  starting-balance: 2000
+  give-guide-book: true
+  guide-book-slot: 8
+  message-stagger-seconds: 20
+  starter-quests-enabled: true
+  new-player-pvp-immunity-playtime-hours: 2
+  recruitment-board-sort: MEMBERS_ASC
+
+# seasons.yml
+seasons:
+  enabled: true
+  length-days: 90
+  announce-days-before-end: 7
+  reset: [LEADERBOARDS]
+  never-reset: [CITIES, CLAIMS, TREASURY, BALANCES, BUILDS, UPGRADES]
+  max-currency-prize: 100000
+```
+
+---
+
+## 38. Milestones
+
+| M | Milestone | Deliverable | Depends on |
+|---|---|---|---|
+| 3a | **World architecture** | Multi-world setup, world whitelist enforcement, dynamic border with expansion tracking, border expansion event and announcement, per-world claim rules | M3 |
+| 3b | **Travel** | `/spawn`, `/rtp` with claim-and-buffer-aware safe location search, `/warp`, warmups, cooldowns, cancellation on movement and damage | 3a |
+| 3c | **Mining claims** | Full Section 32.5, `/mine` command tree, protection reusing the M4 listeners, upkeep from personal balance, grace and release | 3a, M4, M5 |
+| 4a | **PvP policy** | Peacetime PvP disabled globally, exclusion zones, join and respawn grace | M4 |
+| 19b | **War PvP and death** | Global war PvP (33.2), scoped keepInventory (33.3), combat tagging (33.4), unopposed score multiplier and walkover (33.5) | M19, 4a |
+| 19c | **World backups** | Daily world backup, pre-war zone region snapshot, `/ca world restore`, disk guard | 3a, M18 |
+| 9b | **Onboarding** | First-join flow, Guide Book, starter quest chain, contextual tips, recruitment board GUI, `/guide` | M9, M8 |
+| 14c | **Seasons** | Season state machine, leaderboard reset scoped to rankings only, Hall of Fame, rewards, `/season`, admin commands | M14 |
+| 23c | **Accessibility** | Colourblind palette, symbol-plus-colour audit across every message and GUI element | M23a |
+| 21b | **Metrics and API** | bStats, `server_stats` table, `/ca stats server`, public read-only API, PlaceholderAPI, optional Vault provider | M21 |
+
+**M19b must land in the same session block as M19.** Global war PvP changes what the war zone means, and building the war lifecycle against the old zonal assumption and then retrofitting is more work than doing it once.
+
+**M3a should come early, before M4 land protection is finished.** Every protection listener needs to know which worlds are claimable, and retrofitting world-awareness into finished listeners is a tedious pass over a lot of files.
+
+---
+
+# PART V, Outposts
+
+> Appended to SPEC.md. Sections 39 to 41 continue the numbering of Parts I to IV.
+> **This part replaces Part I Section 7 in full.** The single-chunk outpost design
+> in Section 7 must not be implemented. Implement Section 39 instead.
+
+---
+
+## 39. Outposts
+
+### 39.1 Why Part I Section 7 is replaced
+
+Part I designed outposts for a bounded world: one chunk, a teleport pad, a flat 25,000 C, capped at four. In a world with a managed border and cities a few hundred blocks apart, that was adequate.
+
+Section 32.3 removed the border. Cities may now be a million blocks apart, and a single chunk with a warp pad is no longer a serious answer to the question of how a city projects itself across that distance. Outposts are now the **only** mechanism that makes remote territory reachable and useful, which makes them a primary system rather than a convenience feature.
+
+Three things change:
+
+1. **Outposts are miniature cities.** Up to four connected chunks with full protection, ranks, and defense, not a single tile.
+2. **Cost scales with distance**, continuously and without a cap, using the formula in 39.3.
+3. **A second kind exists**: the Waystation, for the resource worlds, covered in 39.10.
+
+The **Supply Range** point budget proposed during design is dropped. It existed to make distant outposts more expensive than near ones, and the distance-scaled cost formula does that directly and more legibly. Two systems solving one problem is one system too many.
+
+### 39.2 What an outpost is
+
+A detached holding of a city, not adjacent to the city body.
+
+| Property | Value |
+|---|---|
+| Size | 1 to 4 chunks, edge-connected to each other |
+| Count | 2 base, up to 6 via the Outpost Range upgrade (Part I 5.7) |
+| World | `world` only. Outposts cannot exist in the Nether, the End, or the resource worlds. |
+| Protection | Identical to city claims. Part I 5.5 applies unchanged. |
+| Ranks | City ranks apply. There are no outpost-specific ranks. |
+| Teleport | One warp point per outpost, settable anywhere within its chunks |
+| Defense units | Permitted, capped, see 39.8 |
+| War | Valid war targets, part of the war zone, fully rolled back |
+| City Hall | Never. One per city, in the core chunk. |
+| City spawn | Never. Outposts cannot host the city spawn. |
+
+An outpost is not a second city. It has no treasury, no separate membership, no independent diplomacy, and cannot declare war. It is territory the city owns, somewhere else.
+
+### 39.3 The cost formula
+
+This is the centrepiece of the rework. Every outpost chunk is priced as a normal city chunk plus a distance premium that grows on a square root curve, so a very distant outpost costs a great deal without becoming absurd.
+
+```
+outpost_chunk_cost(n, k, d) = base(n) * D(d) * F(k) / member_divisor
+
+  base(n) = 400 * n^1.25
+            n = the city's TOTAL chunk count including all outpost chunks,
+                exactly as Part I 6.2 computes it for city chunks
+
+  D(d)    = 1 + 0.25 * sqrt(d / 1000)
+            d = block distance from the city core chunk centre to this chunk centre,
+                measured in the horizontal plane
+
+  F(k)    = 1.50            if k == 1   (founding chunk of a new outpost)
+          = 1 + 0.25*(k-1)  if k  > 1   (expansion chunks 2, 3, 4)
+
+  member_divisor = 1 + 0.18 * (active_members - 1)     unchanged from Part I 6.2
+```
+
+**Why square root.** Linear distance pricing makes a million-block outpost a hundred times a ten-thousand-block one, which forbids the frontier outright. Logarithmic pricing flattens so hard that distance stops mattering past about fifty thousand blocks. Square root sits between: the premium keeps rising forever, but each additional order of magnitude costs progressively less per block.
+
+| Distance | D(d) multiplier |
+|---|---|
+| 500 | 1.18x |
+| 1,000 | 1.25x |
+| 5,000 | 1.56x |
+| 15,000 (the `/rtp` frontier) | 1.97x |
+| 50,000 | 2.77x |
+| 100,000 | 3.50x |
+| 500,000 | 6.59x |
+| 1,000,000 | 8.91x |
+| 5,000,000 | 18.68x |
+
+**Why outpost chunks count toward `n`.** An outpost chunk is a claim, and claiming it makes every future chunk anywhere in the city more expensive. This is deliberate: expansion is expansion, and a city that sprawls should feel that in its next purchase regardless of where it sprawled. It also removes an obvious exploit, since otherwise a city would claim cheap outpost chunks to avoid raising its city chunk index.
+
+**The founding surcharge of 1.50x** exists because establishing a new remote holding is a project, while adding a chunk to one that already exists is not. It is deliberately modest, because the distance multiplier is already doing the heavy work and stacking two large multipliers produced numbers no city could reach.
+
+### 39.4 Cost reference
+
+Founding chunk of a new outpost, single-member city, at various city sizes and distances:
+
+| City chunks | @1k | @15k | @100k | @1M |
+|---|---|---|---|---|
+| 20 | 31,721 | 49,948 | 88,819 | 225,999 |
+| 50 | 99,718 | 157,016 | 279,211 | 710,447 |
+| 100 | 237,171 | 373,448 | 664,078 | 1,689,737 |
+| 200 | 564,090 | 888,215 | 1,579,453 | 4,018,894 |
+| 400 | 1,341,641 | 2,112,543 | 3,756,594 | 9,558,594 |
+
+Complete four-chunk outpost, total of all four purchases:
+
+| City chunks | @1k | @15k | @100k | @1M |
+|---|---|---|---|---|
+| 20 | 139,625 | 219,853 | 390,950 | 994,766 |
+| 50 | 414,755 | 653,072 | 1,161,315 | 2,954,947 |
+| 100 | 967,516 | 1,523,447 | 2,709,044 | 6,893,120 |
+| 200 | 2,278,724 | 3,588,071 | 6,380,428 | 16,234,896 |
+| 400 | 5,393,137 | 8,492,015 | 15,100,782 | 38,423,699 |
+
+**Calibration against income.** Under the Part II daily sell quota, a ten-member city earns roughly 250,000 C per day. A full four-chunk outpost at 100,000 blocks, built by a hundred-chunk city, costs 2.71M, which is about eleven days of that city's entire collective income. That is a serious project, not a casual purchase, and it is achievable.
+
+The same outpost at a million blocks costs 6.89M, roughly twenty-seven days. An empire that reaches that far is straining to hold itself together, which is thematically correct and mechanically self-limiting without any cap being imposed.
+
+Note that the member divisor applies, so a fifteen-member city pays these figures divided by 3.52. Distant expansion is a group project, exactly as city expansion is.
+
+### 39.5 Upkeep and teleport
+
+Both scale with the same distance multiplier, so an outpost far away is a permanent commitment rather than a one-time purchase.
+
+```
+outpost_upkeep_per_day = outposts.base-upkeep-per-chunk * D(d) * chunk_count
+                       = 1200 * D(d) * chunks
+
+outpost_teleport_cost  = outposts.base-teleport-cost * D(d)
+                       = 100 * D(d)
+```
+
+| Distance | Upkeep per chunk/day | Full 4-chunk outpost/day | Teleport fee |
+|---|---|---|---|
+| 1,000 | 1,500 | 6,000 | 125 C |
+| 15,000 | 2,362 | 9,448 | 197 C |
+| 100,000 | 4,200 | 16,800 | 350 C |
+| 1,000,000 | 10,687 | 42,747 | 891 C |
+
+A four-chunk outpost at a million blocks costs 42,747 C per day, which is roughly seventeen percent of a ten-member city's total daily income. Sustainable, and felt.
+
+Outpost upkeep is charged with city upkeep in the same daily cycle (Part I 4.3) and is included in the runway figure shown by `/city upkeep`. If the city becomes delinquent, **outposts are released before city chunks**, furthest first, because a city should lose its frontier before it loses its home.
+
+Teleport rules unchanged from Part I: 8-second warmup, 3-minute cooldown, disabled entirely during a war involving the city, unsafe destinations resolve to the highest safe Y within the outpost.
+
+### 39.6 Placement rules
+
+| Rule | Value | Reason |
+|---|---|---|
+| Minimum distance from own city body | 32 chunks | Prevents using outposts to bypass the adjacency rule |
+| Minimum distance from own other outposts | 24 chunks | Prevents daisy-chaining outposts into a corridor |
+| Minimum distance from another city's claims | 8 chunks | Part I buffer, unchanged |
+| Internal contiguity | All chunks of one outpost must be edge-connected | An outpost is a place, not scattered tiles |
+| Maximum chunks | 4 | |
+| Expansion adjacency | Expansion chunks must border an existing chunk of that outpost | |
+| World | `world` only | |
+
+Six outposts of four chunks each is twenty-four remote chunks. With a 24-chunk minimum spacing between them, they cannot be arranged into a continuous road, which is the specific abuse this constraint exists to prevent.
+
+### 39.7 Merging
+
+Because outposts are now up to four chunks and cities grow, contact becomes likely rather than a curiosity.
+
+| Situation | Result |
+|---|---|
+| An outpost chunk becomes edge-adjacent to the city body | **The entire outpost merges into the city.** All its chunks convert to NORMAL, the outpost slot frees, the warp point is deleted, and nothing is refunded. Mayor notified. |
+| Two of a city's own outposts become adjacent | **They merge into one outpost**, keeping the older one's name and warp. One slot frees. If the merged result exceeds 4 chunks, the merge is **blocked** and the claim that would trigger it is rejected with a clear message. |
+| A merge would exceed the city's outpost cap | Cannot occur; merging only ever frees slots |
+| An outpost is reduced to zero chunks by unclaiming | The outpost record is deleted and the slot frees |
+
+Merging never refunds and never charges. The chunks were already paid for.
+
+### 39.8 Defense at outposts
+
+Outposts may host defense units from Part III, drawn from the **city's single Defense Capacity budget**. There is no separate outpost budget.
+
+| Rule | Value |
+|---|---|
+| Maximum units per outpost | 4, regardless of chunk count |
+| Maximum units per chunk | 3, unchanged from Part III 27.8 |
+| City Warden | **Never.** The Warden is bound to the core chunk permanently. |
+| Materialization | Standard Part III 25.4 rules apply, so a remote outpost with nobody near it costs nothing |
+
+The four-unit cap per outpost exists so a city cannot convert its entire garrison into a remote fortress and leave its actual city undefended, which would make wars unwinnable in the wrong direction.
+
+### 39.9 Outposts in war
+
+Unchanged in principle from Part I, but materially more significant now that outposts are four chunks with defenders.
+
+- Outposts of a warring city are part of the war zone, are griefable, and are fully rolled back
+- The one-chunk perimeter from Part I 11.4 applies around each outpost
+- Outpost teleports are disabled for both sides during PREP and ACTIVE, so nobody can instantly reinforce
+- Capture points are generated from the **main city body only**, never from outposts, so a war is decided at the city rather than at a remote holding
+- Block-break score inside an outpost counts at the standard rate and against the same cap
+
+**A distant outpost extends the war zone by up to four chunks plus perimeter, in a location possibly hundreds of thousands of blocks from the main fight.** The war zone chunk set (Part I 11.4) must handle a discontiguous, widely separated set of regions, and the pre-war snapshot in 32.8 must cover all of them. This is the single most important implementation consequence of the rework.
+
+### 39.10 Waystations
+
+The resource world equivalent. A different thing with a different purpose, deliberately kept minimal.
+
+| Property | Value |
+|---|---|
+| Worlds | `resource` and `resource_nether` only |
+| Limit | **1 per city per resource world**, so 2 total. Separate pool from the 2 to 6 outpost limit. |
+| Size | 1 to 2 chunks, edge-connected |
+| Purpose | A shared teleport anchor and protected mining base for the whole city |
+| Cost | `60,000 * W(d)` for chunk 1, `90,000 * W(d)` for chunk 2 |
+| Distance | `W(d) = 1 + 0.10 * sqrt(d / 1000)`, measured from that world's spawn, not from the city core |
+| Upkeep | `1,500 * W(d)` per chunk per day |
+| Teleport | `/city waystation tp <world>`, 8s warmup, 3 min cooldown, 200 C |
+| Defense units | **Not permitted.** PvP is disabled in the resource worlds, so defenders would have nothing to defend against. |
+| War | **Never** a war target, never in a war zone, never rolled back |
+| Protection | Full, identical to city claims |
+
+`W(d)` uses a gentler constant than outposts because the resource worlds exist to be travelled deep into, and penalising that would defeat their purpose. At 15,000 blocks the multiplier is 1.39x, at 100,000 it is 2.00x.
+
+**Waystation and Mining Claim coexist and do not overlap.** A Mining Claim (32.6) is personal, one chunk, available to any player including those with no city. A Waystation is city-owned, up to two chunks, and gives every member a teleport anchor. A player may hold both.
+
+### 39.11 Commands
+
+Replaces Part I 7.3.
+
+| Command | Permission | Description |
+|---|---|---|
+| `/city outpost create <name>` | OUTPOST_MANAGE | Founds an outpost at the current chunk. Shows the full cost breakdown and requires confirmation. |
+| `/city outpost claim <name>` | OUTPOST_MANAGE | Adds the current chunk to an existing outpost |
+| `/city outpost unclaim` | OUTPOST_MANAGE | Removes the current chunk. 50% refund to treasury. Blocked if it breaks the outpost's internal contiguity. |
+| `/city outpost delete <name>` | OUTPOST_MANAGE | Removes the whole outpost. 50% refund of all chunks. Confirmation required. |
+| `/city outpost tp <name>` | OUTPOST_TP | Teleport |
+| `/city outpost setwarp <name>` | OUTPOST_MANAGE | Sets the warp point within the outpost |
+| `/city outpost rename <old> <new>` | OUTPOST_MANAGE | |
+| `/city outpost list` | member | All outposts: name, chunks, distance, upkeep, coordinates |
+| `/city outpost info <name>` | member | One outpost in detail, including total invested and current upkeep |
+| `/city outpost cost` | member | **Cost of claiming the current chunk**, with the full formula broken out: base, distance multiplier, chunk factor, member divisor, final |
+| `/city waystation create` | OUTPOST_MANAGE | Founds a waystation in the current resource world |
+| `/city waystation claim` | OUTPOST_MANAGE | Adds the second chunk |
+| `/city waystation tp <world>` | OUTPOST_TP | |
+| `/city waystation delete <world>` | OUTPOST_MANAGE | |
+| `/city waystation list` | member | |
+
+`/city outpost cost` is the important addition. A formula with four terms is opaque unless the game shows its work, and a player about to spend two million coins deserves to see exactly why.
+
+### 39.12 GUI
+
+The Outposts menu (Part I 8.3, slot 32) is expanded.
+
+| Slot | Item | Content |
+|---|---|---|
+| 4 | Filled Map | Header: outposts used vs available, total remote chunks, combined daily upkeep |
+| 10 to 16 | Filled Map per outpost | Name, chunk count, distance, daily upkeep, total invested, unit count. Click to open detail. |
+| 20 | Grass Block | **Claim current chunk**, with the full cost breakdown in the lore |
+| 22 | Emerald | Found new outpost here, cost breakdown in lore, disabled with a reason if a placement rule fails |
+| 24 | Ice | Waystations submenu |
+| 30 | Ender Pearl | Teleport menu, one entry per outpost with its fee |
+| 32 | Book | Cost explainer: the formula in plain language with the city's current values substituted |
+
+Outpost detail submenu: rename, set warp, expand, unclaim current chunk, delete, view defense units, and a chunk layout diagram showing which of the four chunks are owned.
+
+### 39.13 Messages
+
+Added to the Part II Section 23 catalogue.
+
+| Key | Audience | Channel | Template |
+|---|---|---|---|
+| `outpost.created` | SELF + CITY | Chat | `{p.land}<body>Founded outpost <subject>{name}</subject> at <subject>({x}, {z})</subject><body>, <subject>{dist}</subject> blocks out, for <neg>-{cost}</neg><body>. <dim>Upkeep: {upkeep}/day.</dim>` |
+| `outpost.expanded` | SELF + CITY | Chat | `{p.land}<body>Outpost <subject>{name}</subject> expanded to <subject>{chunks}/4</subject><body> chunks for <neg>-{cost}</neg><body>.` |
+| `outpost.cost_preview` | SELF | Chat | Multi-line: base, distance multiplier with the distance shown, chunk factor, member divisor, final |
+| `outpost.merged_city` | CITY | Chat + sound | `{p.land}<body>Outpost <subject>{name}</subject> now borders the city and has been absorbed. <dim>Outpost slot freed: {used}/{max}.</dim>` |
+| `outpost.merged_outpost` | CITY | Chat | `{p.land}<body>Outposts <subject>{a}</subject><body> and <subject>{b}</subject><body> merged. <dim>Slot freed.</dim>` |
+| `outpost.error.merge_too_large` | SELF | Chat | `{p.error}<body>This claim would merge two outposts into <subject>{total}</subject><body> chunks, over the limit of 4.</body>` |
+| `outpost.error.too_close_city` | SELF | Chat | `{p.error}<body>Outposts must be at least <subject>{min}</subject><body> chunks from your city. <dim>This is {actual}.</dim>` |
+| `outpost.error.too_close_outpost` | SELF | Chat | `{p.error}<body>Too close to outpost <subject>{name}</subject><body>. <dim>Minimum {min} chunks, this is {actual}.</dim>` |
+| `outpost.error.cap` | SELF | Chat | `{p.error}<body>Outpost limit reached: <subject>{used}/{max}</subject><body>. <dim>Upgrade Outpost Range.</dim>` |
+| `outpost.released_delinquent` | CITY | Chat + sound | `{p.city}<neg>Outpost {name} released</neg><body> to unpaid upkeep. <dim>Furthest holdings go first.</dim>` |
+| `waystation.created` | CITY | Chat | `{p.land}<body>Waystation established in <subject>{world}</subject><body> for <neg>-{cost}</neg><body>.` |
+
+### 39.14 Edge cases
+
+Continues from Part IV Section 33.9.
+
+| # | Case | Required behaviour |
+|---|---|---|
+| 131 | City core is moved by an admin, changing every outpost's distance | Costs already paid are never recomputed. **Upkeep is recomputed** from the new core on the next cycle. The mayor is notified of the change with old and new figures. |
+| 132 | An outpost is founded, then the city expands toward it and merges | Full merge per 39.7. Nothing refunded. This is a legitimate strategy and should not be penalised beyond the sunk cost. |
+| 133 | Unclaiming an outpost chunk would split the outpost in two | Rejected, same contiguity logic as Part I 6.1 applied within the outpost |
+| 134 | Outpost chunk claimed at the exact moment another city claims a bordering chunk | Unique index on `(world, chunk_x, chunk_z)` resolves it; the loser is refunded automatically |
+| 135 | An outpost exists at 2 million blocks and the city goes delinquent | Furthest outposts release first, before any city chunk, per 39.5 |
+| 136 | War declared while the city holds an outpost 800k blocks away | The war zone includes it. The pre-war snapshot must cover a discontiguous region set. Rollback processes each region independently. |
+| 137 | Two wars are active and both zones include outposts near each other | Per Part I case 51, each war logs independently. Test explicitly with remote outposts. |
+| 138 | Outpost teleport attempted during a war | Blocked for both sides, Part I 7.4 |
+| 139 | Player teleports to an outpost that is unloaded and 1M blocks away | Chunks load on demand. Warmup is 8 seconds specifically to cover the load. If loading fails, the teleport is cancelled and the fee refunded. |
+| 140 | A waystation is placed and then that resource world is reset by an admin | The 14-day notice from 32.5 must explicitly list every waystation and mining claim that will be destroyed, by owner. Full refund of the waystation cost is paid on reset. |
+| 141 | Outpost chunk count pushes the city over a cost threshold mid-purchase | `n` is read once at the start of the transaction and held for its duration |
+| 142 | Distance is computed across a world boundary | Cannot occur; outposts are `world` only and waystations measure from their own world's spawn |
+| 143 | An outpost is founded, then the Outpost Range upgrade is downgraded by an admin | Existing outposts persist. New ones are blocked until back under the cap. Nothing is deleted. |
+| 144 | A player claims an outpost chunk at the coordinate limit of the vanilla border | Allowed. Distance multiplier applies normally. At 29,999,984 blocks D(d) is roughly 44x, which is correct and intended. |
+
+### 39.15 Configuration
+
+Replaces the `outposts` block in Part I 16.2.
+
+```yaml
+outposts:
+  base-max: 2
+  max-per-upgrade-level: 1        # Outpost Range upgrade, to a maximum of 6
+  max-chunks-per-outpost: 4
+
+  cost:
+    distance-constant: 0.25       # K in D(d) = 1 + K*sqrt(d/1000)
+    distance-reference-blocks: 1000
+    founding-surcharge: 1.50      # F(1)
+    expansion-escalation: 0.25    # F(k>1) = 1 + 0.25*(k-1)
+    counts-toward-city-chunk-index: true
+    apply-member-divisor: true
+
+  upkeep:
+    base-per-chunk-per-day: 1200
+    scales-with-distance: true
+    release-order: FURTHEST_FIRST
+    release-before-city-chunks: true
+
+  teleport:
+    base-cost: 100
+    scales-with-distance: true
+    warmup-seconds: 8
+    cooldown-seconds: 180
+    disabled-during-war: true
+
+  placement:
+    min-chunks-from-own-city: 32
+    min-chunks-from-own-outposts: 24
+    min-chunks-from-other-city: 8
+    worlds: [world]
+
+  defense:
+    max-units-per-outpost: 4
+    warden-allowed: false
+
+  unclaim-refund-percent: 50
+
+waystations:
+  enabled: true
+  worlds: [resource, resource_nether]
+  max-per-world-per-city: 1
+  max-chunks: 2
+  chunk-1-cost: 60000
+  chunk-2-cost: 90000
+  distance-constant: 0.10         # W(d) = 1 + 0.10*sqrt(d/1000), from world spawn
+  base-upkeep-per-chunk-per-day: 1500
+  teleport-cost: 200
+  defense-units-allowed: false
+  war-target: false
+```
+
+---
+
+## 40. Consequences of an unbounded world
+
+Three systems in Parts I to IV assumed bounded distances and need adjusting. Each is small, and each would be a real bug if missed.
+
+### 40.1 Contest voting
+
+Part I 13.4 requires players to travel to contest entries to view and score them. An entry four hundred thousand blocks out would receive zero votes, and the city that built it would be structurally excluded from a core system.
+
+**Fix:** submitting a contest entry generates a **temporary public warp** to the entry's viewing platform, available to all players via `/contest visit <n>` for the duration of the voting window only. The warp is deleted when the contest closes.
+
+The warp lands on a viewing platform above the build, grants no build permission, and does not bypass the city's protection. It is a viewing gallery, not access.
+
+### 40.2 Distance is no longer a proxy for anything
+
+Several Part I and Part II rules used distance thresholds that assumed a compact map. Reviewed:
+
+| Rule | Status |
+|---|---|
+| City minimum distance, 5 chunks (Part I 5.1) | Unchanged. Still correct. |
+| Claim buffer, 5 chunks (Part I 6.3) | Unchanged. |
+| Claim distance multiplier from core (Part I 6.2) | Unchanged. Applies to city chunks, which remain contiguous. |
+| Siege Camp within 12 chunks of the enemy (Part III 29.5) | Unchanged. Correct, and now more meaningful. |
+| `/rtp` minimum 200 blocks from another player | Unchanged. |
+| War declaration | **No distance requirement of any kind.** Wars arise from rivalry between players, not from proximity. Two cities a million blocks apart may declare on each other freely. |
+
+The last row is a deliberate design statement and should be read as one. Proximity-based aggression is a territorial-conquest-game assumption. On a server of this kind, conflict comes from who players know and dislike, not from who happens to border them.
+
+### 40.3 Performance
+
+| Concern | Handling |
+|---|---|
+| Region file sprawl | Incremental backups, 32.8 |
+| Chunk loading for remote outpost teleports | 8-second warmup, on-demand load, refund on failure |
+| War zones spanning enormous distances | The zone is a `LongOpenHashSet` of packed chunk keys and is distance-agnostic. Rollback processes each contiguous region group independently. |
+| Defense units at remote outposts | Materialization (Part III 25.4) means they cost nothing when nobody is near |
+| `/city map` for a city with distant outposts | The ASCII map shows local chunks only, with a legend line listing outposts and their bearing and distance |
+
+---
+
+## 41. Milestones
+
+Replaces Part I milestone M10 and Part IV milestone 3a.
+
+| M | Milestone | Deliverable | Depends on |
+|---|---|---|---|
+| 3a | **World setup** | Multi-world config, per-world claim rules, world whitelist enforcement in every protection listener. **No border management of any kind.** | M3 |
+| 3b | **Travel** | `/spawn`, `/rtp` with the 15k radius and full safe-location validation, `/warp`, warmups, cooldowns, cancellation | 3a |
+| 3c | **Mining claims** | Section 32.6, `/mine` tree, protection reusing M4 listeners, personal-balance upkeep | 3a, M4, M5 |
+| 10 | **Outposts** | Full Section 39.1 to 39.9. Cost engine with unit tests against every value in the 39.4 tables. Multi-chunk claims, internal contiguity, merging, placement rules, distance-scaled upkeep and teleport, delinquency release order. | M3, M5, 3a |
+| 10a | **Waystations** | Section 39.10, separate pool, resource world placement, own distance constant | M10 |
+| 10b | **Outpost GUI and cost transparency** | Section 39.12, `/city outpost cost`, the formula explainer screen | M10, M8 |
+| 19d | **Discontiguous war zones** | War zone computation, block logging, pre-war snapshot, and rollback verified against a war where an outpost is over 500,000 blocks from the city. Case 136. | M10, M18, M19 |
+| 15a | **Contest visit warps** | Section 40.1, temporary warps generated on submission, deleted on close | M15 |
+
+**M19d is the milestone most likely to be skipped and most likely to cause a serious bug.** Every war test will naturally be run on a compact test map where both cities are a few hundred blocks apart. The discontiguous case, where one region group sits half a million blocks from the others, exercises different code paths in zone computation, snapshotting, and rollback chunk loading. Build a test fixture that places an outpost at extreme distance and run the full war cycle against it before launch.
+
+**M10's cost engine needs unit tests against the published tables**, not just against the formula. The tables in 39.4 are the specification. If the implementation produces different numbers, the implementation is wrong, and catching that in a test is far cheaper than catching it after a player has spent six million coins.
