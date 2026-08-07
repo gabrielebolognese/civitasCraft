@@ -18,7 +18,6 @@ import dev.civitas.util.Scheduler;
 import io.papermc.paper.command.brigadier.CommandSourceStack;
 import io.papermc.paper.command.brigadier.Commands;
 import net.kyori.adventure.audience.Audience;
-import org.bukkit.Bukkit;
 import org.bukkit.entity.Player;
 
 /**
@@ -62,14 +61,7 @@ public final class MoneyCommand {
                     return Command.SINGLE_SUCCESS;
                 })
                 .then(Commands.argument("player", StringArgumentType.word())
-                        .suggests((context, builder) -> {
-                            Bukkit.getOnlinePlayers().stream()
-                                    .map(Player::getName)
-                                    .filter(name -> name.toLowerCase()
-                                            .startsWith(builder.getRemaining().toLowerCase()))
-                                    .forEach(builder::suggest);
-                            return builder.buildFuture();
-                        })
+                        .suggests(dev.civitas.command.Suggest.onlinePlayers())
                         .executes(context -> {
                             Audience audience = context.getSource().getSender();
                             if (notReady(audience)) {

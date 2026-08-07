@@ -56,6 +56,19 @@ class CommandRegistryTest {
     }
 
     @Test
+    @DisplayName("no command is left stubbed")
+    void nothingIsStillAStub() {
+        // Empty since M23: every command in SPEC 9 has a real implementation. The stub
+        // mechanism is kept because it is how this tree was built one milestone at a time,
+        // and a future command wants the same treatment — but a stub reaching a release is a
+        // command that answers "not implemented yet" to a player, so it should be a decision
+        // somebody made rather than a leftover nobody noticed.
+        assertTrue(CommandRegistry.declaredCommands().isEmpty(),
+                "these commands are still stubs: " + CommandRegistry.declaredCommands().stream()
+                        .map(CommandSpec::name).toList());
+    }
+
+    @Test
     @DisplayName("no root command or alias is declared twice")
     void namesAndAliasesAreUnique() {
         Set<String> seen = new LinkedHashSet<>();

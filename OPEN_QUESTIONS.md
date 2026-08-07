@@ -1151,3 +1151,90 @@ Format:
   and that a city's treasury does not move when nothing happens — and states in
   `ANTI_TOXICITY.md` that this is weaker evidence than the other fifteen rows. A future income
   source keyed on claim count would pass this test. *Date:* 2026-08-07
+
+- **[M23]** SPEC 19 assigns M23 no tests: every unit test in SPEC 18.1 is a formula owned by
+  M3, M5, M6 or M19, every integration test in SPEC 18.2 belongs to M2, M3, M5 or M7, and
+  SPEC 18.3 is M20's manual protocol. The same situation as M0. *Implemented default:* wrote
+  the tests this milestone's own deliverable implies rather than shipping it untested -- help
+  coverage in both directions, the two rules SPEC requires the rules book to carry, the
+  profiler's sampling, a tab-completion sweep that stays swept, and a localisation check that
+  a copied language file does not satisfy. *Date:* 2026-08-07
+
+- **[M23]** SPEC 9.1 asks for paginated help and says nothing about where the list of commands
+  lives. Putting the whole thing in `lang/` is the obvious choice and the one that rots: a
+  later milestone adds a command, nobody remembers the help text, and a stale help page is
+  indistinguishable from a current one until a player follows it. *Implemented default:* the
+  *set* of commands is declared in `HelpPages`, the *wording* of each line is a `lang/` key,
+  and `HelpPagesTest` asserts both directions -- no entry names a command that does not exist,
+  and no root command is undocumented. Help cannot go out of date without failing the build.
+  *Date:* 2026-08-07
+
+- **[M23]** A help line reads `/city info <name>`, and `<name>` is also how MiniMessage writes
+  a placeholder, so the same three characters mean "show this text" in a usage line and
+  "substitute a value here" everywhere else. *Implemented default:* `HelpPages.send` passes no
+  resolvers at all, which is what leaves an unrecognised tag as literal text -- the behaviour
+  `market.sell-usage` has relied on since M6. Recorded because it is a live trap: a future
+  change that formats these lines with placeholders would silently delete every argument name
+  from the help. *Date:* 2026-08-07
+
+- **[M23]** The same ambiguity broke the first version of `LocalisationCompletenessTest`, which
+  compared the placeholders in `en.yml` against those in `it.yml` and produced four findings,
+  all of them wrong: `/sell all <material>` becomes `/sell all <materiale>`, and should,
+  because that name is documentation and nothing substitutes it. *Implemented default:* the
+  test asserts against **what the code passes**, read from the call sites by `LangCallSites`,
+  rather than against the other language. Only the call site knows whether a name is a
+  resolver or a piece of syntax being shown to the player. *Date:* 2026-08-07
+
+- **[M23]** Rewritten that way it found six real defects, of which **two were visible to
+  players and had been since M10**: `outpost.tp-warmup` and `outpost.tp-arrived` were passed a
+  resolver called `outpost` while both messages show `<name>`, so a player teleporting read
+  "Travelling to `<name>` in 8 seconds". Every other message in the outpost section uses
+  `<name>`, so the two call sites were the outliers and were corrected. The other four passed
+  a value the message never displayed -- a raw epoch, an internal failure code, a city name
+  into a caption SPEC 8.1 fixes -- and were dropped, except `diplomacy.already-breaking`,
+  where naming the city is worth showing. *Date:* 2026-08-07
+
+- **[M23]** SPEC 13.4 scores a contest entry "1 to 10" and the range is a config key, but a
+  Brigadier argument type is fixed when the tree is registered at startup. Bounding the
+  argument would freeze that key: an operator who widened the range and ran `/ca reload` would
+  get a parse error for a score the service accepts. *Implemented default:* the valid scores
+  are **suggested**, read fresh on every keystroke, and the service stays the only authority.
+  The same reasoning applies to every argument in the tree, since `/ca reload` does not
+  re-register commands and nothing else depends on it doing so. *Date:* 2026-08-07
+
+- **[M23]** M21's `/ca perf` printed a line naming average claim lookup and GUI open time as
+  unmeasured. It understated the gap: SPEC 9.4.6 names four figures, and the block-log **write
+  rate** and **DB pool status** were absent too -- what was printed in their place was a
+  buffer depth and a claim count. All four are real now. *Implemented default:* claim lookup
+  is sampled at one call in 64, because SPEC 17.7 case 81 puts it on every block event and
+  `System.nanoTime` costs more than the map lookup it would measure; GUI opens are timed every
+  time, because SPEC 17.7 case 86's worst case is 500 of them and a menu costs microseconds.
+  `performance.timings-enabled` defaults **true**, since a profiler that ships off is one an
+  operator turns on after the incident, and when it is off the clock is never read at all.
+  *Date:* 2026-08-07
+
+- **[M23]** SPEC 19 asks for "tab completion everywhere" without saying what everywhere
+  excludes. Twenty-two string arguments offered nothing; ten of them should have, and twelve
+  name a value the player invents -- an amount, a wager, the name of a city that does not
+  exist yet. *Implemented default:* the ten are completed, and `TabCompletionTest` holds the
+  line by requiring every remaining one to be listed as free-form, so re-opening the gap fails
+  the build and exempting an argument is a decision somebody made. The sweep also found **five
+  verbatim copies** of the online-player provider, two of which lowercased without a locale --
+  on a Turkish server a player named Ian would not have matched "i". All five now share
+  `Suggest.onlinePlayers()`. *Date:* 2026-08-07
+
+- **[M23]** SPEC 9.1's rules book is where SPEC requires two rules to be written down: SPEC
+  17.2 case 16 ("Builds do not confer ownership. Documented in the rules book") and SPEC 11.7
+  with SPEC 17.4 case 44, the loot asymmetry that "must be communicated clearly to players".
+  *Implemented default:* an Adventure book opened virtually rather than given as an item -- it
+  cannot be lost, duplicated, or take up an inventory slot -- with a console fallback that
+  prints the same pages as lines. `RulesBookTest` asserts both promises are present in both
+  languages, including SPEC 17.4 case 44's own conclusion rather than only the mechanic, so
+  neither can be trimmed out during a tidy-up. *Date:* 2026-08-07
+
+- **[M23]** `CommandRegistry.COMMANDS`, the list of commands declared but not yet implemented,
+  is **empty for the first time**: `/cc` was orphaned at M13 and `/civitas` was always M23's.
+  *Implemented default:* the list, the stub builder and `CommandSpec` are kept rather than
+  deleted -- they are how this tree was built one milestone at a time, and a future command
+  wants the same treatment -- and `CommandRegistryTest` asserts the list is empty, so a stub
+  reaching a release is a decision rather than a leftover. *Date:* 2026-08-07

@@ -17,6 +17,7 @@ import com.mojang.brigadier.context.CommandContext;
 import dev.civitas.CivitasServices;
 import dev.civitas.command.Replies;
 import dev.civitas.config.ConfigFile;
+import dev.civitas.core.admin.PerfReport;
 import dev.civitas.lang.LangManager;
 import dev.civitas.storage.row.ReportRow;
 import dev.civitas.util.Scheduler;
@@ -164,22 +165,54 @@ public final class AdminSystemCommands {
                         return Command.SINGLE_SUCCESS;
                     }
 
+                    PerfReport perf = current.perf();
                     lang.sendRaw(audience, "admin.system.perf-header");
                     lang.sendRaw(audience, "admin.system.perf-claims",
-                            Replies.p("count", String.valueOf(current.claimRegistry().size())),
-                            Replies.p("cities", String.valueOf(current.registry().cities().size())));
+                            Replies.p("count", String.valueOf(perf.claimsCached())),
+                            Replies.p("cities", String.valueOf(perf.cities())));
+
+                    // SPEC 9.4.6's four named figures. M21 could print two of them and said
+                    // so; M23 measures the other two rather than leaving the admission in.
+                    lang.sendRaw(audience, "admin.system.perf-lookup",
+                            Replies.p("micros", micros(perf.claimLookup())),
+                            Replies.p("samples", String.valueOf(perf.claimLookup().samples())));
+                    lang.sendRaw(audience, "admin.system.perf-gui",
+                            Replies.p("micros", micros(perf.guiOpen())),
+                            Replies.p("samples", String.valueOf(perf.guiOpen().samples())));
                     lang.sendRaw(audience, "admin.system.perf-warlog",
-                            Replies.p("buffered", String.valueOf(current.warBlockLogBuffered())),
-                            Replies.p("wars", String.valueOf(current.wars().registry().all().size())));
+                            Replies.p("rate", String.format(java.util.Locale.ROOT, "%.1f",
+                                    perf.warLogRate())),
+                            Replies.p("buffered", String.valueOf(perf.warLogBuffered())),
+                            Replies.p("wars", String.valueOf(perf.warsTracked())));
+                    lang.sendRaw(audience, "admin.system.perf-pool",
+                            Replies.p("active", String.valueOf(perf.pool().active())),
+                            Replies.p("idle", String.valueOf(perf.pool().idle())),
+                            Replies.p("max", String.valueOf(perf.pool().max())),
+                            Replies.p("awaiting", String.valueOf(perf.pool().awaiting())));
+
                     lang.sendRaw(audience, "admin.system.perf-protection",
-                            Replies.p("protected",
-                                    String.valueOf(current.adminProtection().count())));
-                    // The two SPEC names that nothing measures. Saying so is the only honest
-                    // option: an operator chasing a stall must not be handed a number that was
-                    // never taken.
-                    lang.sendRaw(audience, "admin.system.perf-unmeasured");
+                            Replies.p("protected", String.valueOf(perf.protectedChunks())));
+                    if (!perf.timingsEnabled()) {
+                        // Sampling is off, so the two timing lines above read "-". Saying why
+                        // beats letting an operator conclude the plugin is idle.
+                        lang.sendRaw(audience, "admin.system.perf-timings-off");
+                    }
                     return Command.SINGLE_SUCCESS;
                 });
+    }
+
+    /**
+     * A sampled average, or a dash.
+     *
+     * <p>A dash rather than {@code 0.0}: an average of zero is a claim about the code, and
+     * "nothing has been sampled yet" is a claim about the measurement. Printing the first when
+     * the second is true is how M21's unmeasured metrics would have looked if it had guessed.
+     */
+    private static String micros(dev.civitas.util.Timings.Snapshot snapshot) {
+        java.util.OptionalDouble average = PerfReport.averageMicros(snapshot);
+        return average.isPresent()
+                ? String.format(java.util.Locale.ROOT, "%.3f", average.getAsDouble())
+                : "-";
     }
 
     private LiteralArgumentBuilder<CommandSourceStack> migrate() {

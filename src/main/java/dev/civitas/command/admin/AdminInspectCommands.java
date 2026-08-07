@@ -19,6 +19,7 @@ import com.mojang.brigadier.builder.LiteralArgumentBuilder;
 import com.mojang.brigadier.context.CommandContext;
 import dev.civitas.CivitasServices;
 import dev.civitas.command.Replies;
+import dev.civitas.command.Suggest;
 import dev.civitas.core.admin.FraudHeuristics;
 import dev.civitas.core.city.City;
 import dev.civitas.core.economy.Money;
@@ -127,6 +128,7 @@ public final class AdminInspectCommands {
         return Commands.literal("player")
                 .requires(source -> source.getSender().hasPermission("civitas.admin.info"))
                 .then(Commands.argument("player", StringArgumentType.word())
+                        .suggests(Suggest.onlinePlayers())
                         .executes(context -> {
                             playerInfo(context.getSource().getSender(),
                                     StringArgumentType.getString(context, "player"));
@@ -179,6 +181,7 @@ public final class AdminInspectCommands {
                 .requires(source -> source.getSender().hasPermission("civitas.admin.audit"))
                 .then(Commands.literal("player")
                         .then(Commands.argument("player", StringArgumentType.word())
+                                .suggests(Suggest.onlinePlayers())
                                 .executes(context -> ledgerPlayer(context, 7))
                                 .then(Commands.argument("days", IntegerArgumentType.integer(1, 3650))
                                         .executes(context -> ledgerPlayer(context,
@@ -199,6 +202,7 @@ public final class AdminInspectCommands {
                                                 IntegerArgumentType.getInteger(context, "days"))))))
                 .then(Commands.literal("export")
                         .then(Commands.argument("target", StringArgumentType.word())
+                                .suggests(this::suggestExportTargets)
                                 .then(Commands.argument("days", IntegerArgumentType.integer(1, 3650))
                                         .executes(context -> {
                                             export(context.getSource().getSender(),
@@ -458,6 +462,7 @@ public final class AdminInspectCommands {
         return Commands.literal("alts")
                 .requires(source -> source.getSender().hasPermission("civitas.admin.audit"))
                 .then(Commands.argument("player", StringArgumentType.word())
+                        .suggests(Suggest.onlinePlayers())
                         .executes(context -> {
                             alts(context.getSource().getSender(),
                                     StringArgumentType.getString(context, "player"));
@@ -637,5 +642,32 @@ public final class AdminInspectCommands {
             }
         }
         return builder.buildFuture();
+    }
+
+    /**
+     * Everything {@code /ca ledger export} will accept: a player, a city, or a ledger type.
+     *
+     * <p>All three namespaces at once, because M21 decided this argument tries each in turn
+     * rather than taking a fourth argument to say which. An admin exporting "Roma" should not
+     * have to tell the plugin that Roma is a city, and should not have to remember that it
+     * could equally have been a player.
+     */
+    private java.util.concurrent.CompletableFuture<com.mojang.brigadier.suggestion.Suggestions>
+            suggestExportTargets(CommandContext<CommandSourceStack> context,
+                                 com.mojang.brigadier.suggestion.SuggestionsBuilder builder) {
+        String typed = builder.getRemaining().toLowerCase(Locale.ROOT);
+        for (org.bukkit.entity.Player player : org.bukkit.Bukkit.getOnlinePlayers()) {
+            if (player.getName().toLowerCase(Locale.ROOT).startsWith(typed)) {
+                builder.suggest(player.getName());
+            }
+        }
+        CivitasServices current = services.get();
+        if (current != null) {
+            current.registry().cities().stream()
+                    .map(dev.civitas.core.city.City::name)
+                    .filter(name -> name.toLowerCase(Locale.ROOT).startsWith(typed))
+                    .forEach(builder::suggest);
+        }
+        return suggestTypes(context, builder);
     }
 }

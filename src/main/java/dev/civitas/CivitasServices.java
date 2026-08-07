@@ -108,6 +108,7 @@ public record CivitasServices(
         int backupKeepCount,
         java.util.function.Supplier<java.util.List<String>> pendingMigrationSupplier,
         java.util.function.IntSupplier warBlockLogBufferedSupplier,
+        java.util.function.Supplier<dev.civitas.core.admin.PerfReport> perfSupplier,
         dev.civitas.storage.dao.DaoRegistry daos,
         WarScoreboard warScoreboard,
         OutpostService outposts,
@@ -134,5 +135,10 @@ public record CivitasServices(
     /** Rows waiting to be written by the war block logger, for {@code /ca perf}. */
     public int warBlockLogBuffered() {
         return warBlockLogBufferedSupplier.getAsInt();
+    }
+
+    /** A fresh reading of everything SPEC 9.4.6's {@code /ca perf} reports. */
+    public dev.civitas.core.admin.PerfReport perf() {
+        return perfSupplier.get();
     }
 }

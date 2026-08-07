@@ -16,6 +16,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 import dev.civitas.storage.dao.ClaimDao;
 import dev.civitas.storage.row.ClaimRow;
+import dev.civitas.util.Timings;
 import it.unimi.dsi.fastutil.longs.Long2ObjectMap;
 import it.unimi.dsi.fastutil.longs.Long2ObjectMaps;
 import it.unimi.dsi.fastutil.longs.Long2ObjectOpenHashMap;
@@ -48,8 +49,22 @@ public final class ClaimRegistry {
     private final Map<String, Integer> worldIndices = new ConcurrentHashMap<>();
     private final AtomicInteger nextWorldIndex = new AtomicInteger();
 
+    /**
+     * Feeds {@code /ca perf}, SPEC 9.4.6.
+     *
+     * <p>Not final and not a constructor argument: this registry is built before configuration
+     * is read, and every one of the many tests that construct it directly would otherwise need
+     * to learn about a profiler it does not care about.
+     */
+    private Timings timings = Timings.disabled();
+
     public ClaimRegistry(ClaimDao claims) {
         this.claims = Objects.requireNonNull(claims, "claims");
+    }
+
+    /** Wires the profiler in once configuration has been read. */
+    public void useTimings(Timings timings) {
+        this.timings = Objects.requireNonNull(timings, "timings");
     }
 
     /**
@@ -79,11 +94,19 @@ public final class ClaimRegistry {
      * @return the claim, or empty for wilderness
      */
     public Optional<Claim> at(String world, int chunkX, int chunkZ) {
-        Integer index = worldIndices.get(key(world));
-        if (index == null || !ChunkKey.isInRange(chunkX) || !ChunkKey.isInRange(chunkZ)) {
-            return Optional.empty();
+        // SPEC 9.4.6 asks /ca perf for the average of this call, and SPEC 17.7 case 81 makes
+        // it the hottest path in the plugin. Sampled at 1 in 64, and when timings are off the
+        // clock is never read at all: see Timings for why that trade is the way round it is.
+        long started = timings.start(Timings.Metric.CLAIM_LOOKUP);
+        try {
+            Integer index = worldIndices.get(key(world));
+            if (index == null || !ChunkKey.isInRange(chunkX) || !ChunkKey.isInRange(chunkZ)) {
+                return Optional.empty();
+            }
+            return Optional.ofNullable(byChunk.get(ChunkKey.pack(index, chunkX, chunkZ)));
+        } finally {
+            timings.stop(Timings.Metric.CLAIM_LOOKUP, started);
         }
-        return Optional.ofNullable(byChunk.get(ChunkKey.pack(index, chunkX, chunkZ)));
     }
 
     /** Convenience for block coordinates, which is what every listener actually has. */

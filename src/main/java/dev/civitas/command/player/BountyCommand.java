@@ -61,15 +61,7 @@ public final class BountyCommand {
                             return Command.SINGLE_SUCCESS;
                         }))
                 .then(Commands.argument("player", StringArgumentType.word())
-                        .suggests((context, builder) -> {
-                            Bukkit.getOnlinePlayers().stream()
-                                    .map(Player::getName)
-                                    .filter(name -> name.toLowerCase(java.util.Locale.ROOT)
-                                            .startsWith(builder.getRemaining()
-                                                    .toLowerCase(java.util.Locale.ROOT)))
-                                    .forEach(builder::suggest);
-                            return builder.buildFuture();
-                        })
+                        .suggests(dev.civitas.command.Suggest.onlinePlayers())
                         .then(Commands.argument("amount", StringArgumentType.word())
                                 .executes(this::place)))
                 .build();

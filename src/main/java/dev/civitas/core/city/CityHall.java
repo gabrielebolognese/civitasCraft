@@ -69,8 +69,8 @@ public final class CityHall {
         if (meta == null) {
             return stack;
         }
-        meta.displayName(lang.get("city.hall.item-name",
-                        LangManager.placeholder("city", city.name()))
+        // SPEC 8.1 fixes the name as "<gold><bold>City Hall", so it takes no placeholder.
+        meta.displayName(lang.get("city.hall.item-name")
                 .decoration(TextDecoration.ITALIC, false));
         meta.lore(java.util.List.of(lang.get("city.hall.item-lore")
                 .decoration(TextDecoration.ITALIC, false)));

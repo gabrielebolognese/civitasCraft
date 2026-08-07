@@ -114,8 +114,11 @@ public final class OutpostTeleport {
         }, seconds * 20L);
 
         pending.put(player.getUniqueId(), new Pending(task, origin));
+        // "name", not "outpost": every message in the outpost section uses <name>, and these
+        // two call sites were the only ones passing a different resolver. The message showed
+        // the player a literal "<name>" instead of where they were going, from M10 until M23.
         lang.send(player, "outpost.tp-warmup",
-                LangManager.placeholder("outpost", outpost.name()),
+                LangManager.placeholder("name", outpost.name()),
                 LangManager.placeholder("seconds", String.valueOf(seconds)));
         return Result.success(seconds);
     }
@@ -135,7 +138,7 @@ public final class OutpostTeleport {
                             player.teleport(safeLanding(destination));
                             lastTeleport.put(player.getUniqueId(), System.currentTimeMillis());
                             lang.send(player, "outpost.tp-arrived",
-                                    LangManager.placeholder("outpost", outpost.name()));
+                                    LangManager.placeholder("name", outpost.name()));
                         }));
     }
 

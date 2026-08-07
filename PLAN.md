@@ -5,7 +5,13 @@
 
 ## Current session focus
 
-**Next milestone:** M23, Polish
+**Next milestone:** none. M0 to M23 are DONE.
+
+**Before a public launch:** SPEC 18.3's manual war protocol has still not been run --
+it needs a live server, two accounts and three clean passes, and `WAR_TEST_PROTOCOL.md`
+carries the checklist. The beehive NBT exception recorded at M17 needs a decision
+first: SPEC 18.3 step 8 as literally written cannot pass for a hive without an
+NMS-backed codec.
 
 ## Session protocol
 
@@ -46,7 +52,7 @@
 | 20 | War: hardening | M19 | DONE | Every SPEC 17.4 case now has a test that names it. **Three real bugs found and fixed:** overlapping wars corrupted each other's restores (SPEC's stated end-time ordering is not sufficient — `OverlapSeeder` now completes a new war's log from any older war it shares ground with), fluid could escape a zone into wilderness and never be restored (case 46 rested on a coincidence of the ownership rule), and `moveOut` sent a defender to a spawn inside the zone it was evacuating them from. `Spec18ProtocolTest` runs the automatable half of SPEC 18.3; `WAR_TEST_PROTOCOL.md` carries the rest. **MockBukkit does not rebuild a tile state after `setBlockData`, so chest contents, sign text, banner patterns and spawner types are verified by the manual protocol and by nothing else** — 5 tests skip with that reason attached. 1446 tests. **SPEC 18.3 has not been run: it needs a live server, two accounts and three clean passes, and the beehive exception needs a decision first.** |
 | 21 | Admin tooling | all | DONE | All 54 SPEC 9.4 subcommands, in four increments. `AuditService` (SPEC 17.6 case 80) is unclearable by construction rather than by a guard. `/ca war verify` and `rollbackstatus` **make the SPEC 18.3 protocol runnable**. The six SPEC 17.6 case 79 heuristics — **one could never have fired as SPEC words it**; the outlier was its own baseline. RFC 4180 CSV export. **`/ca claim protect` closed the last seam in the plugin**, open since M3. V13 and V14. `/ca eco rollback` writes compensating entries and never deletes (SPEC 3.6), floors at zero and records debt (SPEC 17.3 case 35), and counts downstream by row id rather than by millisecond. SPEC 15.3 `/report` with a rate limit SPEC does not specify. **Every admin bypass is a separate method, never a flag — unfreezing a frozen city is the case that proves why.** 1562 tests. **`/ca perf` says which two of its four SPEC metrics nothing measures.** |
 | 22 | Anti-toxicity pass | all | DONE | All sixteen SPEC 15 mechanisms audited, each asserted twice: **enforced**, and **configurable** — the second is what catches a rule sitting behind a key nothing reads. `Spec15AuditTest` (20 tests) and `ANTI_TOXICITY.md`, a table of mechanism, key, where enforced and what proves it. **No unenforced mechanism found**; the three first-run failures were all the test being wrong about the environment. `WarService.canDeclare` added so the audit — and SPEC 8.8's button — can ask without declaring. SPEC 15.2's "seven leaderboards" against SPEC 13.3's nine is settled by asserting what the row protects rather than the count. 1582 tests. |
-| 23 | Polish | all | TODO | |
+| 23 | Polish | all | DONE | `/city help` (the command set declared in Java, the wording in `lang/`, so `HelpPagesTest` fails the build if a command loses its entry or gains one it does not have), the SPEC 9.1 rules book carrying SPEC 17.2 case 16 and SPEC 11.7's loot asymmetry, and `/cc` -- **the last stub in the plugin; `CommandRegistry.COMMANDS` is now empty**. `/ca perf` measures all four SPEC 9.4.6 figures: M21 named two as unmeasured and **the write rate and pool status were missing too**. `Timings` samples claim lookup 1-in-64 because SPEC 17.7 case 81 puts it on every block event. Tab completion swept -- 10 of 22 gaps closed, the rest declared free-form and held by `TabCompletionTest`; found **five copies** of the player provider, two lowercasing without a locale. Localisation asserted against **what the code passes**, not against the other language -- the first version's four findings were all wrong, the rewrite found six real ones, **two player-visible since M10** (outpost teleport showed a literal `<name>`). 1636 tests. |
 
 ## Rules the agent must not break
 

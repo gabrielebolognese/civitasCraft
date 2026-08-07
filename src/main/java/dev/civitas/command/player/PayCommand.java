@@ -47,14 +47,7 @@ public final class PayCommand {
         return Commands.literal("pay")
                 .requires(source -> source.getSender().hasPermission("civitas.economy.pay"))
                 .then(Commands.argument("player", StringArgumentType.word())
-                        .suggests((context, builder) -> {
-                            Bukkit.getOnlinePlayers().stream()
-                                    .map(Player::getName)
-                                    .filter(name -> name.toLowerCase()
-                                            .startsWith(builder.getRemaining().toLowerCase()))
-                                    .forEach(builder::suggest);
-                            return builder.buildFuture();
-                        })
+                        .suggests(dev.civitas.command.Suggest.onlinePlayers())
                         .then(Commands.argument("amount", StringArgumentType.word())
                                 .executes(this::pay)))
                 .build();

@@ -71,8 +71,9 @@ public final class DailyLoginService {
             PlayerRow row = found.get();
 
             if (alreadyClaimedToday(row, now)) {
-                return Result.<Claim>failure("ALREADY_CLAIMED", "income.daily.already",
-                        Map.of("when", String.valueOf(row.lastDailyClaim())));
+                // No placeholder: the only thing to hand over is a raw epoch, and the
+                // message never showed it. M9 already made this refusal silent in practice.
+                return Result.<Claim>failure("ALREADY_CLAIMED", "income.daily.already");
             }
 
             // SPEC 17.6 case 70: a fresh alt gets nothing, and does not build a streak either.

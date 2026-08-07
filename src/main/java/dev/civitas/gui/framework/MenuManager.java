@@ -40,6 +40,25 @@ public final class MenuManager {
         this.icons = new Icons(configs);
     }
 
+    /**
+     * Feeds {@code /ca perf}'s GUI open time, SPEC 9.4.6.
+     *
+     * <p>Set after construction for the same reason {@code ClaimRegistry}'s is: the manager
+     * exists before configuration has been read, and the many tests that build one directly
+     * have no interest in a profiler.
+     */
+    private dev.civitas.util.Timings timings = dev.civitas.util.Timings.disabled();
+
+    /** Wires the profiler in once configuration has been read. */
+    public void useTimings(dev.civitas.util.Timings timings) {
+        this.timings = java.util.Objects.requireNonNull(timings, "timings");
+    }
+
+    /** The profiler menus report their open time to. Never null. */
+    public dev.civitas.util.Timings timings() {
+        return timings;
+    }
+
     public ConfigManager configs() {
         return configs;
     }

@@ -14,6 +14,7 @@ import com.mojang.brigadier.builder.LiteralArgumentBuilder;
 import com.mojang.brigadier.context.CommandContext;
 import dev.civitas.CivitasServices;
 import dev.civitas.command.Replies;
+import dev.civitas.command.Suggest;
 import dev.civitas.core.city.City;
 import dev.civitas.core.economy.Money;
 import dev.civitas.core.economy.TransactionType;
@@ -65,6 +66,7 @@ public final class AdminEconomyCommands {
                 .then(walletCommand("set"))
                 .then(Commands.literal("freeze")
                         .then(Commands.argument("player", StringArgumentType.word())
+                                .suggests(Suggest.onlinePlayers())
                                 .executes(context -> {
                                     freeze(context.getSource().getSender(),
                                             StringArgumentType.getString(context, "player"));
@@ -143,6 +145,7 @@ public final class AdminEconomyCommands {
     private LiteralArgumentBuilder<CommandSourceStack> walletCommand(String operation) {
         return Commands.literal(operation)
                 .then(Commands.argument("player", StringArgumentType.word())
+                        .suggests(Suggest.onlinePlayers())
                         .then(Commands.argument("amount", StringArgumentType.word())
                                 .executes(context -> wallet(context, operation, null))
                                 .then(Commands.argument("reason",

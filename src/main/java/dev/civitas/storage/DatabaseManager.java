@@ -64,6 +64,45 @@ public final class DatabaseManager implements AutoCloseable {
         return dataSource;
     }
 
+    /**
+     * SPEC 9.4.6's "DB pool status".
+     *
+     * @param active      connections handed out and in use
+     * @param idle        connections open and free
+     * @param total       {@code active + idle}
+     * @param awaiting    threads blocked waiting for a connection; anything above zero
+     *                    sustained is the pool being too small for the load
+     * @param max         the configured ceiling
+     */
+    public record PoolStatus(int active, int idle, int total, int awaiting, int max) {
+
+        /** An unopened or closed pool, so {@code /ca perf} can report rather than throw. */
+        public static PoolStatus closed() {
+            return new PoolStatus(0, 0, 0, 0, 0);
+        }
+    }
+
+    /**
+     * A reading of the pool, or zeroes if it is not open.
+     *
+     * <p>Deliberately does not call {@code requireOpen}: this exists to be printed by a
+     * diagnostic command, and a diagnostic that throws when things are broken is the one shape
+     * it must not have.
+     */
+    public PoolStatus poolStatus() {
+        HikariDataSource source = dataSource;
+        if (source == null || source.isClosed()) {
+            return PoolStatus.closed();
+        }
+        com.zaxxer.hikari.HikariPoolMXBean pool = source.getHikariPoolMXBean();
+        if (pool == null) {
+            return PoolStatus.closed();
+        }
+        return new PoolStatus(pool.getActiveConnections(), pool.getIdleConnections(),
+                pool.getTotalConnections(), pool.getThreadsAwaitingConnection(),
+                source.getMaximumPoolSize());
+    }
+
     public SqlDialect dialect() {
         return settings.dialect();
     }

@@ -119,6 +119,7 @@ import dev.civitas.storage.dao.DaoRegistry;
 import dev.civitas.util.EventBus;
 import dev.civitas.util.PlayerLookup;
 import dev.civitas.util.Scheduler;
+import dev.civitas.util.Timings;
 import org.bukkit.Bukkit;
 import org.bukkit.entity.Player;
 import org.bukkit.plugin.java.JavaPlugin;
@@ -191,6 +192,10 @@ public final class CivitasPlugin extends JavaPlugin {
                 new dev.civitas.command.war.WarCommand(services::get, lang, scheduler, getLogger());
         ContestCommand contestCommand =
                 new ContestCommand(services::get, lang, scheduler, getLogger());
+        dev.civitas.command.city.CityChatCommand cityChat =
+                new dev.civitas.command.city.CityChatCommand(services::get, lang);
+        dev.civitas.command.player.CivitasCommand civitasCommand =
+                new dev.civitas.command.player.CivitasCommand(this, lang);
         new CommandRegistry(this, lang).registerAll(
                 List.of(cityCommand.build(), moneyCommand.build(), payCommand.build(),
                         shopCommand.build(), sellCommand.build(), worthCommand.build(),
@@ -199,7 +204,7 @@ public final class CivitasPlugin extends JavaPlugin {
                         allianceChat.build(), leaderboardCommand.build(),
                         contestCommand.build(), warCommand.build(),
                         bountyCommand.build(), adminCommand.build(),
-                        reportCommand.build()));
+                        reportCommand.build(), cityChat.build(), civitasCommand.build()));
 
         warnIfRollbackDisabled();
         openDatabaseAsync(scheduler);
@@ -624,6 +629,13 @@ public final class CivitasPlugin extends JavaPlugin {
         defenseBehaviour.useWars(warWiring.registry());               // SPEC 12.3 targeting
         warWiring.restrictions().useAdminProtection(adminProtection); // SPEC 11.6
 
+        // SPEC 9.4.6's two unmeasured timings. Sampled, so leaving it on costs less than the
+        // claim lookup it measures; see Timings for why it defaults on rather than off.
+        Timings timings = new Timings(configs.get(ConfigFile.CONFIG)
+                .getBoolean("performance.timings-enabled", true));
+        claimRegistry.useTimings(timings);                            // SPEC 17.7 case 81
+        menuManager.useTimings(timings);                              // SPEC 17.7 case 86
+
         services.set(new CivitasServices(cityRegistry, cityService, rankService, claimRegistry,
                 claimService, claimMap, borderRenderer, protection, protectionGuard,
                 blockClassifier, economyService, treasuryService, bountyService,
@@ -638,6 +650,18 @@ public final class CivitasPlugin extends JavaPlugin {
                 configs.get(ConfigFile.CONFIG).getInt("storage.backup.keep-count", 28),
                 this::pendingMigrationNames,
                 () -> warBlockLog == null ? 0 : warBlockLog.bufferedCount(),
+                () -> new dev.civitas.core.admin.PerfReport(
+                        claimRegistry.size(),
+                        cityRegistry.cities().size(),
+                        timings.snapshot(Timings.Metric.CLAIM_LOOKUP),
+                        timings.snapshot(Timings.Metric.GUI_OPEN),
+                        warBlockLog == null ? 0 : warBlockLog.bufferedCount(),
+                        warBlockLog == null ? 0.0
+                                : warBlockLog.writeRatePerSecond(System.currentTimeMillis()),
+                        warWiring.registry().all().size(),
+                        database.poolStatus(),
+                        adminProtection.count(),
+                        timings.enabled()),
                 loadedDaos, warWiring.scoreboard(),
                 outpostService, outpostTeleport, upgradeService,
                 defenseService, diplomacyService, vaultService, vaultView,

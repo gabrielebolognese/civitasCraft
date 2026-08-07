@@ -245,9 +245,11 @@ public final class PlayerShopService {
                         customerInventory.addItem(new ItemStack(material, quantity));
                         // The owner could not pay; say so plainly rather than blaming the
                         // customer's own balance.
+                        // The underlying reason is a code such as INSUFFICIENT_FUNDS,
+                        // which is for the ledger and not for the customer. It was passed as
+                        // a placeholder the message never had, so nobody ever saw it.
                         return Result.<ShopReceipt>failure("OWNER_CANNOT_PAY",
-                                "shop.owner-cannot-pay",
-                                Map.of("reason", failure.reason()));
+                                "shop.owner-cannot-pay");
                     }
                     return Result.success(new ShopReceipt(shop, material, quantity, price,
                             result.orElseThrow()));

@@ -43,6 +43,11 @@ performance:
   gui-refresh-ticks: 20
   ledger-batch-size: 200
   ledger-flush-seconds: 5
+  # Feeds the average claim lookup and GUI open time in /ca perf (SPEC 9.4.6).
+  # Sampled at one call in 64 for the claim lookup, which sits on every block event, so the
+  # cost is well under the lookup itself; menu opens are timed every time. Set false to leave
+  # the hot path completely untouched, at the price of /ca perf reporting "-" for both.
+  timings-enabled: true
 
 # Verbose logging, toggleable in-game with /ca debug <on|off>.
 debug: false

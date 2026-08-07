@@ -29,18 +29,14 @@ public final class CommandRegistry {
     /**
      * Root commands still waiting for the milestone that implements them.
      *
-     * <p>Commands with a real implementation are absent from this list and registered
-     * through {@link #registerAll(List)} instead.
+     * <p><b>Empty since M23.</b> Every command in SPEC 9 now has a real implementation and is
+     * registered through {@link #registerAll(List)} instead. The list, the stub builder and
+     * {@link CommandSpec} are kept rather than deleted: they are the mechanism by which a
+     * command can be declared before it works, which is how this tree was built one milestone
+     * at a time, and a future command wants the same treatment. {@code CommandRegistryTest}
+     * asserts it is empty, so a stub added later is a deliberate act rather than a leftover.
      */
-    private static final List<CommandSpec> COMMANDS = List.of(
-            // SPEC 9.2, city chat.
-            CommandSpec.of("cc", "civitas.use", 2, "City-only chat.", "citychat"),
-
-            // SPEC 9.3, war and diplomacy.
-
-
-            // SPEC 9.1, the rules book.
-            CommandSpec.of("civitas", "civitas.use", 23, "Plugin information and server rules."));
+    private static final List<CommandSpec> COMMANDS = List.of();
 
     /**
      * Aliases for commands that have a real implementation.

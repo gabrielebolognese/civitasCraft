@@ -123,13 +123,21 @@ public abstract class Menu {
 
     /** Builds the menu and shows it to its viewer. */
     public final void open() {
-        holder = new MenuHolder(this);
-        inventory = Bukkit.createInventory(holder, size(), title());
-        holder.attach(inventory);
+        // SPEC 9.4.6's "GUI open time". The whole call, not just the draw: what an operator
+        // is diagnosing is the pause between the click and the window, and building the
+        // inventory and sending it to the client are both inside that.
+        long started = manager.timings().start(dev.civitas.util.Timings.Metric.GUI_OPEN);
+        try {
+            holder = new MenuHolder(this);
+            inventory = Bukkit.createInventory(holder, size(), title());
+            holder.attach(inventory);
 
-        draw();
-        manager.register(this);
-        viewer.openInventory(inventory);
+            draw();
+            manager.register(this);
+            viewer.openInventory(inventory);
+        } finally {
+            manager.timings().stop(dev.civitas.util.Timings.Metric.GUI_OPEN, started);
+        }
     }
 
     /**

@@ -17,7 +17,9 @@ import com.mojang.brigadier.context.CommandContext;
 import com.mojang.brigadier.suggestion.SuggestionProvider;
 import com.mojang.brigadier.tree.LiteralCommandNode;
 import dev.civitas.CivitasServices;
+import dev.civitas.command.HelpPages;
 import dev.civitas.command.Replies;
+import dev.civitas.command.Suggest;
 import dev.civitas.core.city.City;
 import dev.civitas.core.city.CityMember;
 import dev.civitas.core.city.CityPermission;
@@ -42,6 +44,7 @@ import io.papermc.paper.command.brigadier.CommandSourceStack;
 import io.papermc.paper.command.brigadier.Commands;
 import net.kyori.adventure.audience.Audience;
 import org.bukkit.Bukkit;
+import org.bukkit.command.CommandSender;
 import org.bukkit.entity.Player;
 
 /**
@@ -58,6 +61,7 @@ public final class CityCommand {
     private final LangManager lang;
     private final Scheduler scheduler;
     private final Logger logger;
+    private final HelpPages helpPages;
 
     /**
      * @param services returns null until the async database open has finished, which is why
@@ -69,6 +73,7 @@ public final class CityCommand {
         this.lang = Objects.requireNonNull(lang, "lang");
         this.scheduler = Objects.requireNonNull(scheduler, "scheduler");
         this.logger = Objects.requireNonNull(logger, "logger");
+        this.helpPages = new HelpPages(lang);
     }
 
     private CityService cities() {
@@ -112,6 +117,7 @@ public final class CityCommand {
         return Commands.literal("city")
                 .requires(source -> source.getSender().hasPermission("civitas.use"))
                 .executes(this::showOwnCity)
+                .then(help())
                 .then(create())
                 .then(info())
                 .then(list())
@@ -140,8 +146,36 @@ public final class CityCommand {
                 .then(upgradeCommands().upgrade())
                 .then(upgradeCommands().vault())
                 .then(new DefenseCommands(services, lang, scheduler, logger).build())
+                // SPEC 9.2 lists city chat twice, as /city chat and as /cc. Both are the same
+                // handler, so neither can drift into reaching a different set of players.
+                .then(new CityChatCommand(services, lang).subcommand())
                 .then(hall())
                 .build();
+    }
+
+    // ==================================================================================
+    // SPEC 9.1, paginated help
+    // ==================================================================================
+
+    /**
+     * {@code /city help [page]}.
+     *
+     * <p>The one subcommand that does not check {@link #notReady}: help is what a player
+     * reaches for when nothing else is working, so it must answer during the startup window
+     * in which storage is still opening. It reads no state to do so.
+     */
+    private ArgumentBuilder<CommandSourceStack, ?> help() {
+        return Commands.literal("help")
+                .executes(context -> sendHelp(context, 1))
+                .then(Commands.argument("page", IntegerArgumentType.integer(1))
+                        .executes(context ->
+                                sendHelp(context, IntegerArgumentType.getInteger(context, "page"))));
+    }
+
+    private int sendHelp(CommandContext<CommandSourceStack> context, int page) {
+        CommandSender sender = context.getSource().getSender();
+        helpPages.send(sender, sender::hasPermission, page);
+        return Command.SINGLE_SUCCESS;
     }
 
     // ==================================================================================
@@ -1007,14 +1041,15 @@ public final class CityCommand {
         };
     }
 
+    /**
+     * Online player names.
+     *
+     * <p>Delegates to {@link Suggest#onlinePlayers()}, which M23 extracted from this method
+     * after finding four verbatim copies of it elsewhere in the tree — two of which lowercased
+     * without a locale, so a player named Ian would not have matched "i" on a Turkish server.
+     */
     private SuggestionProvider<CommandSourceStack> onlinePlayers() {
-        return (context, builder) -> {
-            Bukkit.getOnlinePlayers().stream()
-                    .map(Player::getName)
-                    .filter(name -> name.toLowerCase().startsWith(builder.getRemaining().toLowerCase()))
-                    .forEach(builder::suggest);
-            return builder.buildFuture();
-        };
+        return Suggest.onlinePlayers();
     }
 
     private SuggestionProvider<CommandSourceStack> permissionFlags() {

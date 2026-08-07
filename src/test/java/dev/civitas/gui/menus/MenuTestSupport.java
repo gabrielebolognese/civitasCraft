@@ -169,6 +169,15 @@ final class MenuTestSupport implements AutoCloseable {
                 28,
                 java.util.List::of,
                 () -> 0,
+                // /ca perf's reading. Zeroes with timings off, which is what a test fixture
+                // that never wired a profiler should report.
+                () -> new dev.civitas.core.admin.PerfReport(0, 0,
+                        dev.civitas.util.Timings.disabled()
+                                .snapshot(dev.civitas.util.Timings.Metric.CLAIM_LOOKUP),
+                        dev.civitas.util.Timings.disabled()
+                                .snapshot(dev.civitas.util.Timings.Metric.GUI_OPEN),
+                        0, 0.0, 0, dev.civitas.storage.DatabaseManager.PoolStatus.closed(),
+                        0, false),
                 cities.daos,
                 scoreboard, outposts,
                 outpostTeleport, upgradeService, defenseService, diplomacyService, vaultService,

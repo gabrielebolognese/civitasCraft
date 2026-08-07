@@ -51,6 +51,27 @@ public final class ContestCommand {
         this.logger = Objects.requireNonNull(logger, "logger");
     }
 
+    /**
+     * The valid scores for one axis, read live.
+     *
+     * <p>Read from {@code VoteWeighting} on every keystroke rather than captured when the tree
+     * is built, so an operator who changes the range and reloads sees the new range offered.
+     * Answers nothing while storage is still opening, which is the same thing every other
+     * suggestion provider in the tree does.
+     */
+    private com.mojang.brigadier.suggestion.SuggestionProvider<CommandSourceStack> scores() {
+        return (context, builder) -> {
+            CivitasServices current = services.get();
+            if (current != null) {
+                var weighting = current.contests().weighting();
+                for (int score = weighting.minScore(); score <= weighting.maxScore(); score++) {
+                    builder.suggest(score);
+                }
+            }
+            return builder.buildFuture();
+        };
+    }
+
     public LiteralCommandNode<CommandSourceStack> build() {
         return Commands.literal("contest")
                 .requires(source -> source.getSender().hasPermission("civitas.contest.use"))
@@ -77,11 +98,23 @@ public final class ContestCommand {
                                             IntegerArgumentType.getInteger(context, "entry"));
                                     return Command.SINGLE_SUCCESS;
                                 })))
+                // SPEC 13.4 scores each axis "1 to 10", and until M23 nothing told the player
+                // that while they were typing: the service refused an out-of-range score
+                // afterwards, with a good message, but only afterwards.
+                //
+                // Suggested rather than bounded, deliberately. The range is a config key, and a
+                // Brigadier argument type is fixed when the tree is registered at startup — so
+                // bounding it would freeze that key, and an operator who widened it with
+                // /ca reload would get a parse error for a score the service accepts. A
+                // suggestion list is read fresh on every keystroke and cannot go stale.
                 .then(Commands.literal("vote")
                         .then(Commands.argument("entry", IntegerArgumentType.integer(1))
                                 .then(Commands.argument("creativity", IntegerArgumentType.integer())
+                                        .suggests(scores())
                                         .then(Commands.argument("technical", IntegerArgumentType.integer())
+                                                .suggests(scores())
                                                 .then(Commands.argument("theme", IntegerArgumentType.integer())
+                                                        .suggests(scores())
                                                         .executes(context -> {
                                                             vote(context.getSource().getSender(),
                                                                     IntegerArgumentType.getInteger(context, "entry"),

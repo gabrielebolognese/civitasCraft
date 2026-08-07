@@ -71,6 +71,18 @@ public final class WarBlockLogger {
     private final Map<Integer, AtomicLong> written = new ConcurrentHashMap<>();
 
     /**
+     * Rows committed since startup, across every war, for SPEC 9.4.6's write rate.
+     *
+     * <p>Never cleared when a war ends, which is exactly what separates it from {@link #written}
+     * and the reason it has to be its own counter.
+     */
+    private final java.util.concurrent.atomic.LongAdder lifetimeWritten =
+            new java.util.concurrent.atomic.LongAdder();
+
+    /** When this logger was built, the denominator of the write rate. */
+    private final long startedAt = System.currentTimeMillis();
+
+    /**
      * Entries buffered but not yet written, per war.
      *
      * <p>Counted per war rather than taken from the buffer's size, because SPEC 17.4 case 58's
@@ -228,6 +240,31 @@ public final class WarBlockLogger {
         }
     }
 
+    /**
+     * Rows committed since this logger was built, across every war.
+     *
+     * <p>Separate from {@link #writtenFor} because that counter is per war and is dropped when
+     * a war finishes, so it cannot answer SPEC 9.4.6's "block-log write rate": a server whose
+     * only war ended an hour ago would report a rate of zero out of nothing.
+     */
+    public long lifetimeRowsWritten() {
+        return lifetimeWritten.sum();
+    }
+
+    /**
+     * Mean rows committed per second since startup, SPEC 9.4.6.
+     *
+     * <p>An average over uptime rather than a recent window, which reads low on a server that
+     * has been up for a week and fought one war. That is the honest shape for a figure taken
+     * from two numbers: the alternative, a decaying rate, would need a tick this class does not
+     * have. What an operator is checking against is SPEC 17.7 case 82's 2,000-per-second
+     * target, and the peak that matters shows up in {@link #bufferedCount} backing up.
+     */
+    public double writeRatePerSecond(long now) {
+        long elapsed = Math.max(1L, now - startedAt);
+        return lifetimeWritten.sum() * 1000.0 / elapsed;
+    }
+
     /** Rows committed for a war, which is what the SPEC 17.4 case 58 ceiling counts. */
     public long writtenFor(int warId) {
         AtomicLong count = written.get(warId);
@@ -375,6 +412,7 @@ public final class WarBlockLogger {
     }
 
     private void onWritten(List<WarBlockLogRow> batch) {
+        lifetimeWritten.add(batch.size());
         for (WarBlockLogRow row : batch) {
             written.computeIfAbsent(row.warId(), ignored -> new AtomicLong()).incrementAndGet();
             // Only now: a row moves from pending to written when it is actually on disk, so a

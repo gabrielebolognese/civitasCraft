@@ -62,30 +62,47 @@ public final class OutpostCommands {
                         .then(named("name", this::teleport)))
                 .then(Commands.literal("setwarp")
                         .then(named("name", this::setWarp)))
+                // The old name is an outpost the city already has, so it is offered the
+                // same way delete, tp and setwarp offer it. The new one is invented and
+                // cannot be.
                 .then(Commands.literal("rename")
                         .then(Commands.argument("name", StringArgumentType.word())
+                                .suggests(outpostNames())
                                 .then(Commands.argument("new", StringArgumentType.word())
                                         .executes(this::rename))));
     }
 
-    /** An outpost-name argument that completes against the city's own outposts. */
+    /**
+     * Completes against the outposts the sender's own city has.
+     *
+     * <p>Separate from {@link #named} because {@code rename} needs the suggestions without
+     * the executor: it takes a second argument, and an argument node that both executes and
+     * has a child would run the handler for {@code /city outpost rename Foo} with no new name
+     * to read, throwing where a usage message belongs.
+     */
+    private com.mojang.brigadier.suggestion.SuggestionProvider<CommandSourceStack>
+            outpostNames() {
+        return (context, builder) -> {
+            CivitasServices current = services.get();
+            if (current != null && context.getSource().getSender() instanceof Player player) {
+                current.registry().cityOf(player.getUniqueId()).ifPresent(city ->
+                        current.outposts().registry().of(city.id()).stream()
+                                .map(Outpost::name)
+                                .filter(name -> name.toLowerCase(java.util.Locale.ROOT)
+                                        .startsWith(builder.getRemaining()
+                                                .toLowerCase(java.util.Locale.ROOT)))
+                                .forEach(builder::suggest));
+            }
+            return builder.buildFuture();
+        };
+    }
+
+    /** An outpost-name argument that completes, and runs {@code handler} when it ends there. */
     private ArgumentBuilder<CommandSourceStack, ?> named(
             String argument, java.util.function.BiFunction<CommandContext<CommandSourceStack>,
             String, Integer> handler) {
         return Commands.argument(argument, StringArgumentType.word())
-                .suggests((context, builder) -> {
-                    CivitasServices current = services.get();
-                    if (current != null
-                            && context.getSource().getSender() instanceof Player player) {
-                        current.registry().cityOf(player.getUniqueId()).ifPresent(city ->
-                                current.outposts().registry().of(city.id()).stream()
-                                        .map(Outpost::name)
-                                        .filter(name -> name.toLowerCase()
-                                                .startsWith(builder.getRemaining().toLowerCase()))
-                                        .forEach(builder::suggest));
-                    }
-                    return builder.buildFuture();
-                })
+                .suggests(outpostNames())
                 .executes(context -> handler.apply(context,
                         StringArgumentType.getString(context, argument)));
     }
