@@ -51,6 +51,9 @@ public final class AdminCommand {
                 .then(new AdminWarCommands(services, lang, scheduler, logger).build())
                 .then(new AdminClaimCommands(services, lang, scheduler, logger).build())
                 .then(new AdminCityCommands(services, lang, scheduler, logger).build());
+        AdminEconomyCommands economy = new AdminEconomyCommands(services, lang, scheduler,
+                logger);
+        root.then(economy.build()).then(economy.buildMarket());
         new AdminInspectCommands(services, lang, scheduler, logger).build()
                 .forEach(root::then);
         return root.build();
@@ -61,6 +64,7 @@ public final class AdminCommand {
         lang.sendRaw(audience, "admin.help-inspect");
         lang.sendRaw(audience, "admin.help-city");
         lang.sendRaw(audience, "admin.help-claim");
+        lang.sendRaw(audience, "admin.help-eco");
         lang.sendRaw(audience, "admin.help-war");
     }
 }

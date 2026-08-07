@@ -272,6 +272,67 @@ public final class EconomyService implements Funds {
     }
 
     /** Total money in player wallets, half of SPEC 4.8's circulation figure. */
+    /**
+     * SPEC 9.4.4's {@code /ca eco set}: an absolute balance rather than a relative change.
+     *
+     * <p>The distinction matters when two admins act at once. Two gives of 1,000 leave the
+     * player 2,000 better off; two sets to 1,000 leave them at 1,000 however many ran. That is
+     * why SPEC lists all three operations rather than only give and take.
+     *
+     * <p>The ledger records the movement, not the target, because a ledger of absolute
+     * positions could not be summed to reconcile anything.
+     */
+    public CompletableFuture<Result<BigDecimal>> setBalance(UUID player, BigDecimal target,
+                                                             TransactionType type,
+                                                             String reason) {
+        BigDecimal wanted = Money.floor(target);
+        if (wanted.signum() < 0) {
+            return CompletableFuture.completedFuture(
+                    Result.failure("AMOUNT_NOT_POSITIVE", "economy.amount-not-positive"));
+        }
+
+        return db.transaction(connection -> {
+            synchronized (lockFor(player)) {
+                Optional<PlayerRow> row = players.findByUuid(connection, player);
+                if (row.isEmpty()) {
+                    return Result.<BigDecimal>failure("NO_PLAYER_RECORD", "economy.no-account");
+                }
+                BigDecimal before = row.get().balance();
+                Result<BigDecimal> ceiling = Money.checkCeiling(wanted, configs);
+                if (ceiling instanceof Result.Failure<BigDecimal> failure) {
+                    return Result.<BigDecimal>propagate(failure);
+                }
+
+                players.updateBalance(connection, player, wanted);
+                writeLedger(connection, type, player, null, wanted.subtract(before), wanted,
+                        reason == null ? null : "{\"reason\":\"" + reason.replace('"', '\'')
+                                + "\"}");
+                balances.put(player, wanted);
+                return Result.success(wanted);
+            }
+        });
+    }
+
+    /**
+     * SPEC 9.4.4's {@code /ca eco freeze}: "Player cannot send or receive money."
+     *
+     * <p>A toggle rather than two commands, because SPEC lists one. Both {@link #withdraw} and
+     * {@link #deposit} already refuse a frozen account, so nothing new is enforced here.
+     *
+     * @return whether the account is now frozen
+     */
+    public CompletableFuture<Result<Boolean>> toggleFrozen(UUID player) {
+        return db.transaction(connection -> {
+            Optional<PlayerRow> row = players.findByUuid(connection, player);
+            if (row.isEmpty()) {
+                return Result.<Boolean>failure("NO_PLAYER_RECORD", "economy.no-account");
+            }
+            boolean frozen = !row.get().frozen();
+            players.updateFrozen(connection, player, frozen);
+            return Result.success(frozen);
+        });
+    }
+
     public CompletableFuture<BigDecimal> totalInWallets() {
         return players.totalCirculation();
     }

@@ -37,4 +37,9 @@ public record MarketItem(
                     "elasticity must be positive for " + material + ", was " + elasticity);
         }
     }
+
+    /** A copy at a new base price, for SPEC 9.4.4's {@code /ca market setprice}. */
+    public MarketItem withBasePrice(BigDecimal newBasePrice) {
+        return new MarketItem(material, newBasePrice, targetStock, elasticity);
+    }
 }

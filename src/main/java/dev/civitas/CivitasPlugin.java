@@ -582,6 +582,12 @@ public final class CivitasPlugin extends JavaPlugin {
                         economyService, configs, scheduler, getLogger());
         scheduleBountyExpiry(bountyService);
 
+        // SPEC 9.4.4's /ca eco rollback. Beside the economy because it writes ledger rows,
+        // and never deletes any: SPEC 3.6 makes that table the authority in a dispute.
+        dev.civitas.core.economy.LedgerRollback ledgerRollback =
+                new dev.civitas.core.economy.LedgerRollback(manager, loadedDaos, economyService,
+                        cityRegistry);
+
         // SPEC 11, the war system. Built before the services record because the record holds
         // three of its pieces, and before the seam wiring below because those read from it.
         WarWiring warWiring = startWarSystem(manager, loadedDaos, cityRegistry, claimRegistry,
@@ -614,6 +620,7 @@ public final class CivitasPlugin extends JavaPlugin {
         services.set(new CivitasServices(cityRegistry, cityService, rankService, claimRegistry,
                 claimService, claimMap, borderRenderer, protection, protectionGuard,
                 blockClassifier, economyService, treasuryService, bountyService,
+                ledgerRollback,
                 upkeepCalculator,
                 upkeepTask, marketService, marketFilter, shopService, questService,
                 challengeService, leaderboardService, statsService, contestService,

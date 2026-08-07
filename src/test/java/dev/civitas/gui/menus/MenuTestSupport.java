@@ -144,7 +144,10 @@ final class MenuTestSupport implements AutoCloseable {
 
         this.services = new CivitasServices(cities.registry, cities.cities, cities.ranks,
                 cities.claimRegistry, cities.claims, null, null, cities.protection, null, null,
-                cities.economy, cities.treasury, bounties, cities.upkeep, upkeep, cities.market,
+                cities.economy, cities.treasury, bounties,
+                new dev.civitas.core.economy.LedgerRollback(cities.db, cities.daos,
+                        cities.economy, cities.registry),
+                cities.upkeep, upkeep, cities.market,
                 cities.marketFilter, cities.shops, quests, challenges, leaderboards, stats,
                 cities.contests, cities.serverEvents, warService, warAllies, peace,
                 capturePoints,

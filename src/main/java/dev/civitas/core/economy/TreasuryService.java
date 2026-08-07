@@ -234,6 +234,24 @@ public final class TreasuryService {
      *
      * @param delta signed; negative takes money out
      */
+    /**
+     * SPEC 9.4.4's {@code /ca eco treasury}: moves a treasury with no permission check and no
+     * withdrawal cap.
+     *
+     * <p>Its own method rather than a flag on the player path, for the reason every admin
+     * bypass in this plugin is separate: the SPEC 8.5 quarter-per-day cap exists to stop a
+     * member draining a treasury, and a flag would put the way past it inside the branch a
+     * member takes.
+     */
+    public CompletableFuture<Result<BigDecimal>> adminAdjust(City city, BigDecimal delta) {
+        if (delta.signum() == 0) {
+            return CompletableFuture.completedFuture(Result.success(city.treasury()));
+        }
+        return db.transaction(connection -> adjust(connection, city, delta,
+                delta.signum() > 0 ? TransactionType.ADMIN_GIVE : TransactionType.ADMIN_TAKE,
+                null, "{\"admin\":true}"));
+    }
+
     public Result<BigDecimal> adjust(Connection connection, City city, BigDecimal delta,
                                      TransactionType type, UUID actor, String metadata)
             throws SQLException {

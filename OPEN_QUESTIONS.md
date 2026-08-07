@@ -1074,3 +1074,26 @@ Format:
   Roma is a city. The export filename is stripped to `[A-Za-z0-9_-]` first: the label reaches a
   file path, and a target named `../../server.properties` would otherwise be a way to write a
   CSV over something that matters. *Date:* 2026-08-07
+
+- **[M21]** SPEC 9.4.4's `/ca eco rollback` says it "reverses a single transaction and
+  everything downstream of it", and gives no rule for how far downstream to follow or what to
+  do when the money reached a third party. Cascading automatically would unwind trades with
+  people who did nothing wrong: if the player spent the money in somebody's shop, reversing
+  that takes goods from a seller who was paid in good faith and has no way to know why.
+  *Implemented default:* one transaction is reversed and everything that followed it is
+  **counted and reported**, leaving the judgement with the admin. The count is the number that
+  tells them whether the job is finished. *Date:* 2026-08-07
+
+- **[M21]** SPEC 9.4.4 pairs "never deletes ledger rows" with a command whose job is to undo a
+  transaction, which cannot both be done to the same row. *Implemented default:* the reversal
+  is a new `ADMIN_ROLLBACK` row whose metadata names the row it reverses, so the pair reads as
+  a complete story and SPEC 3.6's append-only rule is untouched. "Already reversed" is answered
+  by searching for that reference rather than by a flag on the original, because a flag would
+  need an update the ledger does not allow. Reversing a reversal is refused outright: alternating
+  would mint money back into existence one command at a time. *Date:* 2026-08-07
+
+- **[M21]** SPEC 9.4.4's `/ca market setprice` changes a value that lives in `economy.yml`
+  (SPEC 4.4's table). *Implemented default:* the change is in memory and lasts until the next
+  reload. An operator tuning a price live wants to see its effect before committing it, and a
+  chat command that silently rewrote their configuration file would be worse than one whose
+  change they have to remember to persist. The message says so. *Date:* 2026-08-07

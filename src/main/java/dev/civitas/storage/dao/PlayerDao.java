@@ -167,6 +167,13 @@ public final class PlayerDao extends Dao<PlayerRow> {
      * <p>Separate from {@link #update} so a balance change never races a concurrent edit to
      * an unrelated column such as playtime.
      */
+    /** SPEC 9.4.4's {@code /ca eco freeze}. */
+    public int updateFrozen(Connection connection, UUID uuid, boolean frozen)
+            throws SQLException {
+        return updateSync(connection, "UPDATE players SET frozen = ? WHERE uuid = ?",
+                frozen, uuid);
+    }
+
     public CompletableFuture<Integer> updateBalance(UUID uuid, BigDecimal balance) {
         return db.call(connection -> updateBalance(connection, uuid, balance));
     }

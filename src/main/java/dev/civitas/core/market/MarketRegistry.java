@@ -176,6 +176,20 @@ public final class MarketRegistry {
     }
 
     /** Admin override, SPEC 9.4.4 {@code /ca market setstock}. */
+    /**
+     * SPEC 9.4.4's {@code /ca market setprice}.
+     *
+     * <p>In memory only, deliberately. The base price is a config value (SPEC 4.4's table
+     * lives in {@code economy.yml}), so a change here lasts until the next reload and is meant
+     * to: an operator tuning a price live wants to see its effect before writing it into the
+     * file, and silently rewriting their config from a chat command would be worse than
+     * forgetting the change.
+     */
+    public void setBasePrice(String material, java.math.BigDecimal basePrice) {
+        item(material).ifPresent(existing -> items.put(material.toUpperCase(java.util.Locale.ROOT),
+                existing.withBasePrice(basePrice)));
+    }
+
     public CompletableFuture<Integer> setStock(String material, int value) {
         MarketItem item = items.get(material.toUpperCase(Locale.ROOT));
         if (item == null) {

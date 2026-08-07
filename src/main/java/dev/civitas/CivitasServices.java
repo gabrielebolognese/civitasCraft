@@ -17,6 +17,7 @@ import dev.civitas.core.claim.ClaimRegistry;
 import dev.civitas.core.claim.ClaimService;
 import dev.civitas.core.economy.BountyService;
 import dev.civitas.core.economy.EconomyService;
+import dev.civitas.core.economy.LedgerRollback;
 import dev.civitas.core.economy.PlayerAccountService;
 import dev.civitas.core.economy.TreasuryService;
 import dev.civitas.core.economy.UpkeepCalculator;
@@ -76,6 +77,7 @@ public record CivitasServices(
         EconomyService economy,
         TreasuryService treasury,
         BountyService bounties,
+        LedgerRollback ledgerRollback,
         UpkeepCalculator upkeep,
         UpkeepTask upkeepTask,
         MarketService market,
