@@ -5,7 +5,7 @@
 
 ## Current session focus
 
-**Next milestone:** #1 in the queue below, **M6a, Crafting equivalence graph**.
+**Next milestone:** #2 in the queue below, **M6b, Market hardening**.
 
 **Part I (M0 to M23) is complete.** SPEC has since grown from 20 sections to 41, adding four
 more Parts and **34 further milestones**, none of which were in this file until now. They are
@@ -93,7 +93,7 @@ something it needs.
 
 | # | M | Milestone | SPEC | Depends on | Status | Notes |
 |---|---|---|---|---|---|---|
-| 1 | 6a | Crafting equivalence graph | 24 | M6 | TODO | Recipe graph from Bukkit's iterator plus hardcoded smelting and stonecutter tables, transitive reachability, SPEC 21.10.1 startup validation. **The market module must not enable if validation fails.** |
+| 1 | 6a | Crafting equivalence graph | 24 | M6 | DONE | `RecipeGraph` (directed, transitive reachability), `CraftingEdges` (SPEC 21.10.2's smelting and stonecutter tables **plus SPEC 21.3's 22 pairs as a floor**, because MockBukkit ships no vanilla recipes and the property would otherwise be unverifiable), `BukkitRecipeSource`, and `MarketSafetyCheck` as a latch above config (SPEC 21.10.4). **The relation is not transitive and not undirected** — raw iron and iron ore share a smelting output and are safely listable, so the check is pairwise. The shipped buy list passes, and the test now locks it. 1726 tests. |
 | 2 | 6b | Market hardening | 24 | 6a | TODO | Hard blacklist (SPEC 21.8) as code, not config. Villager-disjointness startup assertion. Revised buy list (21.9), sell-only builder catalogue (21.6). |
 | 3 | 6c | Daily sell quota | 24 | 6b | TODO | Per-player quota tracker, soft cap multiplier, `/quota`, persistence, concurrency-safe, resets at 00:00. |
 | 4 | 9a | Anti-abuse layer | 24 | M9 | TODO | Placed-block cache (21.10.5), strengthened stipend check (F11), new-account income gate (F12), 72-hour withdrawal hold (F16), contribution-proportional disband split (F6), bounty self-claim block (F7), war leaderboard score threshold (F4). |

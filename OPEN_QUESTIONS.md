@@ -1417,3 +1417,61 @@ Format:
   cannot drift from zero by configuration or by accident. Worth recording because M22's whole
   premise was that a mechanism must be proved **enforced and configurable**, and this row passed
   that audit while being neither. *Date:* 2026-08-07
+
+- **[M6a]** SPEC 21.10.2 defines the relation as "two items are in the same class if **either**
+  is reachable from the other", which is not the same as connectivity in an undirected graph
+  and not an equivalence relation at all. Raw iron and iron ore both smelt to an ingot; neither
+  converts into the other, so there is no loop between them and both may safely be listed — but
+  an undirected reading would refuse the pair, and a direct-edge reading would allow raw iron
+  beside an iron block. *Implemented default:* a directed graph, with `related` as the **or** of
+  reachability in the two directions. A consequence worth knowing: the relation is **not
+  transitive**, so despite SPEC's name for it there is no partition into classes to compare, and
+  the check is pairwise over the buy list. *Date:* 2026-08-07
+
+- **[M6a]** SPEC 21.10.2 says the graph is built "by walking Bukkit's recipe iterator plus a
+  hardcoded smelting and stonecutter table", and the milestone requires a test proving each of
+  SPEC 21.3's twenty-two reversible pairs is detected. Those two cannot both be satisfied:
+  **MockBukkit ships no vanilla recipes**, so a test cannot obtain the pairs from the iterator,
+  and sourcing them only from the server would leave the single most important property in this
+  milestone unverifiable in CI and true only by the grace of whatever recipe list the server
+  hands over at boot. *Implemented default:* SPEC 21.3's pairs are hardcoded alongside the
+  smelting and stonecutter tables as a **floor**, and the iterator adds to them. This is more
+  than SPEC describes. The cost is that the table can go stale against a future Minecraft
+  version, which is the safe direction — a stale entry over-reports and refuses to list an item,
+  where a missing entry re-opens SPEC 21.3's infinite money loop. *Date:* 2026-08-07
+
+- **[M6a]** A recipe taking several distinct materials is not a conversion in the sense SPEC 21.3
+  cares about, and treating it as one would relate almost every material to almost every other:
+  a piston takes planks, cobblestone, iron and redstone, and reading that as "redstone converts
+  into pistons" would refuse a buy list of any size. *Implemented default:* only recipes whose
+  inputs are a **single** material become edges. The arbitrage SPEC describes needs a player to
+  convert a quantity of one traded item into a quantity of another and back, which a multi-input
+  recipe cannot do, because it consumes something the market does not price. *Date:* 2026-08-07
+
+- **[M6a]** SPEC 21.10.1 says the market "refuses to enable" on a failed assertion, which could
+  mean throwing at startup. *Implemented default:* a latch rather than an exception. The market
+  is one module of many, and a server whose buy list has a bad pair should still have its
+  cities, claims, protection and wars — so the check records its failures and
+  `MarketService.enabled` consults it, closing every buy and sell through the path that has
+  existed for `market.enabled: false` since M6. Per SPEC 21.10.4 the latch sits **above**
+  configuration and there is no key that says "run anyway"; an operator fixes the buy list.
+  *Date:* 2026-08-07
+
+- **[M6a]** `MarketSafetyCheck.passed()` answers **false before anything has been checked**,
+  rather than true. A check that never ran because of a wiring mistake would otherwise open the
+  market silently, which is the failure this milestone exists to prevent, arrived at from the
+  other direction. *Date:* 2026-08-07
+
+- **[M6a]** SPEC 21.10.1 lists four startup assertions and M6a's row says "startup validation
+  from 21.10.1", but M6b's row explicitly claims the hard blacklist and the villager-disjointness
+  check. *Implemented default:* M6a owns the third assertion — no two buy-list items in the same
+  crafting equivalence class — and the refusal mechanism the other three plug into, via
+  `MarketSafetyCheck.fail`. The fourth, the `# automatable: no|semi` comment, belongs with the
+  revised buy list in M6b. *Date:* 2026-08-07
+
+- **[M6a]** The buy list this plugin already ships **passes** the check, which was not a
+  foregone conclusion: it lists iron and gold ingots, diamonds, emeralds, netherite scrap, a log
+  and stone, and any of those paired with its block or plank form would have failed.
+  `MarketSafetyCheckTest.shippedListIsSafe` runs the assertion against `economy.yml` itself, so
+  a future edit that adds the other side of a recipe is a build failure rather than an economy
+  failure. SPEC 21.3's flaw is invisible from reading a price table. *Date:* 2026-08-07

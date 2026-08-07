@@ -70,8 +70,38 @@ public final class MarketService {
         return pricing;
     }
 
+    /**
+     * SPEC 21.10.1's latch, in front of the operator's own switch.
+     *
+     * <p>Every buy and sell already asks this before doing anything, so a failed startup
+     * validation closes the market through a path that has existed since M6 rather than
+     * through a new one. SPEC 21.10.4 puts the check above configuration deliberately: an
+     * admin can change prices, quotas and elasticity, and cannot switch this off.
+     */
     public boolean enabled() {
+        if (safety != null && !safety.passed()) {
+            return false;
+        }
         return configs.get(ConfigFile.ECONOMY).getBoolean("market.enabled", true);
+    }
+
+    /**
+     * SPEC 21.10.1's startup validation result.
+     *
+     * <p>Null until the check has run, which reads as "not blocked" — the market is then
+     * governed by {@code market.enabled} alone, which is what every test built before M6a
+     * expects and what a server with no market configured wants.
+     */
+    private MarketSafetyCheck safety;
+
+    /** Hands the market its startup verdict. Called once, on enable. */
+    public void useSafetyCheck(MarketSafetyCheck check) {
+        this.safety = java.util.Objects.requireNonNull(check, "check");
+    }
+
+    /** Why the market is shut, for {@code /shop} and the tests. Empty when it is open. */
+    public java.util.List<MarketSafetyCheck.Failure> safetyFailures() {
+        return safety == null ? java.util.List.of() : safety.failures();
     }
 
     // ==================================================================================

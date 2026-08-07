@@ -510,6 +510,10 @@ public final class CivitasPlugin extends JavaPlugin {
 
         cityService.useUpgrades(upgradeService);
         upkeepTask.useUpgrades(upgradeService);
+        // SPEC 21.10.1 and 21.10.2, M6a. Built before anything can trade: SPEC 24 makes this
+        // a hard blocker on M6 because "if the market ships first 'just to test it', the test
+        // server's economy will be broken within an hour".
+        marketService.useSafetyCheck(checkMarketSafety(marketRegistry));
         marketService.useUpgrades(cityRegistry, upgradeService);
 
         // SPEC 7, outposts.
@@ -1579,6 +1583,33 @@ public final class CivitasPlugin extends JavaPlugin {
      * Stated once at startup rather than left as a setting that silently does nothing, which
      * is the failure this whole config sweep exists to remove.
      */
+    /**
+     * SPEC 21.10.1's startup validation, M6a.
+     *
+     * <p>The graph is the hardcoded tables plus whatever the server's own recipe list adds,
+     * so a datapack that introduces a reversible recipe between two traded items is caught
+     * as surely as a vanilla one. SPEC 21.3's flaw does not care where the recipe came from.
+     */
+    private dev.civitas.core.market.MarketSafetyCheck checkMarketSafety(
+            dev.civitas.core.market.MarketRegistry marketRegistry) {
+        dev.civitas.core.market.craft.RecipeGraph graph =
+                dev.civitas.core.market.craft.CraftingEdges.baseGraph();
+        int fromServer = dev.civitas.core.market.craft.BukkitRecipeSource
+                .addAllTo(graph, getLogger());
+        getLogger().info(() -> "Crafting equivalence graph: " + graph.size() + " materials, "
+                + fromServer + " edges from the server's own recipes.");
+
+        dev.civitas.core.market.MarketSafetyCheck check =
+                new dev.civitas.core.market.MarketSafetyCheck();
+        check.checkEquivalenceClasses(
+                marketRegistry.catalogue().stream()
+                        .map(dev.civitas.core.market.MarketItem::material)
+                        .toList(),
+                graph);
+        check.report(getLogger());
+        return check;
+    }
+
     private void warnAboutUnhonouredSettings() {
         int batchSize = configs.get(ConfigFile.CONFIG).getInt("performance.ledger-batch-size", 0);
         int flushSeconds =

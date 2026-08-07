@@ -48,7 +48,8 @@ class PlanOrderTest {
             "^\\|\\s*(\\d+)\\s*\\|\\s*([^|]+?)\\s*\\|\\s*([^|]+?)\\s*\\|\\s*([A-Z]+)\\s*\\|",
             Pattern.MULTILINE);
 
-    private record Queued(int index, String id, String name, List<String> dependencies) { }
+    private record Queued(int index, String id, String name, List<String> dependencies,
+                          String status) { }
 
     private static String plan() {
         try {
@@ -70,7 +71,7 @@ class PlanOrderTest {
                 }
             }
             rows.add(new Queued(Integer.parseInt(matcher.group(1)), matcher.group(2),
-                    matcher.group(3), dependencies));
+                    matcher.group(3), dependencies, matcher.group(6)));
         }
         return rows;
     }
@@ -85,6 +86,19 @@ class PlanOrderTest {
             }
         }
         return done;
+    }
+
+    @Test
+    @DisplayName("finished rows keep their place rather than being deleted")
+    void doneRowsStay() {
+        // A finished milestone keeps its row, its index and its note. Removing it would lose
+        // the record of what was decided and renumber everything below it, which is the one
+        // edit that would break the index check for a reason that is not a mistake.
+        List<Queued> queue = queue();
+
+        assertTrue(queue.stream().allMatch(row -> row.status().equals("TODO")
+                        || row.status().equals("DONE") || row.status().equals("SUPERSEDED")),
+                "a queued row has a status this file does not use");
     }
 
     @Test
@@ -174,15 +188,26 @@ class PlanOrderTest {
     void statedNextMatchesTheQueue() {
         // The header is what a human reads before running the command. If it disagrees with
         // the table, one of them is stale and there is no way to tell which.
+        // The first TODO, not the first row: a finished row keeps its place in the queue, so
+        // the two stop agreeing the moment anything is done. That distinction is exactly what
+        // /next-milestone means by "the first milestone with status TODO".
         String plan = plan();
-        List<Queued> queue = queue();
-        String firstTodo = queue.get(0).id();
+        String firstTodo = queue().stream()
+                .filter(row -> row.status().equals("TODO"))
+                .map(Queued::id)
+                .findFirst()
+                .orElse(null);
 
         Matcher header = Pattern.compile("\\*\\*Next milestone:\\*\\*[^\n]*")
                 .matcher(plan);
         assertTrue(header.find(), "PLAN.md states no next milestone");
+        if (firstTodo == null) {
+            assertTrue(header.group().toLowerCase(java.util.Locale.ROOT).contains("none"),
+                    "nothing is left TODO, so the header should say so: " + header.group());
+            return;
+        }
         assertTrue(header.group().contains("M" + firstTodo),
-                "the header says \"" + header.group() + "\" but the queue starts at "
+                "the header says \"" + header.group() + "\" but the first TODO is "
                         + firstTodo);
     }
 }
