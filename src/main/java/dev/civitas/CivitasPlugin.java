@@ -337,6 +337,14 @@ public final class CivitasPlugin extends JavaPlugin {
                 int claimCount = claimRegistry.loadAll().join();
                 getLogger().info(() -> "Loaded " + cityCount + " cities and "
                         + claimCount + " claims into the cache.");
+                int configuredCacheSize = configs.get(ConfigFile.CONFIG)
+                        .getInt("performance.claim-cache-size", 100000);
+                if (claimRegistry.exceedsConfiguredSize(configuredCacheSize)) {
+                    getLogger().warning("This server holds " + claimCount + " claims, past the "
+                            + "performance.claim-cache-size of " + configuredCacheSize
+                            + ". Nothing is evicted — a dropped claim would mean unprotected "
+                            + "land — but the figure is worth revisiting.");
+                }
             } catch (RuntimeException e) {
                 getLogger().log(Level.SEVERE, "Could not load cities; disabling CivitasCraft.", e);
                 manager.close();
@@ -636,6 +644,8 @@ public final class CivitasPlugin extends JavaPlugin {
         defenseService.useWars(warWiring.registry());                 // SPEC 12.4 price
         defenseBehaviour.useWars(warWiring.registry());               // SPEC 12.3 targeting
         warWiring.restrictions().useAdminProtection(adminProtection); // SPEC 11.6
+        warWiring.restrictions().usePolicy(                           // SPEC 16.3
+                new dev.civitas.core.war.RollbackPolicy(configs));
 
         // SPEC 9.4.6's two unmeasured timings. Sampled, so leaving it on costs less than the
         // claim lookup it measures; see Timings for why it defaults on rather than off.
@@ -1560,10 +1570,35 @@ public final class CivitasPlugin extends JavaPlugin {
      * destroys builds permanently, so an operator who does it is told loudly rather than
      * discovering it after the first war.
      */
+    /**
+     * SPEC 16.1 keys this build reads and deliberately does not act on.
+     *
+     * <p>Two of them, both about batching the ledger. SPEC 1.5 makes the ledger the authority
+     * for every dispute, and a row waiting in a buffer is a row a crash loses — so it is
+     * written inside the transaction that moves the money, and there is nothing to batch.
+     * Stated once at startup rather than left as a setting that silently does nothing, which
+     * is the failure this whole config sweep exists to remove.
+     */
+    private void warnAboutUnhonouredSettings() {
+        int batchSize = configs.get(ConfigFile.CONFIG).getInt("performance.ledger-batch-size", 0);
+        int flushSeconds =
+                configs.get(ConfigFile.CONFIG).getInt("performance.ledger-flush-seconds", 0);
+        if (batchSize > 0 || flushSeconds > 0) {
+            getLogger().info("performance.ledger-batch-size and ledger-flush-seconds are not "
+                    + "honoured: ledger rows are written inside the transaction that moves the "
+                    + "money, so an audit entry cannot be lost to a crash. See SPEC 1.5.");
+        }
+    }
+
     private void warnIfRollbackDisabled() {
         if (!configs.get(ConfigFile.WAR).getBoolean("rollback.enabled", true)) {
             getLogger().severe("war.yml has rollback.enabled: false.");
             getLogger().severe("War damage will NOT be restored. This is never correct on a live server.");
         }
+        // The other four SPEC 16.3 rollback switches. Three of them now do what they say;
+        // the two that describe behaviour with no alternative implementation say so here
+        // rather than being silently ignored, which is what they were until M23.
+        new dev.civitas.core.war.RollbackPolicy(configs).warnAboutProblems(getLogger());
+        warnAboutUnhonouredSettings();
     }
 }

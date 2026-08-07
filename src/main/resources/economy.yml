@@ -3,8 +3,6 @@
 
 # Hard ceiling on any single balance, SPEC 17.3 case 27.
 max-balance: 1000000000000
-# SPEC 17.3 case 26: amounts are floored to this many decimal places.
-decimal-places: 2
 currency-symbol: "C"
 
 income:
@@ -173,9 +171,8 @@ market:
   reject-enchanted: true
   reject-named: true
   reject-containers-with-contents: true
-  # SPEC 11.9: winning city members get a temporary sell bonus.
-  war-winner-bonus-percent: 10
-  war-winner-bonus-days: 7
+  # SPEC 11.9's winner bonus lives in war.yml under rewards, which is where the war
+  # module reads it. It was mirrored here and the mirror was read by nothing.
 
   # SPEC 4.4 starting table. Items absent from this list are not traded by the
   # server market. See the exclusion rule in SPEC 4.4 before adding anything.
@@ -202,8 +199,6 @@ market:
 
 player-shops:
   enabled: true
-  # SPEC 4.5: player shops are deliberately untaxed.
-  tax-percent: 0
   default-limit-per-player: 5
   sign-header: "[Shop]"
   # An upper bound on the second line of a sign, so a typo cannot ask for a trade nobody
@@ -214,8 +209,6 @@ bounties:
   enabled: true
   minimum: 1000
   expiry-days: 30
-  # SPEC 4.7: bounties may only be claimed during an active war.
-  claimable-only-during-war: true
   # How many are shown by /bounty list, and how often expired ones are swept and refunded.
   # Neither number is from SPEC, which gives the 30-day expiry but not the sweep.
   list-size: 20

@@ -67,7 +67,10 @@ public final class WarScoring {
 
     /** How long that stand must last, in seconds. */
     public int cityHallReachSeconds() {
-        return scoring().getInt("city-hall-reach-seconds", 30);
+        // "city-hall-hold-seconds", which is the name war.yml has always shipped. The
+        // code read "city-hall-reach-seconds", which the file does not contain — so the
+        // operator's key did nothing and this one always fell through to 30.
+        return scoring().getInt("city-hall-hold-seconds", 30);
     }
 
     /**

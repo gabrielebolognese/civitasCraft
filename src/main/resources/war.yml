@@ -41,7 +41,6 @@ scoring:
   city-hall-hold-seconds: 30
   draw-threshold-percent: 5
   capture-points: 3
-  capture-point-visible-range: 100
 
 rewards:
   winner-wager-share-percent: 80
@@ -49,14 +48,11 @@ rewards:
   burn-percent: 20
   ally-payout-share-percent: 30
   # SPEC 11.10: an ally escrows a quarter of the primary wager to join.
+  # SPEC 11.10: an ally joining a war escrows this share of the primary wager.
   ally-wager-percent: 25
   winner-market-bonus-percent: 10
   winner-market-bonus-days: 7
   immunity-days: 7
-
-allies:
-  # SPEC 11.10: an ally joining a war escrows this share of the primary wager.
-  wager-percent-of-primary: 25
 
 peace:
   # SPEC 8.8: suing for peace forfeits this share of your wager.

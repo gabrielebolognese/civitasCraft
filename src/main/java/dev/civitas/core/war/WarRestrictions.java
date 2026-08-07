@@ -162,7 +162,19 @@ public final class WarRestrictions {
      * 73 names it as the main duplication vector the rule closes.
      */
     public boolean suppressesDrops(String world, int x, int z) {
+        // SPEC 16.3's rollback.suppress-block-drops, which was shipped from M0 and read by
+        // nothing: drops were suppressed for any active war whatever the operator set.
+        if (policy != null && !policy.suppressBlockDrops()) {
+            return false;
+        }
         return !registry.activeWarsCovering(world, x, z).isEmpty();
+    }
+
+    private RollbackPolicy policy;
+
+    /** Wires SPEC 16.3's rollback switches in once configuration is read. */
+    public void usePolicy(RollbackPolicy policy) {
+        this.policy = java.util.Objects.requireNonNull(policy, "policy");
     }
 
     private dev.civitas.core.admin.AdminProtection adminProtection;

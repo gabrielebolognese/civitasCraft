@@ -90,7 +90,8 @@ inactivity:
   # human asking for it: it fires on a timer against cities whose members may simply have been
   # away. Set false to keep succession and dormancy but never delete a city automatically.
   soft-delete-enabled: true
-  restore-window-days: 14
+  # The restore window itself is admin.restore-window-days below: it governs
+  # /ca city delete just as much as this, and both readers already look there.
 
 outposts:
   base-max: 2
@@ -217,3 +218,8 @@ diplomacy:
   truce-max-days: 30
   # How often notice periods and truces are checked. The shortest thing measured is a day.
   sweep-interval-minutes: 60
+
+admin:
+  # SPEC 5.3 and 9.4.2: how long a soft-deleted city can be brought back with
+  # /ca city restore. Also the window SPEC 17.1 case 3 leaves on a city it expires.
+  restore-window-days: 14

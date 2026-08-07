@@ -46,6 +46,9 @@ public final class RollbackEngine {
 
     private final DaoRegistry daos;
     private final ConfigManager configs;
+
+    /** SPEC 16.3's rollback switches. Built from the same config, so never null. */
+    private final RollbackPolicy policy;
     private final TilePayloadCodec codec;
     private final ChunkHasher hasher;
     private final Logger logger;
@@ -71,6 +74,7 @@ public final class RollbackEngine {
                           ChunkHasher hasher, Logger logger, Random random) {
         this.daos = Objects.requireNonNull(daos, "daos");
         this.configs = Objects.requireNonNull(configs, "configs");
+        this.policy = new RollbackPolicy(configs);
         this.codec = Objects.requireNonNull(codec, "codec");
         this.hasher = Objects.requireNonNull(hasher, "hasher");
         this.logger = Objects.requireNonNull(logger, "logger");
@@ -249,7 +253,8 @@ public final class RollbackEngine {
                 // An entity, not a block. M17 records these at the block they occupy and M19
                 // rebuilds them: spawning an entity is a different operation from writing a
                 // block, so it does not go through the applier or the sampling below.
-                if (hangings.restore(world, row.x(), row.y(), row.z(), row.oldNbt())) {
+                if (policy.restoreEntities()
+                        && hangings.restore(world, row.x(), row.y(), row.z(), row.oldNbt())) {
                     job.countApplied();
                 } else {
                     job.countSkipped();
@@ -260,8 +265,9 @@ public final class RollbackEngine {
 
             boolean applied = applier.apply(world, row.x(), row.y(), row.z(), row.oldBlockData());
             if (applied) {
-                // SPEC 11.8.2 step 5: the tile payload goes back after the block exists.
-                if (row.oldNbt() != null) {
+                // SPEC 11.8.2 step 5: the tile payload goes back after the block exists,
+                // unless SPEC 16.3's rollback.restore-container-nbt says not to.
+                if (row.oldNbt() != null && policy.restoreContainerNbt()) {
                     codec.restore(world.getBlockAt(row.x(), row.y(), row.z()), row.oldNbt());
                 }
                 job.countApplied();
@@ -387,7 +393,9 @@ public final class RollbackEngine {
 
         // SPEC 11.8.3's animals and villagers, after the blocks and not before: one respawned
         // first would be standing inside whatever the replay was about to put where it stood.
-        if (entities != null) {
+        // SPEC 16.3's rollback.restore-entities, shipped from M0 and read by nothing:
+        // villagers and animals were always put back whatever the operator set.
+        if (entities != null && policy.restoreEntities()) {
             entities.restoreDead(job.warId()).thenAccept(restored -> {
                 if (restored > 0) {
                     logger.info("Restored " + restored + " animal(s) and villager(s) killed in "

@@ -7,7 +7,8 @@
 
 **Next milestone:** none. M0 to M23 are DONE.
 
-**Built after M23:** SPEC 17.7's scale sweep, the MySQL dialect pass, and **SPEC 17.1
+**Built after M23:** SPEC 17.7's scale sweep, the MySQL dialect pass, a config-integrity
+sweep (`CONFIG.md`, **nineteen dead or mismatched keys**), and **SPEC 17.1
 cases 1 to 3** — the inactivity sweep, which M2 deferred to M4, M4 deferred to "a later
 milestone", and no milestone ever built. `cities.yml` had shipped its four numbers since
 M2 with nothing reading them.

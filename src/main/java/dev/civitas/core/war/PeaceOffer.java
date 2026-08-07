@@ -153,8 +153,11 @@ public final class PeaceOffer {
 
     /** SPEC 8.8's 25%, on the wager of the side that asked for peace. */
     public BigDecimal forfeitOf(War war) {
+        // "peace.forfeit-percent", the name war.yml ships. This read
+        // "declaration.peace-forfeit-percent", which is not in the file, so SPEC 8.8's
+        // forfeit was permanently 25% whatever the operator set.
         double percent = configs.get(ConfigFile.WAR)
-                .getDouble("declaration.peace-forfeit-percent", 25);
+                .getDouble("peace.forfeit-percent", 25);
         return war.wager().multiply(BigDecimal.valueOf(percent))
                 .divide(BigDecimal.valueOf(100), 2, RoundingMode.DOWN);
     }

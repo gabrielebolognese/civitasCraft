@@ -98,8 +98,6 @@ contests:
   build-days: 11
   voting-days: 2
   max-region-size: 64
-  entries-per-city: 1
-  vote-axes: [creativity, technical-skill, theme-fit]
   vote-min: 1
   vote-max: 10
 

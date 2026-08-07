@@ -39,8 +39,14 @@ worlds:
 language: en
 
 performance:
+  # SPEC 16.1. A warning threshold, not a cap: evicting a claim would mean unprotected land,
+  # and SPEC 17.7 case 81 puts 50,000 claims at about 2.5 MB, so there is nothing to bound.
+  # The server logs once if the cache ever exceeds this.
   claim-cache-size: 100000
   gui-refresh-ticks: 20
+  # SPEC 16.1. Not honoured, and the server says so at startup: the ledger is written inside
+  # the transaction that moves the money, because SPEC 1.5 makes it the authority for every
+  # dispute and a buffered audit row is one a crash loses.
   ledger-batch-size: 200
   ledger-flush-seconds: 5
   # Feeds the average claim lookup and GUI open time in /ca perf (SPEC 9.4.6).

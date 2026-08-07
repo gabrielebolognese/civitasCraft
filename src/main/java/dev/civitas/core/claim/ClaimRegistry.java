@@ -68,6 +68,21 @@ public final class ClaimRegistry {
     }
 
     /**
+     * SPEC 16.1's {@code performance.claim-cache-size}, as a warning threshold.
+     *
+     * <p>Deliberately not a cap. Evicting a claim from this map means the chunk reads as
+     * wilderness on the next block event, which is somebody's city losing its protection to
+     * save a few kilobytes — SPEC 17.7 case 81 puts 50,000 claims at about 2.5 MB. So the
+     * number is honoured as the point at which an operator is told their server is larger
+     * than they planned for, which is the only useful reading of it.
+     *
+     * @return true if the cache has grown past the configured size
+     */
+    public boolean exceedsConfiguredSize(int configuredSize) {
+        return configuredSize > 0 && byChunk.size() > configuredSize;
+    }
+
+    /**
      * Loads every claim on the server.
      *
      * <p>One query, at startup, off the main thread. SPEC 2.3 makes the database a

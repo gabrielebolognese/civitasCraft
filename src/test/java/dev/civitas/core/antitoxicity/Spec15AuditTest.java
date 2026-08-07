@@ -391,14 +391,20 @@ class Spec15AuditTest {
             assertEquals(5.0, support.configs.get(ConfigFile.ECONOMY)
                             .getDouble("sinks.market-sale-tax-percent"), 0.0001,
                     "SPEC 4.3's 5% on the server market");
-            assertEquals(0.0, support.configs.get(ConfigFile.ECONOMY)
-                            .getDouble("player-shops.tax-percent"), 0.0001,
-                    "and nothing on a player shop, which is what makes trade the better deal");
 
-            // An explicit zero rather than an absent key, which is the better shape: an
-            // operator who wants to tax shops can, and one reading the file can see that the
-            // difference between the two rates is a decision rather than an oversight.
-            assertTrue(support.configs.get(ConfigFile.ECONOMY).contains("player-shops.tax-percent"));
+            // And nothing on a player shop, which is what makes trade the better deal.
+            //
+            // Asserted as the absence of any tax path rather than as a key set to zero. M22
+            // wrote this the other way and said in ANTI_TOXICITY.md that "an operator who
+            // wants to tax shops can" — which was false: player-shops.tax-percent was read by
+            // nothing, so the zero was decoration. The honest guarantee is stronger than the
+            // one that was claimed: there is no code that could take a cut, so the rate cannot
+            // drift away from zero by configuration or by accident.
+            assertFalse(support.configs.get(ConfigFile.ECONOMY).contains("player-shops.tax-percent"),
+                    "a tax key here would imply a tax path that does not exist");
+            assertTrue(java.util.Arrays.stream(dev.civitas.core.economy.TransactionType.values())
+                            .noneMatch(type -> type.name().contains("SHOP_TAX")),
+                    "and no ledger type could record one");
         }
 
         @Test

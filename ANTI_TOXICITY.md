@@ -43,7 +43,7 @@ cities and nothing else would notice.
 | Several leaderboards | Wealth being the only status ladder | — (nine boards, see note) | `.manyLeaderboards` |
 | No passive income from land | Rich-get-richer compounding | — (absence, plus upkeep) | `.noPassiveIncome` |
 | Dynamic market pricing | One player monopolising an income source | `economy.yml` `market.*` per item | `.dynamicPricing` |
-| Player shops untaxed | Encouraging inter-city trade | `economy.yml` `player-shops.tax-percent` (0) | `.shopsUntaxed` |
+| Player shops untaxed | Encouraging inter-city trade | — (no tax path exists) | `.shopsUntaxed` |
 | Minimum 3 members to declare war | Alt-account war spam | `war.yml` `declaration.min-members` | `.minimumMembers` |
 | 24h city-switch cooldown | Mercenary hopping | `cities.yml` `members.switch-cooldown-hours` | `.switchCooldown` |
 | Maximum 3 allies | Server-wide dominant blocs | `cities.yml` `diplomacy.max-allies` | `.allyCap` |
@@ -54,9 +54,11 @@ cities and nothing else would notice.
 against the attacker's treasury would let a rich city name a figure the defender cannot match,
 which is the coercion the row exists to prevent rather than a defence against it.
 
-**"Player shops untaxed."** The shop tax is an explicit `0` rather than an absent key. That is
-deliberate: an operator who wants to tax shops can, and one reading the file can see that the
-gap between 0% and the market's 5% is a decision rather than an oversight.
+**"Player shops untaxed."** M22 recorded this as an explicit `0` in the config and claimed
+"an operator who wants to tax shops can". **That was wrong**, and the M23 config sweep found
+it: `player-shops.tax-percent` was read by nothing, so the zero was decoration. The key is gone
+and the guarantee is now the stronger one — there is no code path that could take a cut, so the
+rate cannot drift from zero by configuration or by accident.
 
 ### The leaderboard count
 

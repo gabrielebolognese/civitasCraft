@@ -1356,3 +1356,64 @@ Format:
   first time in this project a new migration's MySQL file was **executed before it shipped**
   rather than reviewed by eye. It applies cleanly and `player_notices` matches on both dialects.
   Every migration up to V14 was written blind. *Date:* 2026-08-07
+
+- **[Config sweep]** SPEC 17.1 hid for twenty-one milestones behind a config key nothing read,
+  which is a **class** of bug rather than an incident, so all 571 shipped keys were swept the
+  same way. **Nineteen more were found.** *Implemented default:* `ConfigKeyUsageTest`, the
+  counterpart to `LangKeyUsageTest` and written a milestone later for the same reason — a key
+  with nothing behind it is indistinguishable from a working feature, and an operator who
+  changes it and sees nothing cannot tell that from a typo. `CONFIG.md` records every finding
+  and its resolution. *Date:* 2026-08-07
+
+- **[Config sweep]** The worst three were not dead keys but **mismatched pairs**: the file
+  shipped one name and the code read another, so both sides were inert and the value was stuck
+  at its hardcoded default. `war.yml` shipped `scoring.city-hall-hold-seconds` while
+  `WarScoring` read `scoring.city-hall-reach-seconds`; `peace.forfeit-percent` against
+  `declaration.peace-forfeit-percent`; and `CityService.adminRestore` read
+  `admin.restore-window-days`, which `cities.yml` did not contain at all — its only copy sat
+  unread under `inactivity:`. SPEC 11.6's City Hall stand, SPEC 8.8's peace forfeit and SPEC
+  9.4.2's restore window were therefore all permanently at their defaults. *Implemented
+  default:* the code moved to the shipped name in the first two; the third gained an `admin:`
+  section, because the window governs `/ca city delete` as much as SPEC 17.1's expiry. This
+  failure is invisible from either side alone, which is why a second test, `noDeadTwins`, looks
+  for one concept shipped under two names. *Date:* 2026-08-07
+
+- **[Config sweep]** SPEC 16.3's five `rollback.*` flags shipped from M0 and were consulted
+  nowhere. *Implemented default:* three now work — `suppress-block-drops`, `restore-entities`,
+  `restore-container-nbt`. The other two are **declarations, not switches**:
+  `loot-is-permanent: false` would mean returning items carried out of a chest during a war and
+  `vault-immune: false` would mean letting the vault be looted, neither of which exists and
+  neither of which SPEC describes the behaviour of. Inventing them to make a config key honest
+  would be inventing a feature, so `RollbackPolicy` reads them and tells the operator at
+  startup that the setting is not supported. `suppress-block-drops` is honoured *and* warned
+  about, on the same footing as `rollback.enabled`: SPEC 11.8.3 calls the no-drops rule
+  critical because without it an attacker keeps 50,000 blocks of materials and the rollback
+  restores the blocks anyway, creating resources from nothing. *Date:* 2026-08-07
+
+- **[Config sweep]** Six keys were removed rather than wired, because honouring them would be
+  wrong or impossible: `economy.decimal-places` (two places is SPEC 3's `DECIMAL(20,2)` schema,
+  not a preference, and changing it corrupts every balance), `player-shops.tax-percent` and
+  `bounties.claimable-only-during-war` (**both are anti-toxicity mechanisms SPEC 15.2 and 4.7
+  call deliberate — a switch that disables one is not something to ship because a file looked
+  incomplete**), `contests.entries-per-city` and `contests.vote-axes` (structural: one entry row
+  exists per contest and city, and the axes are a Java enum), and
+  `scoring.capture-point-visible-range` (SPEC 11.6's particle column is **not implemented**, and
+  shipping its range suggested it was). *Date:* 2026-08-07
+
+- **[Config sweep]** Three SPEC 16.1 keys could not simply be removed, because SPEC mandates
+  them, and `ConfigDefaultsTest` correctly failed when they were. *Implemented default:*
+  `performance.claim-cache-size` is honoured as a **warning threshold rather than a cap** —
+  evicting a claim means the chunk reads as wilderness on the next block event, which is a city
+  losing protection to save a few kilobytes against SPEC 17.7 case 81's measured 2.5 MB for
+  50,000 claims — and `ledger-batch-size` and `ledger-flush-seconds` are read by a startup
+  notice that states they are not honoured, because SPEC 1.5 makes the ledger authoritative and
+  a row waiting in a buffer is a row a crash loses. *Date:* 2026-08-07
+
+- **[Config sweep]** The sweep **falsified a claim M22 made**. `ANTI_TOXICITY.md` recorded that
+  the shop tax was "an explicit `0` rather than an absent key" so that "an operator who wants to
+  tax shops can". That was untrue: `player-shops.tax-percent` was read by nothing, so the zero
+  was decoration. *Implemented default:* the key is gone, and `Spec15AuditTest` now asserts the
+  stronger and true guarantee — that no code path exists which could take a cut, so the rate
+  cannot drift from zero by configuration or by accident. Worth recording because M22's whole
+  premise was that a mechanism must be proved **enforced and configurable**, and this row passed
+  that audit while being neither. *Date:* 2026-08-07
