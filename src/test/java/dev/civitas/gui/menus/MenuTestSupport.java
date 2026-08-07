@@ -57,6 +57,7 @@ final class MenuTestSupport implements AutoCloseable {
     final dev.civitas.core.war.PeaceOffer peace;
     final dev.civitas.core.war.CapturePoints capturePoints;
     final dev.civitas.core.war.WarScoreboard scoreboard;
+    final dev.civitas.core.economy.BountyService bounties;
 
     private MenuTestSupport(Path directory, Plugin plugin) {
         this.cities = CityTestSupport.open(directory);
@@ -134,13 +135,16 @@ final class MenuTestSupport implements AutoCloseable {
                 cities.configs, Scheduler.direct());
         this.peace = new dev.civitas.core.war.PeaceOffer(cities.db, cities.daos, cities.registry,
                 cities.treasury, cities.configs, Scheduler.direct());
+        this.bounties = new dev.civitas.core.economy.BountyService(cities.db,
+                cities.daos.bounties(), cities.economy, cities.configs,
+                Scheduler.direct(), quiet());
         this.capturePoints = new dev.civitas.core.war.CapturePoints(
                 new dev.civitas.core.war.WarScoring(cities.configs));
         this.scoreboard = new dev.civitas.core.war.WarScoreboard(wars, cities.registry, lang);
 
         this.services = new CivitasServices(cities.registry, cities.cities, cities.ranks,
                 cities.claimRegistry, cities.claims, null, null, cities.protection, null, null,
-                cities.economy, cities.treasury, cities.upkeep, upkeep, cities.market,
+                cities.economy, cities.treasury, bounties, cities.upkeep, upkeep, cities.market,
                 cities.marketFilter, cities.shops, quests, challenges, leaderboards, stats,
                 cities.contests, cities.serverEvents, warService, warAllies, peace,
                 capturePoints, scoreboard, outposts,

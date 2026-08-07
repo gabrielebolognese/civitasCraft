@@ -54,6 +54,22 @@ public enum SqlDialect {
     }
 
     /**
+     * An insert that a duplicate key silently drops rather than failing.
+     *
+     * <p>The two backends spell it differently and neither spelling parses on the other, which
+     * is why this is here rather than written out at a call site. It is only correct where a
+     * unique index makes "already present" the same statement as "nothing to do" — the war
+     * entity snapshot is one, because taking it twice must not double what comes back.
+     */
+    public String insertIgnore(String table, String columns, String placeholders) {
+        return this == SQLITE
+                ? "INSERT OR IGNORE INTO " + table + " (" + columns + ") VALUES ("
+                        + placeholders + ")"
+                : "INSERT IGNORE INTO " + table + " (" + columns + ") VALUES ("
+                        + placeholders + ")";
+    }
+
+    /**
      * @param name a value of {@code storage.type}, case-insensitive
      * @throws StorageException if the value names no supported backend
      */

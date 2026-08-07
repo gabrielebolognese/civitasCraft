@@ -285,9 +285,23 @@ public final class OutpostTeleport {
                 .getString("outposts.teleport-cost", "100"));
     }
 
-    /** SPEC 7.4 and 11.11, once wars exist in M19. */
+    /**
+     * SPEC 7.4: "Outpost teleport is disabled entirely during a war involving that city, to
+     * prevent instant reinforcement."
+     *
+     * <p>SPEC 11.6 repeats it from the other direction, listing "teleporting into or out of
+     * the war zone via outpost warps" among the things that stay blocked even in war. A war
+     * is meant to be fought across ground somebody has to cross.
+     */
     private boolean isCityAtWar(City city) {
-        return false;
+        return wars != null && wars.blocksOutposts(city.id());
+    }
+
+    private dev.civitas.core.war.WarRestrictions wars;
+
+    /** SPEC 7.4 and 11.11, wired by M19. */
+    public void useWars(dev.civitas.core.war.WarRestrictions restrictions) {
+        this.wars = restrictions;
     }
 
     private record Pending(BukkitTask task, Location origin) { }

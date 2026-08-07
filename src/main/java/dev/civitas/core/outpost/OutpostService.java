@@ -475,9 +475,16 @@ public final class OutpostService {
 
     private dev.civitas.core.upgrade.UpgradeService upgrades;
 
-    /** SPEC 11.11, once wars exist in M19. */
+    /** SPEC 11.11: no outpost creation or deletion while a war is running. */
     private boolean isCityAtWar(City city) {
-        return false;
+        return wars != null && wars.blocksOutposts(city.id());
+    }
+
+    private dev.civitas.core.war.WarRestrictions wars;
+
+    /** SPEC 11.11, wired by M19. */
+    public void useWars(dev.civitas.core.war.WarRestrictions restrictions) {
+        this.wars = restrictions;
     }
 
     private int activeMembers(City city) {

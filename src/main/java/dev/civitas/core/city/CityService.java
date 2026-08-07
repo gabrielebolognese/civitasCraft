@@ -371,6 +371,11 @@ public final class CityService {
         if (city.isFrozen()) {
             return completed(Result.failure("CITY_FROZEN", "city.frozen"));
         }
+        // SPEC 17.4 case 38 states this outright: a defender who disbanded mid-war would take
+        // the war zone with them, and everything logged against it would have nowhere to go.
+        if (blocksDisband(city)) {
+            return completed(Result.failure("AT_WAR", "war.blocked.disband"));
+        }
         if (!events.fire(new CityDisbandEvent(city, actor))) {
             return completed(Result.failure("CANCELLED", "city.disband.cancelled"));
         }
@@ -507,6 +512,10 @@ public final class CityService {
         if (city.isFrozen()) {
             return Result.failure("CITY_FROZEN", "city.frozen");
         }
+        // SPEC 11.5: "New members cannot join either city (prevents mercenary stacking)."
+        if (blocksMembershipChange(city)) {
+            return Result.failure("AT_WAR", "war.blocked.join");
+        }
         if (city.isMember(player)) {
             return Result.failure("ALREADY_MEMBER", "city.invite.already-member");
         }
@@ -581,6 +590,13 @@ public final class CityService {
         if (city.isMayor(player)) {
             return completed(Result.failure("MAYOR_CANNOT_LEAVE", "city.leave.mayor"));
         }
+        // SPEC 11.5: "Members cannot leave either city (prevents rat-fleeing before the
+        // fight)." The member divisor in SPEC 6.2 and the SPEC 11.3 minimum both count heads,
+        // so a city that could shed members mid-war could change what it is while being
+        // fought over.
+        if (blocksMembershipChange(city)) {
+            return completed(Result.failure("AT_WAR", "war.blocked.leave"));
+        }
         if (!events.fire(new CityLeaveEvent(city, player))) {
             return completed(Result.failure("CANCELLED", "city.leave.cancelled"));
         }
@@ -612,6 +628,12 @@ public final class CityService {
         }
         if (city.isMayor(target)) {
             return completed(Result.failure("CANNOT_KICK_MAYOR", "city.kick.mayor"));
+        }
+        // SPEC 11.5 words the rule as members not leaving, but a kick empties the same seat.
+        // Without this a mayor could do to their own members what SPEC 11.5 stops the members
+        // doing themselves, which is the same hole from the other side.
+        if (blocksMembershipChange(city)) {
+            return completed(Result.failure("AT_WAR", "war.blocked.kick"));
         }
         if (city.weightOf(actor) <= city.weightOf(target)) {
             return completed(Result.failure("OUTRANKED", "city.kick.outranked"));
@@ -648,6 +670,10 @@ public final class CityService {
         }
         if (city.isFrozen()) {
             return Result.failure("CITY_FROZEN", "city.frozen");
+        }
+        // SPEC 11.11: "Mayorship transfer" is blocked during PREP and ACTIVE.
+        if (blocksTransfer(city)) {
+            return Result.failure("AT_WAR", "war.blocked.transfer");
         }
         if (!city.isMember(target)) {
             return Result.failure("NOT_A_MEMBER", "city.not-a-member");
@@ -1002,6 +1028,28 @@ public final class CityService {
 
     private dev.civitas.core.upgrade.UpgradeService upgrades;
 
+    // ==================================================================================
+    // SPEC 11.11: what a war forbids a city to do to itself
+    // ==================================================================================
+
+    private boolean blocksDisband(City city) {
+        return wars != null && wars.blocksDisband(city.id());
+    }
+
+    private boolean blocksMembershipChange(City city) {
+        return wars != null && wars.blocksMembershipChange(city.id());
+    }
+
+    private boolean blocksTransfer(City city) {
+        return wars != null && wars.blocksTransfer(city.id());
+    }
+
+    private dev.civitas.core.war.WarRestrictions wars;
+
+    /** SPEC 11.11, wired by M19. */
+    public void useWars(dev.civitas.core.war.WarRestrictions restrictions) {
+        this.wars = restrictions;
+    }
 
     /** Checks a city permission, treating the mayor as holding everything. */
     public Result<Void> requirePermission(City city, UUID actor, CityPermission permission) {

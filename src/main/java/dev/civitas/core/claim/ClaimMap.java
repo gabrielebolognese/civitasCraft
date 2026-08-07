@@ -125,13 +125,28 @@ public final class ClaimMap {
         return lang.get(tile.messageKey());
     }
 
-    /** Seam for M13. */
+    /** SPEC 6.5's yellow tile, wired by M13's diplomacy. */
     private boolean isAlly(City viewer, City other) {
-        return false;
+        return diplomacy != null && diplomacy.areAllied(viewer.id(), other.id());
     }
 
-    /** Seam for M19. */
+    /** SPEC 6.5's red tile: a city on the other side of a live war. */
     private boolean isAtWarWith(City viewer, City other) {
-        return false;
+        return wars != null && wars.engagedWarOf(viewer.id())
+                .filter(war -> war.areEnemies(viewer.id(), other.id()))
+                .isPresent();
+    }
+
+    private dev.civitas.core.diplomacy.DiplomacyRegistry diplomacy;
+    private dev.civitas.core.war.WarRegistry wars;
+
+    /** SPEC 6.5's ally colour, wired by M13. */
+    public void useDiplomacy(dev.civitas.core.diplomacy.DiplomacyRegistry registry) {
+        this.diplomacy = registry;
+    }
+
+    /** SPEC 6.5's enemy colour, wired by M19. */
+    public void useWars(dev.civitas.core.war.WarRegistry registry) {
+        this.wars = registry;
     }
 }

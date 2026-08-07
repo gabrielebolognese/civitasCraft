@@ -77,6 +77,22 @@ public final class Evacuation {
     }
 
     /**
+     * Moves one player out, without reference to any particular war.
+     *
+     * <p>SPEC 17.4 cases 41 and 48: somebody who arrives inside a zone rather than being
+     * caught in one. Their own city spawn if they have one, the world spawn otherwise — the
+     * per-war check that {@link #destinationFor} makes does not apply, because a player who
+     * just joined is not being evacuated ahead of a restore that is about to reach them.
+     */
+    public void moveOut(Player player) {
+        Optional<City> city = cities.cityOf(player.getUniqueId());
+        Location spawn = city.map(this::spawnOf).orElse(null);
+        player.teleportAsync(spawn != null && spawn.getWorld() != null
+                ? spawn
+                : fallback(player));
+    }
+
+    /**
      * Where one player goes.
      *
      * <p>Their own city spawn, unless that spawn is itself inside the zone, which it will be

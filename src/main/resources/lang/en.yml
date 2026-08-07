@@ -965,6 +965,15 @@ war:
   decline:
     too-late: "<red>The window to decline this war has closed."
   zone-closed: "<red>That area is being restored after a war. You cannot enter until it is finished."
+  evacuated-rollback: "<yellow>The land where you logged out is being restored after a war. You have been moved somewhere safe."
+  evacuated-bystander: "<yellow>You were standing inside a war zone you are not part of. You have been moved out."
+  blocked:
+    disband: "<red>A city in a war cannot be disbanded. Wait until the war is resolved."
+    join: "<red>That city is in a war and cannot take new members until it is over."
+    leave: "<red>You cannot leave a city that is in a war."
+    kick: "<red>Members cannot be removed while the city is in a war."
+    transfer: "<red>Mayorship cannot be transferred while the city is in a war."
+    alliance-break: "<red>An alliance cannot be broken while your city is in a war."
   announce:
     prep: "<gold>The war has begun. You have <white><hours></white> hours to prepare."
     active: "<red>The war is live. It runs for <white><days></white> days."
@@ -1008,3 +1017,15 @@ war:
     score: "<white><city><gray>: <gold><score>"
     ends-in: "<gray>Ends in <white><remaining>"
     over: "<gray>The war is over."
+
+bounty:
+  self: "<red>You cannot place a bounty on yourself."
+  too-small: "<red>A bounty must be at least <white><min> C</white>."
+  not-in-war: "<red>Bounties are only collected by a kill during an active war."
+  none-on-target: "<gray>There was no bounty on them."
+  placed: "<gold>Bounty of <white><amount></white> placed on <white><player></white>. It expires in <white><days></white> days."
+  on-you: "<red>Somebody has placed a bounty of <white><amount></white> on you."
+  claimed: "<gold>You collected <white><amount></white> in bounties."
+  list-empty: "<gray>No bounties are open."
+  list-header: "<dark_gray>--- <gold>Open bounties<dark_gray> ---"
+  list-entry: "<gray><player> <dark_gray>- <gold><amount></gold> <dark_gray>(from <gray><placer><dark_gray>)"

@@ -34,6 +34,8 @@ public final class DaoRegistry {
     private final WarContainerLogDao warContainerLog;
     private final WarParticipantDao warParticipants;
     private final WarKillDao warKills;
+    private final WarEntitySnapshotDao warEntitySnapshots;
+    private final BountyDao bounties;
     private final AllianceDao alliances;
     private final TruceDao truces;
     private final MarketStockDao marketStock;
@@ -70,6 +72,8 @@ public final class DaoRegistry {
         this.warContainerLog = new WarContainerLogDao(db);
         this.warParticipants = new WarParticipantDao(db);
         this.warKills = new WarKillDao(db);
+        this.warEntitySnapshots = new WarEntitySnapshotDao(db);
+        this.bounties = new BountyDao(db);
         this.alliances = new AllianceDao(db);
         this.truces = new TruceDao(db);
         this.marketStock = new MarketStockDao(db);
@@ -165,6 +169,14 @@ public final class DaoRegistry {
         return warKills;
     }
 
+    public WarEntitySnapshotDao warEntitySnapshots() {
+        return warEntitySnapshots;
+    }
+
+    public BountyDao bounties() {
+        return bounties;
+    }
+
     public AllianceDao alliances() {
         return alliances;
     }
@@ -220,7 +232,8 @@ public final class DaoRegistry {
     /** Every DAO, in no particular order. Used by tests that assert across the whole set. */
     public List<Dao<?>> all() {
         return List.of(players, playerStats, playerLogins, serverEvents, warChunkHashes, warRollbackIssues, cities, cityRanks, cityMembers, cityInvites, cityBans, claims, outposts,
-                ledger, economySnapshots, wars, warBlockLog, warContainerLog, warParticipants, warKills, alliances,
+                ledger, economySnapshots, wars, warBlockLog, warContainerLog, warParticipants, warKills,
+                warEntitySnapshots, bounties, alliances,
                 truces, marketStock, playerShops, playerQuests, cityChallenges, contests, contestEntries, contestVotes,
                 cityUpgrades, cityVault, defenseUnits, auditLog);
     }

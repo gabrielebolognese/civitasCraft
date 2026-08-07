@@ -954,3 +954,56 @@ Format:
   at every call site, plus `LangKeyUsageTest.noRequestedKeyIsASection` so a key the code asks
   for can never again resolve to a section. Related: a bare `on:` or `off:` key is a YAML 1.1
   boolean and loads as `true`/`false`, so those are quoted. *Date:* 2026-08-06
+
+- **[M19]** SPEC 11.7 requires a container log but does not say how "items removed" is
+  measured, and a click-by-click count would have to handle shift-click, number-key swaps,
+  drags, the double-click sweep and the cursor stack separately. Getting any one wrong
+  under-reports a theft silently. *Implemented default:* the contents are snapshotted when the
+  container is opened and diffed when it is closed, so the log cannot miss a route because it
+  does not know which route was taken. Only net removals are recorded, which means a player who
+  rummages and puts everything back has stolen nothing, and a swap logs the item that left
+  rather than the one that arrived. *Date:* 2026-08-07
+
+- **[M19]** SPEC 11.8.3 requires villagers and animals to be "snapshotted at war start (type,
+  position, NBT, name, profession, trades)", and the NBT half is unavailable for the reason
+  recorded at M17: paper-api exposes no vanilla NBT. *Implemented default:* the same per-type
+  Bukkit capture the tile codec uses, covering name, health, age, tamed owner, villager
+  profession, type, level, experience and the full trade list. Each field is captured and
+  re-applied independently, so an accessor a build does not support costs that one field rather
+  than the whole animal. What is covered is declared by `describedFields()` rather than left to
+  be discovered. *Date:* 2026-08-07
+
+- **[M19]** SPEC 11.8.3 says animals are "respawned if killed" but not when, and the rollback
+  has two candidate moments. *Implemented default:* after the blocks are back, not before. An
+  animal respawned first would be standing inside whatever the replay was about to put where it
+  stood, which is SPEC 17.4 case 50's problem imported into the one part of the restore that
+  could have avoided it. The read and the respawn are separate methods on separate threads:
+  reading is storage work, spawning is world work, and a single method would have hidden which.
+  *Date:* 2026-08-07
+
+- **[M19]** SPEC 12.4 doubles the price of a unit "placed during ACTIVE war", and SPEC 11.5
+  gives PREP for preparation. *Implemented default:* ACTIVE only. A city that used its 48 hours
+  pays the ordinary price and one that left its defences until the fighting started pays twice,
+  which is what makes SPEC 12.4's "defense must be planned in PREP" true. Charging double
+  through PREP as well would punish the planning the rule exists to reward. *Date:* 2026-08-07
+
+- **[M19]** SPEC 12.3's leash says a unit is "teleported back if it wanders more than 8 blocks
+  past the claim border", and a border is a polygon rather than a point. *Implemented default:*
+  Chebyshev distance to the nearest chunk the city owns, plus how far into its current chunk the
+  unit stands, which is the same measure SPEC 6.2 uses for claim distance. Against a leash of
+  eight blocks the approximation decides only whether a guard turns at the fence or a few blocks
+  past it, and it costs one pass over the city's claims instead of a geometric edge test.
+  *Date:* 2026-08-07
+
+- **[M19]** SPEC 11.5 forbids members leaving a city at war but says nothing about a mayor
+  kicking them. *Implemented default:* a kick is blocked too. The rule exists so a city cannot
+  change what it is while a war is fought over it, and a kick empties the same seat as a
+  departure; leaving the hole open would have been the same exploit from the other side.
+  *Date:* 2026-08-07
+
+- **[M19]** SPEC 11.6 blocks "`/city spawn` for the *attacking* city into the *defending*
+  city", which cannot happen as written: `/city spawn` only ever goes to your own city's spawn.
+  *Implemented default:* the readable rule from SPEC 5.6 is enforced instead — a teleport home
+  during a war takes 15 seconds rather than 5 — plus a refusal to teleport into any zone that
+  is closed for a restore, which SPEC 11.8.2 step 1 requires and SPEC 5.6 does not mention.
+  *Date:* 2026-08-07

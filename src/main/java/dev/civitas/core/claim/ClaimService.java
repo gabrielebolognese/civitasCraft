@@ -807,11 +807,21 @@ public final class ClaimService {
     /**
      * SPEC 6.3 precondition 9 and SPEC 11.11: no claiming or unclaiming while a war is on.
      *
-     * <p>Always false until M19 builds the war system. Written out rather than omitted so
-     * there is exactly one place to fill in, and so the refusal message already exists.
+     * <p>SPEC 11.4 is why this matters more than it looks. The war zone is computed once, when
+     * the fighting starts, and never recomputed; land claimed after that would be owned by a
+     * city at war and yet sit outside every zone, so damage to it would be neither logged by
+     * M17 nor restored by M18. The rule is not an inconvenience to the claimer, it is what
+     * keeps SPEC 1.2's promise true for every chunk a warring city holds.
      */
     private boolean isCityAtWar(City city) {
-        return false;
+        return wars != null && wars.blocksClaiming(city.id());
+    }
+
+    private dev.civitas.core.war.WarRestrictions wars;
+
+    /** SPEC 6.3 precondition 9, wired by M19. */
+    public void useWars(dev.civitas.core.war.WarRestrictions restrictions) {
+        this.wars = restrictions;
     }
 
     /**

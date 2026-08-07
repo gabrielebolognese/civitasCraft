@@ -167,11 +167,21 @@ public final class StatsService {
      * SPEC 13.3: whether this location is inside an active war zone, whose placements the
      * Builder board excludes.
      *
-     * <p>Always false until M19 computes zones. Written out so the exclusion already has its
-     * branch and M19 changes one method rather than remembering that a leaderboard depended
-     * on it.
+     * <p>The exclusion exists because a war zone is the one place where placing a block costs
+     * nothing and means nothing: SPEC 11.8.3 suppresses the drops, and the rollback removes
+     * whatever was placed. Counting it would let a besieging army climb the Builder board by
+     * walling up a doorway that will not exist tomorrow.
      */
     private boolean isInWarZone(Location location) {
-        return false;
+        return wars != null && location.getWorld() != null
+                && !wars.activeWarsCovering(location.getWorld().getName(),
+                        location.getBlockX(), location.getBlockZ()).isEmpty();
+    }
+
+    private dev.civitas.core.war.WarRegistry wars;
+
+    /** SPEC 13.3's war-zone exclusion, wired by M19. */
+    public void useWars(dev.civitas.core.war.WarRegistry registry) {
+        this.wars = registry;
     }
 }

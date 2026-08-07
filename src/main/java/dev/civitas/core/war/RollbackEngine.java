@@ -75,6 +75,17 @@ public final class RollbackEngine {
         this.hasher = Objects.requireNonNull(hasher, "hasher");
         this.logger = Objects.requireNonNull(logger, "logger");
         this.random = Objects.requireNonNull(random, "random");
+        this.hangings = new HangingRestorer(logger);
+    }
+
+    /** SPEC 11.8.3's item frames, paintings and armor stands. */
+    private final HangingRestorer hangings;
+
+    private WarEntitySnapshots entities;
+
+    /** SPEC 11.8.3's animals and villagers, wired by M19. */
+    public void useEntitySnapshots(WarEntitySnapshots snapshots) {
+        this.entities = snapshots;
     }
 
     public Optional<RollbackJob> jobFor(int warId) {
@@ -235,8 +246,14 @@ public final class RollbackEngine {
             }
 
             if (WarBlockRecorder.HANGING_MARKER.equals(row.oldBlockData())) {
-                // An entity, not a block. M17 records these at the block they occupy.
-                job.countSkipped();
+                // An entity, not a block. M17 records these at the block they occupy and M19
+                // rebuilds them: spawning an entity is a different operation from writing a
+                // block, so it does not go through the applier or the sampling below.
+                if (hangings.restore(world, row.x(), row.y(), row.z(), row.oldNbt())) {
+                    job.countApplied();
+                } else {
+                    job.countSkipped();
+                }
                 done++;
                 continue;
             }
@@ -366,6 +383,18 @@ public final class RollbackEngine {
                 applier.freeTrappedPlayers(world);
                 applier.releaseChunks(world);
             }
+        }
+
+        // SPEC 11.8.3's animals and villagers, after the blocks and not before: one respawned
+        // first would be standing inside whatever the replay was about to put where it stood.
+        if (entities != null) {
+            entities.restoreDead(job.warId()).thenAccept(restored -> {
+                if (restored > 0) {
+                    logger.info("Restored " + restored + " animal(s) and villager(s) killed in "
+                            + "war " + job.warId() + ".");
+                }
+                entities.forget(job.warId());
+            });
         }
 
         verifySample(job);

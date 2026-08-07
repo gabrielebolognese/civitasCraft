@@ -244,7 +244,8 @@ public final class MarketService {
     /**
      * The SPEC 11.9 winner's bonus: +10% sell prices for seven days after winning a war.
      *
-     * <p>One until M19 builds wars, because there is no war for anyone to have won.
+     * <p>One on a server with no recent winner, which is most of the time: the bonus is
+     * read from the war record rather than stored on the city, so it expires by itself.
      */
     private BigDecimal sellBonusMultiplier(UUID seller) {
         if (warRewards == null || cities == null) {

@@ -92,9 +92,48 @@ public final class WarScoringListener implements Listener {
             if (war.areEnemies(killerCity.get(), victimCity.get())) {
                 scoring.awardKill(war, war.isAttackerSide(killerCity.get()));
                 recordKill(war, killer.getUniqueId(), victim.getUniqueId(), at);
+                payBounties(killer, victim);
                 return;
             }
         }
+    }
+
+    /**
+     * SPEC 4.7: a bounty is collected by "whoever kills the target <b>during an active war</b>".
+     *
+     * <p>Reached only from inside the loop above, which is what makes that restriction real:
+     * by this line the kill is known to have happened inside a live war, between two cities on
+     * opposite sides of it. A kill anywhere else never gets here and pays nothing.
+     */
+    private void payBounties(Player killer, Player victim) {
+        if (bounties == null) {
+            return;
+        }
+        try {
+            bounties.claim(killer.getUniqueId(), victim.getUniqueId(), true,
+                            System.currentTimeMillis())
+                    .thenAccept(result -> {
+                        if (result instanceof dev.civitas.util.Result.Success<
+                                java.math.BigDecimal>(java.math.BigDecimal paid)) {
+                            bountyPaid.accept(killer.getUniqueId(), paid);
+                        }
+                    })
+                    .exceptionally(error -> null);
+        } catch (RuntimeException ignored) {
+            // A closed pool throws from the call itself. The kill and its score already
+            // landed; only the payout is lost, and the bounty stays open to be claimed again.
+        }
+    }
+
+    private dev.civitas.core.economy.BountyService bounties;
+    private java.util.function.BiConsumer<UUID, java.math.BigDecimal> bountyPaid =
+            (player, amount) -> { };
+
+    /** SPEC 4.7's payout, wired by the plugin. */
+    public void useBounties(dev.civitas.core.economy.BountyService service,
+                            java.util.function.BiConsumer<UUID, java.math.BigDecimal> onPaid) {
+        this.bounties = service;
+        this.bountyPaid = Objects.requireNonNull(onPaid, "onPaid");
     }
 
     /**

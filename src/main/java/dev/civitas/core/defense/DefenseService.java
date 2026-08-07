@@ -359,9 +359,26 @@ public final class DefenseService {
     // Helpers
     // ==================================================================================
 
-    /** SPEC 11.6, once wars exist in M19. */
+    /**
+     * SPEC 12.4: "Units placed during ACTIVE war cost double, so defense must be planned in
+     * PREP."
+     *
+     * <p>ACTIVE only, deliberately, and that is the whole mechanism. A city preparing during
+     * the 48 hours SPEC 11.5 gives it pays the ordinary price; one that left its defences
+     * until the fighting started pays twice. Charging double through PREP as well would
+     * punish exactly the planning the rule exists to reward.
+     */
     private boolean isCityAtWar(City city) {
-        return false;
+        return wars != null && wars.engagedWarOf(city.id())
+                .filter(war -> war.state() == dev.civitas.core.war.WarState.ACTIVE)
+                .isPresent();
+    }
+
+    private dev.civitas.core.war.WarRegistry wars;
+
+    /** SPEC 12.4's wartime price, wired by M19. */
+    public void useWars(dev.civitas.core.war.WarRegistry registry) {
+        this.wars = registry;
     }
 
     private NamespacedKey cityKey() {

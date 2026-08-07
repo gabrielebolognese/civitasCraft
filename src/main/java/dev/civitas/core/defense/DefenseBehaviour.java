@@ -94,22 +94,59 @@ public final class DefenseBehaviour {
     }
 
     // ==================================================================================
-    // What M19 will answer
+    // War, wired by M19
     // ==================================================================================
 
     /**
      * Whether this player is on the other side of a war from this city.
      *
-     * <p>False until M19, which is what makes every unit peaceful today. When wars arrive,
-     * this is the one method that has to change for the whole table to start applying.
+     * <p>The one method that turns the whole table on. A player with no city is never at war
+     * with anybody, which is SPEC 17.4 case 41 again: somebody who wandered in during a war
+     * is a bystander, and a guard that killed them would be attacking a passer-by.
      */
     private boolean isAtWarWith(City owner, UUID player) {
-        return false;
+        if (wars == null) {
+            return false;
+        }
+        Optional<City> theirs = cities.cityOf(player);
+        if (theirs.isEmpty()) {
+            return false;
+        }
+        int theirCity = theirs.get().id();
+        return wars.engagedWarOf(owner.id())
+                .filter(war -> war.state() == dev.civitas.core.war.WarState.ACTIVE)
+                .filter(war -> war.areEnemies(owner.id(), theirCity))
+                .isPresent();
     }
 
-    /** SPEC 12.3: an ally is ignored, once alliances can join a war in M19. */
+    /**
+     * SPEC 12.3: "War, ally or own member: Ignore."
+     *
+     * <p>An ally here means a city on the same side of this war, which is not the same as a
+     * city this one has an alliance with: SPEC 11.10 lets an ally sit a war out, and one that
+     * did not join has no business being shot at either. Same side, or not a target.
+     */
     private boolean isAllied(City owner, UUID player) {
         Optional<City> theirs = cities.cityOf(player);
-        return theirs.isPresent() && theirs.get().id() == owner.id();
+        if (theirs.isEmpty()) {
+            return false;
+        }
+        if (theirs.get().id() == owner.id()) {
+            return true;
+        }
+        if (wars == null) {
+            return false;
+        }
+        return wars.engagedWarOf(owner.id())
+                .filter(war -> war.involves(theirs.get().id()))
+                .filter(war -> !war.areEnemies(owner.id(), theirs.get().id()))
+                .isPresent();
+    }
+
+    private dev.civitas.core.war.WarRegistry wars;
+
+    /** SPEC 12.3's wartime rows, wired by M19. */
+    public void useWars(dev.civitas.core.war.WarRegistry registry) {
+        this.wars = registry;
     }
 }

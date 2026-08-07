@@ -153,6 +153,13 @@ public final class WarPhaseTask implements Runnable {
             });
         }
 
+        // SPEC 11.8.3 and 11.8.4: both are taken now, and neither can be taken later. An
+        // animal killed on day three cannot be asked what it was, and a chunk hashed after the
+        // fighting has started measures the damage rather than the state before it.
+        if (worldState != null) {
+            worldState.captureAtWarStart(war);
+        }
+
         logger.info("War " + war.id() + " is active. Zone: " + war.zone().size()
                 + " chunks across " + war.zone().worlds().size() + " world(s).");
         announce(war, "war.announce.active",
@@ -232,6 +239,25 @@ public final class WarPhaseTask implements Runnable {
     private CapturePoints capturePoints;
 
     /** SPEC 11.6's capture points, generated when a war goes ACTIVE. */
+    /**
+     * What has to be recorded about the world at the moment a war becomes fightable.
+     *
+     * <p>An interface rather than the two services directly, because both need a live server
+     * and the phase machine is tested without one.
+     */
+    @FunctionalInterface
+    public interface WorldStateCapture {
+
+        void captureAtWarStart(War war);
+    }
+
+    private WorldStateCapture worldState;
+
+    /** SPEC 11.8.3's entity snapshot and SPEC 11.8.4's pre-war hashes, wired by the plugin. */
+    public void useWorldStateCapture(WorldStateCapture capture) {
+        this.worldState = capture;
+    }
+
     public void useCapturePoints(CapturePoints points) {
         this.capturePoints = points;
     }

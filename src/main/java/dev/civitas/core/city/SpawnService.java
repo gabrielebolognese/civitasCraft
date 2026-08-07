@@ -90,6 +90,14 @@ public final class SpawnService {
                     Map.of("world", city.coreWorld()));
         }
 
+        // SPEC 11.8.2 step 1: once a restore begins, "the war zone is then closed: entry is
+        // blocked with a message". A player teleported into a chunk mid-restore would be
+        // standing in whatever block the replay put back around them.
+        if (wars != null && wars.isZoneClosed(destination.getWorld().getName(),
+                destination.getBlockX(), destination.getBlockZ())) {
+            return Result.failure("ZONE_CLOSED", "war.zone-closed");
+        }
+
         long seconds = warmupSeconds(player);
         if (seconds <= 0) {
             complete(player, destination);
@@ -183,9 +191,21 @@ public final class SpawnService {
                 : cities.getLong("spawn.warmup-seconds", 5);
     }
 
-    /** SPEC 11.6, once wars exist in M19. */
+    /** SPEC 5.6: whether this player's city is party to a live war. */
     private boolean isAtWar(Player player) {
-        return false;
+        if (wars == null) {
+            return false;
+        }
+        return cities.cityOf(player.getUniqueId())
+                .filter(city -> wars.isEngaged(city.id()))
+                .isPresent();
+    }
+
+    private dev.civitas.core.war.WarRestrictions wars;
+
+    /** SPEC 5.6 and 11.6, wired by M19. */
+    public void useWars(dev.civitas.core.war.WarRestrictions restrictions) {
+        this.wars = restrictions;
     }
 
     /** Forgets a player who has logged out. */

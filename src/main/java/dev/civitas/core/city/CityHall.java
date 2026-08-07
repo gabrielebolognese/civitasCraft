@@ -135,9 +135,23 @@ public final class CityHall {
         return city.weightOf(player) >= required;
     }
 
-    /** SPEC 11.6, once wars exist in M19. */
+    /**
+     * SPEC 11.6: "Breaking the City Hall block" stays blocked even in war.
+     *
+     * <p>Blocked for the owning city too, not only for the enemy, which is why this sits
+     * before the rank check rather than after it. SPEC 11.6 awards 100 points for standing in
+     * the enemy City Hall chunk; a defender who could remove their own hall could not remove
+     * the chunk, but they could make the objective look like it had never been there.
+     */
     private boolean isCityAtWar(City city) {
-        return false;
+        return wars != null && wars.isEngaged(city.id());
+    }
+
+    private dev.civitas.core.war.WarRestrictions wars;
+
+    /** SPEC 11.6, wired by M19. */
+    public void useWars(dev.civitas.core.war.WarRestrictions restrictions) {
+        this.wars = restrictions;
     }
 
     private Optional<Integer> read(PersistentDataContainer container) {

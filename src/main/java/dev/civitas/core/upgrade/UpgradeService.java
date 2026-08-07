@@ -153,8 +153,8 @@ public final class UpgradeService {
     /**
      * Buys the next level of a track.
      *
-     * <p>SPEC 11.11 blocks this during a war, which is a seam until M19: a city that could
-     * buy Fortification mid-siege would make the PREP phase pointless.
+     * <p>SPEC 11.11 blocks this during a war: a city that could buy Fortification
+     * mid-siege would make the SPEC 11.5 preparation phase pointless.
      *
      * @return the level now held
      */
@@ -213,9 +213,21 @@ public final class UpgradeService {
         });
     }
 
-    /** SPEC 11.11, once wars exist in M19. */
+    /**
+     * SPEC 11.11: "Purchasing city upgrades" is blocked during PREP and ACTIVE.
+     *
+     * <p>Fortification raises the defense-unit cap and Population raises the member cap, so a
+     * city buying either mid-war would be changing the terms of a fight already under way.
+     */
     private boolean isCityAtWar(City city) {
-        return false;
+        return wars != null && wars.blocksUpgrades(city.id());
+    }
+
+    private dev.civitas.core.war.WarRestrictions wars;
+
+    /** SPEC 11.11, wired by M19. */
+    public void useWars(dev.civitas.core.war.WarRestrictions restrictions) {
+        this.wars = restrictions;
     }
 
     private static int clamp(int level) {

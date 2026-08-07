@@ -9,6 +9,7 @@ import dev.civitas.core.claim.BorderRenderer;
 import dev.civitas.core.claim.ClaimMap;
 import dev.civitas.core.claim.ClaimRegistry;
 import dev.civitas.core.claim.ClaimService;
+import dev.civitas.core.economy.BountyService;
 import dev.civitas.core.economy.EconomyService;
 import dev.civitas.core.economy.PlayerAccountService;
 import dev.civitas.core.economy.TreasuryService;
@@ -66,6 +67,7 @@ public record CivitasServices(
         BlockClassifier blockClassifier,
         EconomyService economy,
         TreasuryService treasury,
+        BountyService bounties,
         UpkeepCalculator upkeep,
         UpkeepTask upkeepTask,
         MarketService market,

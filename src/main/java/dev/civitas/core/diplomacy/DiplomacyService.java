@@ -171,6 +171,14 @@ public final class DiplomacyService {
             return completed(Result.propagate(failure));
         }
 
+        // SPEC 11.11: "Breaking an alliance (must wait until RESOLVED)". SPEC 14.2's 24-hour
+        // notice already stops a city abandoning an ally the instant war is declared; this
+        // stops the same move made a day into the fighting, when the ally has already staked
+        // its treasury under SPEC 11.10 and its land is already inside the zone.
+        if (restrictions != null && restrictions.blocksAllianceBreak(city.id())) {
+            return completed(Result.failure("AT_WAR", "war.blocked.alliance-break"));
+        }
+
         Optional<Alliance> alliance = registry.alliance(city.id(), other.id());
         if (alliance.isEmpty() || !alliance.get().isAllied()) {
             return completed(Result.failure("NOT_ALLIED", "diplomacy.not-allied",
@@ -396,10 +404,16 @@ public final class DiplomacyService {
     }
 
     private dev.civitas.core.war.WarRegistry wars;
+    private dev.civitas.core.war.WarRestrictions restrictions;
 
     /** SPEC 14.1's war-aware relations, wired by M19. */
     public void useWars(dev.civitas.core.war.WarRegistry registry) {
         this.wars = registry;
+    }
+
+    /** SPEC 11.11's alliance-break block, wired by M19. */
+    public void useWarRestrictions(dev.civitas.core.war.WarRestrictions warRestrictions) {
+        this.restrictions = warRestrictions;
     }
 
     // ==================================================================================

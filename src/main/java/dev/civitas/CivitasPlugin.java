@@ -9,6 +9,7 @@ import java.util.logging.Level;
 import dev.civitas.command.CommandRegistry;
 import dev.civitas.command.city.CityCommand;
 import dev.civitas.command.player.MoneyCommand;
+import dev.civitas.command.player.BountyCommand;
 import dev.civitas.command.player.PayCommand;
 import dev.civitas.command.diplomacy.AllianceChatCommand;
 import dev.civitas.command.diplomacy.AllyCommand;
@@ -145,6 +146,7 @@ public final class CivitasPlugin extends JavaPlugin {
     private StatsService stats;
     private EventBossBar eventBar;
     private WarBlockLogger warBlockLog;
+    private dev.civitas.core.war.WarLootLog warLootLog;
     private dev.civitas.core.war.RollbackEngine rollbackEngine;
     private DatabaseManager database;
     private DaoRegistry daos;
@@ -170,6 +172,8 @@ public final class CivitasPlugin extends JavaPlugin {
         CityCommand cityCommand = new CityCommand(services::get, lang, scheduler, getLogger());
         MoneyCommand moneyCommand = new MoneyCommand(services::get, lang, scheduler, getLogger());
         PayCommand payCommand = new PayCommand(services::get, lang, scheduler, getLogger());
+        BountyCommand bountyCommand =
+                new BountyCommand(services::get, lang, scheduler, getLogger());
         ShopCommand shopCommand = new ShopCommand(services::get, lang, scheduler, getLogger());
         SellCommand sellCommand = new SellCommand(services::get, lang, scheduler, getLogger());
         WorthCommand worthCommand = new WorthCommand(services::get, lang);
@@ -187,7 +191,8 @@ public final class CivitasPlugin extends JavaPlugin {
                         questsCommand.buildQuests(), questsCommand.buildChallenges(),
                         allyCommand.buildAlly(), allyCommand.buildTruce(),
                         allianceChat.build(), leaderboardCommand.build(),
-                        contestCommand.build(), warCommand.build()));
+                        contestCommand.build(), warCommand.build(),
+                        bountyCommand.build()));
 
         warnIfRollbackDisabled();
         openDatabaseAsync(scheduler);
@@ -226,6 +231,13 @@ public final class CivitasPlugin extends JavaPlugin {
             // restored, so this blocks and it goes before the pool closes.
             warBlockLog.flushBlocking();
             warBlockLog = null;
+        }
+        if (warLootLog != null) {
+            // SPEC 11.7's log is evidence rather than state, so it does not block the way the
+            // block log does; it is still flushed, because an unwritten theft is a dispute an
+            // admin cannot settle.
+            warLootLog.flushBlocking();
+            warLootLog = null;
         }
         if (eventBar != null) {
             // A bar left on screen outlives the plugin that owns it and tells every player
@@ -532,19 +544,45 @@ public final class CivitasPlugin extends JavaPlugin {
 
         this.borders = borderRenderer;
 
+        // SPEC 4.7's bounties. Beside the economy rather than inside the war package: the
+        // money moves whether or not a war ever happens, and only the payout is war-gated.
+        dev.civitas.core.economy.BountyService bountyService =
+                new dev.civitas.core.economy.BountyService(manager, loadedDaos.bounties(),
+                        economyService, configs, scheduler, getLogger());
+        scheduleBountyExpiry(bountyService);
+
         // SPEC 11, the war system. Built before the services record because the record holds
         // three of its pieces, and before the seam wiring below because those read from it.
         WarWiring warWiring = startWarSystem(manager, loadedDaos, cityRegistry, claimRegistry,
-                diplomacyRegistry, treasuryService, protection, scheduler);
+                diplomacyRegistry, treasuryService, protection, bountyService, scheduler);
 
-        // SPEC 11.9 and 14.1: the seams the war system closes in three other subsystems.
+        // Every seam earlier milestones left for the war system, closed in one place.
+        //
+        // Each of these was written as a named method answering conservatively — "no war" —
+        // so that arriving here meant changing one method per subsystem rather than auditing
+        // every call site. This block is the payoff, and it is deliberately a list: a seam
+        // that is missing from it is a rule SPEC states and this server does not enforce.
         marketService.useWarRewards(warWiring.rewards(), warWiring.marketBonusPercent());
-        diplomacyService.useWars(warWiring.registry());
-        leaderboardService.useWars(loadedDaos.wars());
+        diplomacyService.useWars(warWiring.registry());               // SPEC 14.1 relations
+        diplomacyService.useWarRestrictions(warWiring.restrictions()); // SPEC 11.11
+        leaderboardService.useWars(loadedDaos.wars());                // SPEC 13.3 War Record
+        cityService.useWars(warWiring.restrictions());                // SPEC 11.5, 11.11
+        claimService.useWars(warWiring.restrictions());               // SPEC 6.3 cond. 9
+        claimMap.useWars(warWiring.registry());                       // SPEC 6.5 enemy tiles
+        claimMap.useDiplomacy(diplomacyRegistry);                     // SPEC 6.5 ally tiles
+        cityHall.useWars(warWiring.restrictions());                   // SPEC 11.6
+        spawnService.useWars(warWiring.restrictions());               // SPEC 5.6 warmup
+        outpostService.useWars(warWiring.restrictions());             // SPEC 11.11
+        outpostTeleport.useWars(warWiring.restrictions());            // SPEC 7.4
+        upgradeService.useWars(warWiring.restrictions());             // SPEC 11.11
+        statsService.useWars(warWiring.registry());                   // SPEC 13.3 Builder
+        defenseService.useWars(warWiring.registry());                 // SPEC 12.4 price
+        defenseBehaviour.useWars(warWiring.registry());               // SPEC 12.3 targeting
 
         services.set(new CivitasServices(cityRegistry, cityService, rankService, claimRegistry,
                 claimService, claimMap, borderRenderer, protection, protectionGuard,
-                blockClassifier, economyService, treasuryService, upkeepCalculator,
+                blockClassifier, economyService, treasuryService, bountyService,
+                upkeepCalculator,
                 upkeepTask, marketService, marketFilter, shopService, questService,
                 challengeService, leaderboardService, statsService, contestService,
                 eventService, warWiring.service(), warWiring.allies(), warWiring.peace(),
@@ -580,6 +618,8 @@ public final class CivitasPlugin extends JavaPlugin {
         getServer().getPluginManager().registerEvents(new VaultListener(vaultView), this);
         getServer().getPluginManager().registerEvents(new DefenseListener(this, defenseService,
                 defenseBehaviour, cityRegistry, lang, getLogger()), this);
+        scheduleDefenseLeash(new dev.civitas.core.defense.DefenseLeash(defenseRegistry,
+                defenseSpawner, defenseBehaviour, claimRegistry), defenseRegistry);
         getServer().getPluginManager().registerEvents(
                 new ActivityListener(activityTracker, questService, challengeService,
                         statsService), this);
@@ -778,12 +818,14 @@ public final class CivitasPlugin extends JavaPlugin {
                              dev.civitas.core.war.WarAllies allies,
                              dev.civitas.core.war.PeaceOffer peace,
                              dev.civitas.core.war.CapturePoints capturePoints,
-                             dev.civitas.core.war.WarScoreboard scoreboard) { }
+                             dev.civitas.core.war.WarScoreboard scoreboard,
+                             dev.civitas.core.war.WarRestrictions restrictions) { }
 
     private WarWiring startWarSystem(DatabaseManager database, DaoRegistry loadedDaos,
                                 CityRegistry cityRegistry, ClaimRegistry claimRegistry,
                                 dev.civitas.core.diplomacy.DiplomacyRegistry diplomacyRegistry,
                                 TreasuryService treasuryService, ProtectionService protection,
+                                dev.civitas.core.economy.BountyService bounties,
                                 Scheduler scheduler) {
         BukkitTilePayloadCodec codec = new BukkitTilePayloadCodec(getLogger());
         WarBlockLogger blockLog = new WarBlockLogger(loadedDaos.warBlockLog(), codec, configs,
@@ -828,14 +870,25 @@ public final class CivitasPlugin extends JavaPlugin {
         dev.civitas.core.war.PeaceOffer peaceOffers = new dev.civitas.core.war.PeaceOffer(
                 database, loadedDaos, cityRegistry, treasuryService, configs, scheduler);
 
-        WarBlockRecorder recorder = new WarBlockRecorder(
-                new dev.civitas.core.war.RegistryWarZones(warRegistry), blockLog);
+        dev.civitas.core.war.RegistryWarZones warZones =
+                new dev.civitas.core.war.RegistryWarZones(warRegistry);
+        WarBlockRecorder recorder = new WarBlockRecorder(warZones, blockLog);
         var manager = getServer().getPluginManager();
+
+        // SPEC 11.7's container log. Evidence for the post-war report, never a restore path.
+        dev.civitas.core.war.WarLootLog lootLog =
+                new dev.civitas.core.war.WarLootLog(loadedDaos.warContainerLog(), getLogger());
+        this.warLootLog = lootLog;
+        manager.registerEvents(
+                new dev.civitas.listener.war.WarContainerListener(lootLog, warZones), this);
         manager.registerEvents(new dev.civitas.listener.war.WarBlockListener(recorder), this);
         manager.registerEvents(new dev.civitas.listener.war.WarPhysicsListener(recorder), this);
         manager.registerEvents(new dev.civitas.listener.war.WarHangingListener(recorder), this);
         manager.registerEvents(new dev.civitas.listener.war.WarCombatListener(
                 warRestrictions, lang), this);
+        // SPEC 17.4 cases 41 and 48: arriving inside a zone, rather than being caught in one.
+        manager.registerEvents(new dev.civitas.listener.war.WarJoinListener(warRegistry,
+                cityRegistry, dev.civitas.core.war.Evacuation.of(cityRegistry), lang), this);
 
         // SPEC 11.2's clock. Checked far more often than it acts, because a phase ends at a
         // wall-clock moment and the server may have been down when it passed.
@@ -861,6 +914,18 @@ public final class CivitasPlugin extends JavaPlugin {
         phases.useResolution(new dev.civitas.core.war.WarResolution(database, loadedDaos,
                 cityRegistry, treasuryService, payouts, warRewards, getLogger()));
 
+        // SPEC 11.8.3's living entities and SPEC 11.8.4's pre-war chunk hashes. Both are
+        // snapshots taken at the moment the fighting starts, and neither can be taken later:
+        // a dead cow cannot be asked what it was, and a chunk hashed mid-war measures the
+        // damage rather than the state the rollback has to reach.
+        dev.civitas.core.war.WarEntitySnapshots entitySnapshots =
+                new dev.civitas.core.war.WarEntitySnapshots(loadedDaos.warEntitySnapshots(),
+                        scheduler, getLogger());
+        rollback.useEntitySnapshots(entitySnapshots);
+        manager.registerEvents(
+                new dev.civitas.listener.war.WarEntityListener(entitySnapshots), this);
+        phases.useWorldStateCapture(war -> captureWorldStateAt(war, entitySnapshots, rollback));
+
         // SPEC 11.6's score table.
         dev.civitas.core.war.WarScoring warScoring =
                 new dev.civitas.core.war.WarScoring(configs);
@@ -873,6 +938,15 @@ public final class CivitasPlugin extends JavaPlugin {
                         cityRegistry, claimRegistry,
                         dev.civitas.listener.war.WarScoringListener.DefenseOwnership.none());
         scoringListener.useKillLog(loadedDaos.warKills());
+        // SPEC 4.7's payout hangs off the same kill that scores, because "during an active
+        // war" is exactly the condition that handler has already established by then.
+        scoringListener.useBounties(bounties, (killer, paid) -> {
+            org.bukkit.entity.Player online = Bukkit.getPlayer(killer);
+            if (online != null) {
+                lang.send(online, "bounty.claimed", dev.civitas.command.Replies.p("amount",
+                        dev.civitas.core.economy.Money.format(paid, configs)));
+            }
+        });
         manager.registerEvents(scoringListener, this);
 
         // SPEC 9.3's /war scoreboard. Off for everyone until somebody asks for it, so the
@@ -889,9 +963,96 @@ public final class CivitasPlugin extends JavaPlugin {
 
         long ticks = Math.max(1L, blockLog.flushIntervalSeconds()) * 20L;
         Bukkit.getScheduler().runTaskTimerAsynchronously(this, blockLog::flush, ticks, ticks);
+        Bukkit.getScheduler().runTaskTimerAsynchronously(this, lootLog::flush, ticks, ticks);
 
         return new WarWiring(warRegistry, warRewards, payouts.marketBonusPercent(),
-                warService, warAllies, peaceOffers, capturePoints, scoreboard);
+                warService, warAllies, peaceOffers, capturePoints, scoreboard, warRestrictions);
+    }
+
+    /**
+     * SPEC 4.7: "Bounties expire after 30 days and refund."
+     *
+     * <p>Swept hourly by default rather than on a timer per bounty, because a bounty placed on
+     * a server that was then down for a week still has to expire, and a per-bounty timer would
+     * not survive the restart. The sweep is idempotent: the state is part of the WHERE clause,
+     * so a bounty refunded once cannot be refunded twice.
+     */
+    private void scheduleBountyExpiry(dev.civitas.core.economy.BountyService bounties) {
+        long ticks = Math.max(1L, bounties.expirySweepMinutes()) * 60L * 20L;
+        Bukkit.getScheduler().runTaskTimerAsynchronously(this, () ->
+                bounties.expireDue(System.currentTimeMillis()).thenAccept(refunded -> {
+                    if (refunded > 0) {
+                        getLogger().info("Refunded " + refunded + " expired bounty/bounties.");
+                    }
+                }), ticks, ticks);
+    }
+
+    /**
+     * Records what the world looked like when a war became fightable.
+     *
+     * <p>Two SPEC requirements with the same deadline: SPEC 11.8.3's animal and villager
+     * snapshot, and SPEC 11.8.4's per-chunk hash that the post-rollback comparison is measured
+     * against. Both are read from a live world, so both run on the server thread; only the
+     * writes are async.
+     *
+     * <p>The hash pass is the expensive one — SPEC 11.8.4 asks for a checksum over every block
+     * state in every zone chunk — so it is behind {@code rollback.chunk-hash-failsafe}, which
+     * SPEC 16.3 ships as true, and {@code rollback.chunk-hash-stride} for an operator who
+     * would rather sample.
+     */
+    private void captureWorldStateAt(dev.civitas.core.war.War war,
+                                     dev.civitas.core.war.WarEntitySnapshots entitySnapshots,
+                                     dev.civitas.core.war.RollbackEngine rollback) {
+        entitySnapshots.capture(war, System.currentTimeMillis()).thenAccept(captured -> {
+            if (captured > 0) {
+                getLogger().info("Snapshotted " + captured + " animal(s) and villager(s) in the "
+                        + "zone of war " + war.id() + ".");
+            }
+        });
+
+        // chunkList gives [worldIndex, chunkX, chunkZ]; the hasher wants [chunkX, chunkZ] and
+        // one world at a time, so the list is split by world here rather than in the engine.
+        java.util.Map<String, List<long[]>> byWorld = new java.util.HashMap<>();
+        for (long[] chunk : war.zone().chunkList()) {
+            String worldName = war.zone().worldOf(chunk[0]);
+            if (worldName != null) {
+                byWorld.computeIfAbsent(worldName, key -> new java.util.ArrayList<>())
+                        .add(new long[] {chunk[1], chunk[2]});
+            }
+        }
+        for (var entry : byWorld.entrySet()) {
+            String worldName = entry.getKey();
+            org.bukkit.World world = Bukkit.getWorld(worldName);
+            if (world == null) {
+                continue;
+            }
+            rollback.recordPreWarHashes(war.id(), world, entry.getValue()).thenAccept(hashed -> {
+                if (hashed > 0) {
+                    getLogger().info("Hashed " + hashed + " chunk(s) of war " + war.id()
+                            + " in " + worldName + " for the SPEC 11.8.4 failsafe.");
+                }
+            });
+        }
+    }
+
+    /**
+     * SPEC 12.3's leash, ticked once a war can make a unit chase something.
+     *
+     * <p>Every two seconds rather than every tick: a unit walks about four blocks a second at
+     * the fastest speed in SPEC 12.2's table, so two seconds is the coarsest interval that
+     * cannot let one cross the eight-block leash unnoticed and come back. Scanning nothing
+     * when no city owns a unit, which is most servers most of the time.
+     */
+    private void scheduleDefenseLeash(dev.civitas.core.defense.DefenseLeash leash,
+                                      dev.civitas.core.defense.DefenseRegistry defenseRegistry) {
+        Bukkit.getScheduler().runTaskTimer(this, () -> {
+            if (defenseRegistry.linkedEntities() == 0) {
+                return;
+            }
+            for (org.bukkit.World world : Bukkit.getWorlds()) {
+                leash.tick(new java.util.ArrayList<>(world.getLivingEntities()));
+            }
+        }, 40L, 40L);
     }
 
     /**

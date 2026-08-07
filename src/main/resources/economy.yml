@@ -216,6 +216,10 @@ bounties:
   expiry-days: 30
   # SPEC 4.7: bounties may only be claimed during an active war.
   claimable-only-during-war: true
+  # How many are shown by /bounty list, and how often expired ones are swept and refunded.
+  # Neither number is from SPEC, which gives the 30-day expiry but not the sweep.
+  list-size: 20
+  expiry-sweep-minutes: 60
 
 inflation:
   # SPEC 4.8

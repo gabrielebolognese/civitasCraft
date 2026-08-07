@@ -46,7 +46,8 @@ public interface WarZones {
     }
 
     /**
-     * No war anywhere, which is every server until M19.
+     * No war anywhere, which is what a server at peace answers and what the block
+     * listeners see on their first line.
      *
      * <p>{@link #isAnyWarActive()} answers false, so every listener returns on its first line
      * and the logger costs a peacetime server nothing measurable.

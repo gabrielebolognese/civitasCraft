@@ -964,6 +964,15 @@ war:
   decline:
     too-late: "<red>Il tempo per rifiutare questa guerra e' scaduto."
   zone-closed: "<red>Quell'area e' in ripristino dopo una guerra. Non puoi entrare finche' non e' finito."
+  evacuated-rollback: "<yellow>Il terreno dove ti eri disconnesso e' in ricostruzione dopo una guerra. Sei stato spostato al sicuro."
+  evacuated-bystander: "<yellow>Eri dentro una zona di guerra di cui non fai parte. Sei stato spostato fuori."
+  blocked:
+    disband: "<red>Una citta' in guerra non puo' essere sciolta. Aspetta la fine della guerra."
+    join: "<red>Quella citta' e' in guerra e non puo' accogliere nuovi membri fino alla fine."
+    leave: "<red>Non puoi lasciare una citta' che e' in guerra."
+    kick: "<red>Non si possono rimuovere membri mentre la citta' e' in guerra."
+    transfer: "<red>La carica di sindaco non si puo' trasferire mentre la citta' e' in guerra."
+    alliance-break: "<red>Non puoi rompere un'alleanza mentre la tua citta' e' in guerra."
   announce:
     prep: "<gold>La guerra e' iniziata. Hai <white><hours></white> ore per prepararti."
     active: "<red>La guerra e' attiva. Dura <white><days></white> giorni."
@@ -1007,3 +1016,15 @@ war:
     score: "<white><city><gray>: <gold><score>"
     ends-in: "<gray>Finisce tra <white><remaining>"
     over: "<gray>La guerra e' finita."
+
+bounty:
+  self: "<red>Non puoi mettere una taglia su te stesso."
+  too-small: "<red>Una taglia deve essere almeno di <white><min> C</white>."
+  not-in-war: "<red>Le taglie si riscuotono solo uccidendo durante una guerra attiva."
+  none-on-target: "<gray>Non c'era nessuna taglia su di loro."
+  placed: "<gold>Taglia di <white><amount></white> messa su <white><player></white>. Scade tra <white><days></white> giorni."
+  on-you: "<red>Qualcuno ha messo una taglia di <white><amount></white> sulla tua testa."
+  claimed: "<gold>Hai riscosso <white><amount></white> di taglie."
+  list-empty: "<gray>Non ci sono taglie aperte."
+  list-header: "<dark_gray>--- <gold>Taglie aperte<dark_gray> ---"
+  list-entry: "<gray><player> <dark_gray>- <gold><amount></gold> <dark_gray>(da <gray><placer><dark_gray>)"
