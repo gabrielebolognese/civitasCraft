@@ -18,13 +18,110 @@ import dev.civitas.storage.row.PlayerRow;
  * The point of these tests is that the SQL is correct, and a mock cannot tell you that a
  * unique index rejects a duplicate or that money survives a round trip.
  *
- * <p>MySQL is not covered: there is no server to test against here, and exercising the MySQL
- * path against a compatibility emulator would prove something about the emulator rather than
- * about MySQL.
+ * <p>MySQL is covered too, but only when a server is configured — see {@link #mySqlUrl()}.
+ * Against a real server, never an emulator: exercising the MySQL path against a compatibility
+ * layer would prove something about the layer rather than about MySQL.
  */
 final class StorageTestSupport {
 
+    /**
+     * System property naming a MySQL or MariaDB server for the dialect tests.
+     *
+     * <p>Absent by default, and the MySQL tests skip rather than fail when it is: a developer
+     * without a server must still be able to build, and a suite that goes red on a machine
+     * where nothing is wrong teaches people to ignore it.
+     *
+     * <pre>
+     * ./gradlew test -Dcivitas.test.mysql.url=jdbc:mysql://127.0.0.1:3306/civitas_test \
+     *                -Dcivitas.test.mysql.user=root
+     * </pre>
+     *
+     * <p>The named schema is <b>dropped and recreated</b> by each test, so it must be a
+     * throwaway. Nothing here is safe to point at a database that matters.
+     */
+    static final String MYSQL_URL_PROPERTY = "civitas.test.mysql.url";
+    static final String MYSQL_USER_PROPERTY = "civitas.test.mysql.user";
+    static final String MYSQL_PASSWORD_PROPERTY = "civitas.test.mysql.password";
+
     private StorageTestSupport() {
+    }
+
+    /** The configured MySQL URL, or null when the dialect tests should skip. */
+    static String mySqlUrl() {
+        String url = System.getProperty(MYSQL_URL_PROPERTY);
+        return url == null || url.isBlank() ? null : url;
+    }
+
+    static String mySqlUser() {
+        return System.getProperty(MYSQL_USER_PROPERTY, "root");
+    }
+
+    static String mySqlPassword() {
+        return System.getProperty(MYSQL_PASSWORD_PROPERTY, "");
+    }
+
+    /**
+     * Opens the configured MySQL database and migrates it from empty.
+     *
+     * <p>Every table is dropped first, so each test starts from nothing and the migration
+     * runner is exercised on a genuinely fresh schema rather than on one a previous test left
+     * half-built. That is the point of the exercise: until M23 the fourteen MySQL migration
+     * files had never been executed by anything.
+     */
+    static DatabaseManager openMySql(BooleanSupplier onMainThread) {
+        dropEverything();
+        DatabaseManager db = new DatabaseManager(quietLogger(), mySqlSettings(), onMainThread);
+        db.open();
+        return db;
+    }
+
+    static DatabaseManager openMySql() {
+        return openMySql(() -> false);
+    }
+
+    static DatabaseSettings mySqlSettings() {
+        return new DatabaseSettings(
+                SqlDialect.MYSQL,
+                mySqlUrl(),
+                mySqlUser(),
+                mySqlPassword(),
+                2,
+                5000,
+                "WAL",            // ignored on MySQL
+                Long.MAX_VALUE,
+                false,
+                6,
+                28);
+    }
+
+    /**
+     * Empties the schema.
+     *
+     * <p>Foreign key checks are suspended for the duration rather than the tables being sorted
+     * into dependency order: the order changes every time a migration adds a table, and a drop
+     * that fails because of a constraint would leave the next test running against a schema
+     * that is neither empty nor migrated.
+     */
+    private static void dropEverything() {
+        try (java.sql.Connection connection = java.sql.DriverManager.getConnection(
+                mySqlUrl(), mySqlUser(), mySqlPassword())) {
+            java.util.List<String> tables = new java.util.ArrayList<>();
+            try (java.sql.ResultSet rows = connection.getMetaData()
+                    .getTables(connection.getCatalog(), null, "%", new String[] {"TABLE"})) {
+                while (rows.next()) {
+                    tables.add(rows.getString("TABLE_NAME"));
+                }
+            }
+            try (java.sql.Statement statement = connection.createStatement()) {
+                statement.execute("SET FOREIGN_KEY_CHECKS = 0");
+                for (String table : tables) {
+                    statement.execute("DROP TABLE IF EXISTS `" + table + "`");
+                }
+                statement.execute("SET FOREIGN_KEY_CHECKS = 1");
+            }
+        } catch (java.sql.SQLException e) {
+            throw new IllegalStateException("could not clear the MySQL test schema", e);
+        }
     }
 
     /** Opens a fresh SQLite database in {@code directory} and migrates it. */

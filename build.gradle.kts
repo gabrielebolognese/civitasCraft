@@ -55,6 +55,14 @@ tasks {
         testLogging {
             events("passed", "skipped", "failed")
         }
+        // Gradle does not pass the invoking JVM's system properties to the test JVM, so
+        // without this the MySQL dialect tests would silently skip even when a server was
+        // named on the command line — the worst outcome, since the run still goes green.
+        // See StorageTestSupport for the properties and what they must point at.
+        for (property in listOf("civitas.test.mysql.url", "civitas.test.mysql.user",
+                "civitas.test.mysql.password", "civitas.test.dialect")) {
+            System.getProperty(property)?.let { systemProperty(property, it) }
+        }
     }
 
     shadowJar {

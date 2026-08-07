@@ -1238,3 +1238,42 @@ Format:
   deleted -- they are how this tree was built one milestone at a time, and a future command
   wants the same treatment -- and `CommandRegistryTest` asserts the list is empty, so a stub
   reaching a release is a decision rather than a leftover. *Date:* 2026-08-07
+
+- **[MySQL pass]** `OPEN_QUESTIONS.md` has said since M1 that "MySQL is not covered locally",
+  and the gap was wider than that reads: the fourteen files under `migrations/mysql/` had
+  **never been executed by anything**. `MigrationIndexTest` checked only that they appeared in
+  `index.txt`. A syntax error in any one of them would have surfaced the first time an operator
+  set `storage.type: MYSQL`, at which point the plugin fails to start. *Implemented default:*
+  `MySqlDialectTest` (13 tests) plus a dialect switch on `DaoRoundTripTest` (40 tests), both
+  gated on `civitas.test.mysql.url` so a developer without a server still builds. All fourteen
+  migrations applied to an empty schema on the first attempt and every test passed; the one
+  defect the exercise produced was in the test, which looked for `schema_migrations` where the
+  runner's table is `schema_version`. It now reads `MigrationRunner.VERSION_TABLE`, so the two
+  cannot drift. *Date:* 2026-08-07
+
+- **[MySQL pass]** Gradle does not forward the invoking JVM's system properties to the test
+  JVM, so the dialect tests would have skipped silently even when a server was named on the
+  command line — and the run would still have gone green, which is the worst available outcome
+  for a gated test. *Implemented default:* `build.gradle.kts` passes the four properties
+  through explicitly, a negative control against a dead port confirms the tests fail when the
+  server is unreachable rather than quietly falling back to SQLite, and `MySqlDialectTest`
+  prints the URL it ran against so a build log distinguishes "MySQL passed" from "MySQL was
+  skipped". *Date:* 2026-08-07
+
+- **[MySQL pass]** The server available locally was **MariaDB 10.4.32, not MySQL 8**. SPEC 2.1
+  names both and the driver is MySQL Connector/J either way, but they are not the same product,
+  and the class of bug MariaDB structurally cannot reveal is an identifier MySQL 8.0 reserves
+  and MariaDB 10.4 does not — `rank`, `groups`, `system`, `row`, `window` and the rest of the
+  window-function keywords. *Implemented default:* checked statically instead. No identifier in
+  the MySQL DDL is one of them and none needs backticking, which is why the schema is portable
+  rather than lucky. Recorded rather than left implied: a future migration that adds a column
+  called `rank` would pass every test here and fail on MySQL 8. *Date:* 2026-08-07
+
+- **[MySQL pass]** The service layer was deliberately not re-run against MySQL. A `CityService`
+  rule behaves the same whichever database is underneath, and re-running 1,600 tests would take
+  a long time to learn nothing. What actually differs by dialect is narrow — the DDL, the money
+  representation, the SPEC 3.4 unique index, and transaction rollback — and that is what the two
+  test classes cover. Three things remain unproven and are named in `MYSQL.md` rather than left
+  to be assumed: no load or concurrency testing of the pool, no MySQL 8 server, and **backups
+  still do nothing on MySQL**, which is M1's deliberate decision and means an operator running
+  MySQL must arrange their own. *Date:* 2026-08-07

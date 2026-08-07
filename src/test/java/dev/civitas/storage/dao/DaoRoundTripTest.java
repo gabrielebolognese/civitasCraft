@@ -60,16 +60,82 @@ class DaoRoundTripTest {
     private static final UUID ALICE = UUID.fromString("11111111-1111-1111-1111-111111111111");
     private static final UUID BOB = UUID.fromString("22222222-2222-2222-2222-222222222222");
 
+    /**
+     * Runs these forty tests against MySQL instead of SQLite.
+     *
+     * <p>Defaults to SQLite, so an ordinary build is unchanged. Set
+     * {@code -Dcivitas.test.dialect=MYSQL} together with {@code -Dcivitas.test.mysql.url} to
+     * point the same tests at a real server — which is the only way to find out whether the
+     * DAO SQL, as opposed to the DDL, is portable. {@code MySqlDialectTest} proves the
+     * migrations apply; this proves the queries written against them run.
+     *
+     * <p>The MySQL schema is <b>emptied and rebuilt</b> before each test, exactly as the
+     * SQLite path gets a fresh file per test. Point it at a throwaway.
+     */
+    private static final String DIALECT_PROPERTY = "civitas.test.dialect";
+
+    private static boolean useMySql() {
+        return "MYSQL".equalsIgnoreCase(System.getProperty(DIALECT_PROPERTY, "SQLITE"));
+    }
+
     @BeforeEach
     void openDatabase() {
+        db = useMySql() ? openMySql() : openSqlite();
+        daos = new DaoRegistry(db);
+    }
+
+    private DatabaseManager openSqlite() {
         DatabaseSettings settings = new DatabaseSettings(
                 SqlDialect.SQLITE,
                 "jdbc:sqlite:" + directory.resolve("dao.db").toAbsolutePath(),
                 "", "", 2, 5000, "WAL", Long.MAX_VALUE, false, 6, 28);
 
-        db = new DatabaseManager(java.util.logging.Logger.getLogger("dao-test"), settings, () -> false);
-        db.open();
-        daos = new DaoRegistry(db);
+        DatabaseManager opened = new DatabaseManager(
+                java.util.logging.Logger.getLogger("dao-test"), settings, () -> false);
+        opened.open();
+        return opened;
+    }
+
+    private DatabaseManager openMySql() {
+        String url = System.getProperty("civitas.test.mysql.url");
+        if (url == null || url.isBlank()) {
+            throw new IllegalStateException(DIALECT_PROPERTY + "=MYSQL needs "
+                    + "civitas.test.mysql.url as well; see MySqlDialectTest");
+        }
+        DatabaseSettings settings = new DatabaseSettings(
+                SqlDialect.MYSQL, url,
+                System.getProperty("civitas.test.mysql.user", "root"),
+                System.getProperty("civitas.test.mysql.password", ""),
+                2, 5000, "WAL", Long.MAX_VALUE, false, 6, 28);
+
+        dropEverything(settings);
+        DatabaseManager opened = new DatabaseManager(
+                java.util.logging.Logger.getLogger("dao-test"), settings, () -> false);
+        opened.open();
+        return opened;
+    }
+
+    /** Empties the MySQL schema, with constraints suspended so drop order does not matter. */
+    private static void dropEverything(DatabaseSettings settings) {
+        try (java.sql.Connection connection = java.sql.DriverManager.getConnection(
+                settings.jdbcUrl(), settings.username(), settings.password())) {
+            java.util.List<String> tables = new java.util.ArrayList<>();
+            try (java.sql.ResultSet rows = connection.getMetaData()
+                    .getTables(connection.getCatalog(), null, "%", new String[] {"TABLE"})) {
+                while (rows.next()) {
+                    tables.add(rows.getString("TABLE_NAME"));
+                }
+            }
+            try (java.sql.Statement statement = connection.createStatement()) {
+                statement.execute("SET FOREIGN_KEY_CHECKS = 0");
+                for (String table : tables) {
+                    statement.execute("DROP TABLE IF EXISTS `" + table + "`");
+                }
+                statement.execute("SET FOREIGN_KEY_CHECKS = 1");
+            }
+        } catch (java.sql.SQLException e) {
+            throw new IllegalStateException("could not clear the MySQL test schema", e);
+        }
     }
 
     @AfterEach
