@@ -5,7 +5,7 @@
 
 ## Current session focus
 
-**Next milestone:** M6a, Crafting equivalence graph.
+**Next milestone:** #1 in the queue below, **M6a, Crafting equivalence graph**.
 
 **Part I (M0 to M23) is complete.** SPEC has since grown from 20 sections to 41, adding four
 more Parts and **34 further milestones**, none of which were in this file until now. They are
@@ -80,91 +80,73 @@ literally written cannot pass for a hive without an NMS-backed codec.
 | 22 | Anti-toxicity pass | all | DONE | All sixteen SPEC 15 mechanisms audited, each asserted twice: **enforced**, and **configurable** — the second is what catches a rule sitting behind a key nothing reads. `Spec15AuditTest` (20 tests) and `ANTI_TOXICITY.md`, a table of mechanism, key, where enforced and what proves it. **No unenforced mechanism found**; the three first-run failures were all the test being wrong about the environment. `WarService.canDeclare` added so the audit — and SPEC 8.8's button — can ask without declaring. SPEC 15.2's "seven leaderboards" against SPEC 13.3's nine is settled by asserting what the row protects rather than the count. 1582 tests. |
 | 23 | Polish | all | DONE | `/city help` (the command set declared in Java, the wording in `lang/`, so `HelpPagesTest` fails the build if a command loses its entry or gains one it does not have), the SPEC 9.1 rules book carrying SPEC 17.2 case 16 and SPEC 11.7's loot asymmetry, and `/cc` -- **the last stub in the plugin; `CommandRegistry.COMMANDS` is now empty**. `/ca perf` measures all four SPEC 9.4.6 figures: M21 named two as unmeasured and **the write rate and pool status were missing too**. `Timings` samples claim lookup 1-in-64 because SPEC 17.7 case 81 puts it on every block event. Tab completion swept -- 10 of 22 gaps closed, the rest declared free-form and held by `TabCompletionTest`; found **five copies** of the player provider, two lowercasing without a locale. Localisation asserted against **what the code passes**, not against the other language -- the first version's four findings were all wrong, the rewrite found six real ones, **two player-visible since M10** (outpost teleport showed a literal `<name>`). 1636 tests. |
 
-## Part II milestones, SPEC 24, economy hardening
+## Remaining milestones, in build order
 
-> SPEC 24: "These slot into the existing sequence rather than following it."
+**This table is a queue.** `/next-milestone` takes the first `TODO` row whose dependencies are
+all `DONE`, so the order of these rows *is* the build order. It is one table rather than four
+because SPEC's four Parts are not four phases — they interleave, and reading them in section
+order would build the City Warden before the world it stands in.
 
-| M | Milestone | Depends on | Status | Notes |
-|---|---|---|---|---|
-| 6a | Crafting equivalence graph | M6 | TODO | Recipe graph from Bukkit's iterator plus hardcoded smelting and stonecutter tables, transitive reachability, SPEC 21.10.1 startup validation. **The market module must not enable if validation fails.** |
-| 6b | Market hardening | M6a | TODO | Hard blacklist (SPEC 21.8) as code, not config. Villager-disjointness startup assertion. Revised buy list (21.9), sell-only builder catalogue (21.6). |
-| 6c | Daily sell quota | M6b | TODO | Per-player quota tracker, soft cap multiplier, `/quota`, persistence, concurrency-safe, resets at 00:00. |
-| 7a | Message framework | M7 | TODO | Palette as MiniMessage tag resolvers, prefix system, channel router, per-player toggles, action-bar throttling, startup placeholder validation, formatters. **SPEC says build it alongside M7; M7 and M8 are already done, so this is the retrofit SPEC warns "always misses cases".** |
-| 9a | Anti-abuse layer | M9 | TODO | Placed-block cache (21.10.5), strengthened stipend check (F11), new-account income gate (F12), 72-hour withdrawal hold (F16), contribution-proportional disband split (F6), bounty self-claim block (F7), war leaderboard score threshold (F4). |
-| 14a | Money supply accounting | M14 | TODO | Hourly `money_supply` snapshots, `/ca eco supply`, `sources`, `top`, inflation dashboard. |
-| 14b | Circuit breakers | M14a | TODO | Every trigger in SPEC 21.7, automatic market sell freeze, admin alerting, `/ca breaker status` and `reset`, `/ca market volume`. |
-| 21a | Investigative admin tooling | M21 | TODO | SPEC 22.7.1 and 22.7.2 in full. `/ca history` is the priority. |
-| 22a | Command completeness pass | all | TODO | Every command in SPEC 22 implemented with full tab completion, plus a test asserting every registered command has a completer for every argument. |
-| 23a | Message catalogue | all feature milestones | TODO | Every key in SPEC 23.5 implemented and wired, plus a test asserting **every** state-mutating service method fires at least one message. |
-| 23b | Italian localisation | M23a | TODO | `it.yml` complete, key-parity check green. |
+Every row's dependencies appear above it, so walking the table top to bottom never stalls.
+`PlanOrderTest` asserts that, and fails the build if a future edit reorders a row above
+something it needs.
 
-**SPEC 24's ordering note:** M6a and M6b are **hard blockers on M6**. "If the market ships
-first 'just to test it', the test server's economy will be broken within an hour and every
-subsequent balance measurement you take will be meaningless." The market is already live on
-this build, so 6a and 6b are the first thing to do.
+| # | M | Milestone | SPEC | Depends on | Status | Notes |
+|---|---|---|---|---|---|---|
+| 1 | 6a | Crafting equivalence graph | 24 | M6 | TODO | Recipe graph from Bukkit's iterator plus hardcoded smelting and stonecutter tables, transitive reachability, SPEC 21.10.1 startup validation. **The market module must not enable if validation fails.** |
+| 2 | 6b | Market hardening | 24 | 6a | TODO | Hard blacklist (SPEC 21.8) as code, not config. Villager-disjointness startup assertion. Revised buy list (21.9), sell-only builder catalogue (21.6). |
+| 3 | 6c | Daily sell quota | 24 | 6b | TODO | Per-player quota tracker, soft cap multiplier, `/quota`, persistence, concurrency-safe, resets at 00:00. |
+| 4 | 9a | Anti-abuse layer | 24 | M9 | TODO | Placed-block cache (21.10.5), strengthened stipend check (F11), new-account income gate (F12), 72-hour withdrawal hold (F16), contribution-proportional disband split (F6), bounty self-claim block (F7), war leaderboard score threshold (F4). |
+| 5 | 3a | World setup | 41 | M3 | TODO | Multi-world config, per-world claim rules, world whitelist enforcement in **every** protection listener. **No border management** — this is where SPEC 41 differs from SPEC 38's 3a. SPEC wanted this before M4; it is now a retrofit, so it goes as early as the queue allows. |
+| 6 | 7a | Message framework | 24 | M7 | TODO | Palette as MiniMessage tag resolvers, prefix system, channel router, per-player toggles, action-bar throttling, startup placeholder validation, formatters. SPEC wanted this alongside M7. Also a retrofit now, and every milestone after it that prints a string is one more thing to convert — hence its position. |
+| 7 | 4a | PvP policy | 38 | M4 | TODO | Peacetime PvP disabled globally, exclusion zones, join and respawn grace. SPEC 33 supersedes Part I 5.5 and 11.6 here. |
+| 8 | 3b | Travel | 41 | 3a | TODO | `/spawn`, `/rtp` with the 15k radius and full safe-location validation, `/warp`, warmups, cooldowns, cancellation. |
+| 9 | 3c | Mining claims | 41 | 3a, M4, M5 | TODO | SPEC 32.6, `/mine` tree, protection reusing the M4 listeners, personal-balance upkeep. |
+| 10 | 10 | Outposts, rebuild | 41 | M3, M5, 3a | TODO | SPEC 39.1 to 39.9 in full. Multi-chunk claims, internal contiguity, merging, placement rules, distance-scaled upkeep and teleport, delinquency release order. **Cost engine unit-tested against every value in the 39.4 tables, not just the formula.** Removes the superseded Part I M10. |
+| 11 | 10a | Waystations | 41 | 10 | TODO | SPEC 39.10, separate pool, resource world placement, own distance constant. |
+| 12 | 10b | Outpost GUI and cost transparency | 41 | 10, M8 | TODO | SPEC 39.12, `/city outpost cost`, the formula explainer screen. |
+| 13 | 12a | Unit persistence layer | 31 | M5, M8 | TODO | `defense_units` schema, materialize and dematerialize (SPEC 25.4), health checkpointing, dormant regeneration, chunk-load and restart recovery. **No combat behaviour yet.** Benchmark case 113 before proceeding. |
+| 14 | 12b | Central targeting handler | 31 | 12a | TODO | The single `EntityTargetLivingEntityEvent` handler from SPEC 30.1, all four states, the never-target list from 26.4, unit tests for every branch. |
+| 15 | 12c | Trespass response | 31 | 12b, M4 | TODO | Violation tracking with a sliding window, warning phase, alert phase, de-escalation, alert network, `audit_log` entries, all `trespass.*` messages. |
+| 16 | 12d | Core roster | 31 | 12c | TODO | Frost Sentry, Watchtower Keeper, Warhound, Archer, City Guard, Colossus. Dyed leather city colours, all abilities, all counterplay, edge cases 105 to 112. |
+| 17 | 12e | Defense Capacity | 31 | 12d, M11 | TODO | Points budget, Defense GUI, purchase and placement flow, per-chunk cap, leash, upkeep integration, downgrade handling (case 101). |
+| 18 | 12f | City Warden | 31 | 12e | TODO | SPEC 28 in full. Sonic boom disabled **and verified**, vibration anger disabled **and verified**, peacetime recovery, dormant burrow state, core-chunk confinement. |
+| 19 | 19b | War PvP and death | 38 | M19, 4a | TODO | Global war PvP (33.2), scoped keepInventory (33.3), combat tagging (33.4), unopposed score multiplier and walkover (33.5). |
+| 20 | 19a | Siege units and camps | 31 | 12f, M19 | TODO | SPEC 29 in full. Siege Capacity computed at declaration, camp placement and destruction, war-end despawn. |
+| 21 | 19c | World backups | 38 | 3a, M18 | TODO | Daily world backup, pre-war zone region snapshot, `/ca world restore`, disk guard. |
+| 22 | 19d | Discontiguous war zones | 41 | 10, M18, M19 | TODO | War zone computation, block logging, pre-war snapshot and rollback verified against a war where an outpost is over 500,000 blocks from the city. Case 136. |
+| 23 | 20a | Combat balance pass | 31 | 19a, M20 | TODO | Verify Rule 1 empirically: an attacking force equal to the defender's active member count beats a full garrison at Fortification 0, 2 and 5, three trials each. Tune and record in the spec. |
+| 24 | 14a | Money supply accounting | 24 | M14 | TODO | Hourly `money_supply` snapshots, `/ca eco supply`, `sources`, `top`, inflation dashboard. |
+| 25 | 14b | Circuit breakers | 24 | 14a | TODO | Every trigger in SPEC 21.7, automatic market sell freeze, admin alerting, `/ca breaker status` and `reset`, `/ca market volume`. |
+| 26 | 9b | Onboarding | 38 | M9, M8 | TODO | First-join flow, Guide Book, starter quest chain, contextual tips, recruitment board GUI, `/guide`. |
+| 27 | 14c | Seasons | 38 | M14 | TODO | Season state machine, leaderboard reset **scoped to rankings only**, Hall of Fame, rewards, `/season`, admin commands. |
+| 28 | 15a | Contest visit warps | 41 | M15 | TODO | SPEC 40.1, temporary warps generated on submission, deleted on close. |
+| 29 | 21a | Investigative admin tooling | 24 | M21 | TODO | SPEC 22.7.1 and 22.7.2 in full. `/ca history` is the priority. |
+| 30 | 21b | Metrics and API | 38 | M21 | TODO | bStats, `server_stats` table, `/ca stats server`, public read-only API, PlaceholderAPI, optional Vault provider. |
+| 31 | 22a | Command completeness pass | 24 | all above | TODO | Every command in SPEC 22 implemented with full tab completion, plus a test asserting every registered command has a completer for every argument. |
+| 32 | 23a | Message catalogue | 24 | all above | TODO | Every key in SPEC 23.5 implemented and wired, plus a test asserting **every** state-mutating service method fires at least one message. |
+| 33 | 23b | Italian localisation | 24 | 23a | TODO | `it.yml` complete, key-parity check green. |
+| 34 | 23c | Accessibility | 38 | 23a | TODO | Colourblind palette, symbol-plus-colour audit across every message and GUI element. |
 
-## Part III milestones, SPEC 31, defense units, the Warden and siege
+### Why this order, where it departs from SPEC's section numbering
 
-> SPEC 31: "Replaces Part I milestone M12, which referenced the superseded Section 12 roster."
+- **6a and 6b first.** SPEC 24 makes them hard blockers on M6, and the market has been live
+  since M6: "if the market ships first 'just to test it', the test server's economy will be
+  broken within an hour and every subsequent balance measurement you take will be meaningless."
+- **3a and 7a next, ahead of their SPEC section order.** Both were meant to precede finished
+  work — 3a before M4, 7a alongside M7 — so both are already retrofits. Every milestone built
+  after them is one more set of listeners to make world-aware and one more set of strings to
+  convert, so they go as early as their dependencies allow.
+- **Outposts before defense.** The new M10 changes what a claim is, and 12c's trespass response
+  and 12e's per-chunk unit cap are both written against claim geometry. Building the roster
+  first would mean writing it twice.
+- **19b before 19a.** SPEC 38: "M19b must land in the same session block as M19." M19 is
+  already done, so the next best thing is to land it before anything else touches war.
+- **20a last of the combat work.** It is an empirical balance pass and needs every unit and
+  siege piece in place to mean anything.
+- **The four completeness passes last**, because each is defined as "every command", "every
+  message key", and cannot be finished while more of either are still being added.
 
-| M | Milestone | Depends on | Status | Notes |
-|---|---|---|---|---|
-| 12a | Unit persistence layer | M5, M8 | TODO | `defense_units` schema, materialize and dematerialize (SPEC 25.4), health checkpointing, dormant regeneration, chunk-load and restart recovery. **No combat behaviour yet.** Benchmark case 113 before proceeding. |
-| 12b | Central targeting handler | M12a | TODO | The single `EntityTargetLivingEntityEvent` handler from SPEC 30.1, all four states, the never-target list from 26.4, unit tests for every branch. |
-| 12c | Trespass response | M12b, M4 | TODO | Violation tracking with a sliding window, warning phase, alert phase, de-escalation, alert network, `audit_log` entries, all `trespass.*` messages. |
-| 12d | Core roster | M12c | TODO | Frost Sentry, Watchtower Keeper, Warhound, Archer, City Guard, Colossus. Dyed leather city colours, all abilities, all counterplay, edge cases 105 to 112. |
-| 12e | Defense Capacity | M12d, M11 | TODO | Points budget, Defense GUI, purchase and placement flow, per-chunk cap, leash, upkeep integration, downgrade handling (case 101). |
-| 12f | City Warden | M12e | TODO | SPEC 28 in full. Sonic boom disabled **and verified**, vibration anger disabled **and verified**, peacetime recovery, dormant burrow state, core-chunk confinement. |
-| 19a | Siege units and camps | M12f, M19 | TODO | SPEC 29 in full. Siege Capacity computed at declaration, camp placement and destruction, war-end despawn. |
-| 20a | Combat balance pass | M19a, M20 | TODO | Verify Rule 1 empirically: an attacking force equal to the defender's active member count beats a full garrison at Fortification 0, 2 and 5, three trials each. Tune and record in the spec. |
-
-**SPEC 31's ordering note:** "Do not build the Warden first because it is the interesting one.
-It is the unit with the most ways to go wrong." And M20a "is not optional… a defense system
-that is accidentally unbeatable will not be discovered until players stop declaring wars,
-which is a slow and confusing failure to diagnose."
-
-## Part IV milestones, SPEC 38, PvP, onboarding and seasons
-
-> SPEC 38's 3a, 3b and 3c are superseded by SPEC 41's versions and are tabled there instead.
-
-| M | Milestone | Depends on | Status | Notes |
-|---|---|---|---|---|
-| 4a | PvP policy | M4 | TODO | Peacetime PvP disabled globally, exclusion zones, join and respawn grace. SPEC 33 supersedes Part I 5.5 and 11.6 here. |
-| 9b | Onboarding | M9, M8 | TODO | First-join flow, Guide Book, starter quest chain, contextual tips, recruitment board GUI, `/guide`. |
-| 14c | Seasons | M14 | TODO | Season state machine, leaderboard reset **scoped to rankings only**, Hall of Fame, rewards, `/season`, admin commands. |
-| 19b | War PvP and death | M19, M4a | TODO | Global war PvP (33.2), scoped keepInventory (33.3), combat tagging (33.4), unopposed score multiplier and walkover (33.5). |
-| 19c | World backups | M3a, M18 | TODO | Daily world backup, pre-war zone region snapshot, `/ca world restore`, disk guard. |
-| 21b | Metrics and API | M21 | TODO | bStats, `server_stats` table, `/ca stats server`, public read-only API, PlaceholderAPI, optional Vault provider. |
-| 23c | Accessibility | M23a | TODO | Colourblind palette, symbol-plus-colour audit across every message and GUI element. |
-
-**SPEC 38's ordering note:** "M19b must land in the same session block as M19. Global war PvP
-changes what the war zone means, and building the war lifecycle against the old zonal
-assumption and then retrofitting is more work than doing it once." M19 is already done, so
-this is the retrofit.
-
-## Part V milestones, SPEC 41, outposts and world setup
-
-> SPEC 41: "Replaces Part I milestone M10 and Part IV milestone 3a."
-
-| M | Milestone | Depends on | Status | Notes |
-|---|---|---|---|---|
-| 3a | World setup | M3 | TODO | Multi-world config, per-world claim rules, world whitelist enforcement in **every** protection listener. **No border management of any kind** — this is where SPEC 41 differs from SPEC 38's 3a. |
-| 3b | Travel | M3a | TODO | `/spawn`, `/rtp` with the 15k radius and full safe-location validation, `/warp`, warmups, cooldowns, cancellation. |
-| 3c | Mining claims | M3a, M4, M5 | TODO | SPEC 32.6, `/mine` tree, protection reusing the M4 listeners, personal-balance upkeep. |
-| 10 | Outposts (rebuild) | M3, M5, M3a | TODO | SPEC 39.1 to 39.9 in full. Multi-chunk claims, internal contiguity, merging, placement rules, distance-scaled upkeep and teleport, delinquency release order. **Cost engine unit-tested against every value in the 39.4 tables, not just the formula.** Removes the superseded Part I M10. |
-| 10a | Waystations | M10 | TODO | SPEC 39.10, separate pool, resource world placement, own distance constant. |
-| 10b | Outpost GUI and cost transparency | M10, M8 | TODO | SPEC 39.12, `/city outpost cost`, the formula explainer screen. |
-| 15a | Contest visit warps | M15 | TODO | SPEC 40.1, temporary warps generated on submission, deleted on close. |
-| 19d | Discontiguous war zones | M10, M18, M19 | TODO | War zone computation, block logging, pre-war snapshot and rollback verified against a war where an outpost is over 500,000 blocks from the city. Case 136. |
-
-**SPEC 41's ordering note, worth reading twice:** "M19d is the milestone most likely to be
-skipped and most likely to cause a serious bug. Every war test will naturally be run on a
-compact test map where both cities are a few hundred blocks apart. The discontiguous case…
-exercises different code paths in zone computation, snapshotting, and rollback chunk loading."
-
-And on M10: "The tables in 39.4 are the specification. If the implementation produces
-different numbers, the implementation is wrong, and catching that in a test is far cheaper
-than catching it after a player has spent six million coins."
 
 ## Rules the agent must not break
 
