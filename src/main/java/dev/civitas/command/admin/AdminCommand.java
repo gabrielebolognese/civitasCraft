@@ -42,18 +42,21 @@ public final class AdminCommand {
     }
 
     public LiteralCommandNode<CommandSourceStack> build() {
-        return Commands.literal("cityadmin")
+        var root = Commands.literal("cityadmin")
                 .requires(source -> source.getSender().hasPermission("civitas.admin"))
                 .executes(context -> {
                     help(context.getSource().getSender());
                     return Command.SINGLE_SUCCESS;
                 })
-                .then(new AdminWarCommands(services, lang, scheduler, logger).build())
-                .build();
+                .then(new AdminWarCommands(services, lang, scheduler, logger).build());
+        new AdminInspectCommands(services, lang, scheduler, logger).build()
+                .forEach(root::then);
+        return root.build();
     }
 
     private void help(net.kyori.adventure.audience.Audience audience) {
         lang.sendRaw(audience, "admin.help-header");
+        lang.sendRaw(audience, "admin.help-inspect");
         lang.sendRaw(audience, "admin.help-war");
     }
 }

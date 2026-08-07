@@ -1,6 +1,9 @@
 package dev.civitas;
 
 import dev.civitas.core.admin.AuditService;
+import dev.civitas.core.admin.FraudHeuristics;
+import dev.civitas.core.admin.InspectMode;
+import dev.civitas.core.admin.LedgerExport;
 import dev.civitas.core.city.CityRegistry;
 import dev.civitas.core.city.CityService;
 import dev.civitas.core.city.CityHall;
@@ -89,6 +92,9 @@ public record CivitasServices(
         RollbackEngine rollback,
         java.util.function.Consumer<War> rollbackTrigger,
         AuditService audit,
+        FraudHeuristics fraud,
+        InspectMode inspect,
+        LedgerExport ledgerExport,
         dev.civitas.storage.dao.DaoRegistry daos,
         WarScoreboard warScoreboard,
         OutpostService outposts,

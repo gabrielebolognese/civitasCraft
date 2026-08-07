@@ -1047,3 +1047,30 @@ Format:
   the bulk evacuation uses. It also teleports synchronously rather than asynchronously, which is
   correct for a single player whose chunk is necessarily loaded and has the side benefit of
   being testable. *Date:* 2026-08-07
+
+- **[M21]** SPEC 17.6 case 79's last heuristic flags "any player whose income rate exceeds the
+  99th percentile by more than 3x", and taken at face value the rule can never fire. By
+  nearest-rank, the 99th percentile of any realistic player count *is* the top earner, so a lone
+  outlier is compared against itself and cannot exceed itself threefold. The rule would have
+  looked implemented and detected nothing. *Implemented default:* the baseline is the 99th
+  percentile of the field with the single highest earner removed, which is what "compared
+  against the 99th percentile" has to mean for the comparison to say anything. The rule also
+  declines to answer below `audit.income-percentile-minimum` (20) players, because a percentile
+  over a handful of samples is not a percentile and would simply flag the richest of four
+  people. *Date:* 2026-08-07
+
+- **[M21]** SPEC 9.4.1 lists the heuristics under a command that "reports hits", without saying
+  how a hit should be presented. *Implemented default:* as something to look at, never as a
+  finding. Every one of the six rules has an innocent explanation — a founder emptying the
+  treasury to buy an upgrade, a returning player receiving a gift, a good trading day — and the
+  command prints a standing disclaimer to that effect after the list. A heuristic presented as
+  proof gets somebody banned for playing well, which is the opposite of what SPEC 1.5 built the
+  ledger for. *Date:* 2026-08-07
+
+- **[M21]** SPEC 9.4.1's `/ca ledger export` takes a target without saying whether it is a
+  player, a city or a transaction type, and all three are valid subjects elsewhere in the same
+  command tree. *Implemented default:* it tries each in that order rather than adding an
+  argument to disambiguate. An admin exporting "Roma" should not have to tell the plugin that
+  Roma is a city. The export filename is stripped to `[A-Za-z0-9_-]` first: the label reaches a
+  file path, and a target named `../../server.properties` would otherwise be a way to write a
+  CSV over something that matters. *Date:* 2026-08-07

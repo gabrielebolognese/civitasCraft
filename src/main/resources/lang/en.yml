@@ -1033,6 +1033,50 @@ bounty:
 admin:
   help-header: "<dark_gray>--- <gold>CivitasCraft administration<dark_gray> ---"
   help-war: "<gray>/ca war <white>list | cancel | forceend | extend | rollback | rollbackstatus | verify | immunity"
+  help-inspect: "<gray>/ca <white>info | player | ledger | audit | inspect | alts | economy stats"
+  info:
+    header: "<dark_gray>--- <gold><city><dark_gray> ---"
+    identity: "<gray>id <white><id></white>, tag <white><tag></white>, mayor <white><mayor></white>, founded <white><founded>"
+    money: "<gray>Treasury <white><treasury></white>, upkeep <white><upkeep></white>/day, delinquent <white><delinquent>"
+    land: "<gray>Claims <white><claims></white>, outposts <white><outposts></white>, core <white><core>"
+    people: "<gray>Members <white><members></white>/<white><cap>"
+    state: "<gray>Frozen <white><frozen></white>, deleted <white><deleted></white>, immunity <white><immunity>"
+    upgrades: "<gray>Upgrade levels <white><bought></white>, defense units <white><defense>"
+  player:
+    header: "<dark_gray>--- <gold><player><dark_gray> ---"
+    money: "<gray>Balance <white><balance></white>, frozen <white><frozen>"
+    city: "<gray>City <white><city></white>, uuid <white><uuid>"
+    time: "<gray>Playtime <white><playtime></white>h, active <white><active></white>h, first seen <white><first></white>, last seen <white><seen>"
+  ledger:
+    empty: "<gray>No transactions for <white><subject></white> in that window."
+    header-player: "<dark_gray>--- <gold><count> transaction(s) by <subject><dark_gray> ---"
+    header-city: "<dark_gray>--- <gold><count> transaction(s) for <subject><dark_gray> ---"
+    header-type: "<dark_gray>--- <gold><count> <subject> transaction(s)<dark_gray> ---"
+    entry: "<gray><when> <white><type></white> <gold><amount></gold> <dark_gray>(after <after>, <actor>)"
+    exported: "<green>Wrote <white><count></white> row(s) to <white>exports/<file></white>."
+    export-failed: "<red>Could not write the export. The details are in the server console."
+  audit:
+    running: "<gray>Checking the last <white><days></white> days..."
+    nothing: "<green>Nothing stood out."
+    header: "<dark_gray>--- <gold><count> thing(s) worth a look<dark_gray> ---"
+    hit: "<yellow><rule> <gray><subject> <dark_gray><detail>"
+    disclaimer: "<gray>These are patterns, not proof. Every one has an innocent explanation; check the ledger before acting."
+    log-empty: "<gray>No admin actions in that window."
+    log-header: "<dark_gray>--- <gold><count> admin action(s)<dark_gray> ---"
+    log-entry: "<gray><when> <white><actor></white> <yellow><action></yellow> <gray><target> <dark_gray><reason>"
+  inspect:
+    "on": "<green>Inspect mode on. Click a block to see who owns it; clicks will not break anything."
+    "off": "<gray>Inspect mode off."
+    wilderness: "<gray><world> <white><x>,<z></white>: wilderness."
+    protected-wilderness: "<gray><world> <white><x>,<z></white>: wilderness, <yellow>admin-protected</yellow>."
+    claimed: "<gray><world> <white><x>,<z></white>: <gold><city></gold> (<type>), claimed <white><claimed></white> by <white><by></white>, protected <white><protected>"
+  alts:
+    none: "<gray>No other account shares a connection with <white><player></white>."
+    header: "<dark_gray>--- <gold><count> account(s) sharing a connection with <player><dark_gray> ---"
+    entry: "<gray>  <player>"
+  economy:
+    header: "<dark_gray>--- <gold>Economy<dark_gray> --- <gray>circulation <white><circulation>"
+    entry: "<gray><rank>. <white><player></white> <gold><balance>"
   war:
     none: "<gray>No wars on record."
     already-finished: "<red>That war is already over."

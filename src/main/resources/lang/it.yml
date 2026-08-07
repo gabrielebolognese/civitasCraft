@@ -1032,6 +1032,50 @@ bounty:
 admin:
   help-header: "<dark_gray>--- <gold>Amministrazione CivitasCraft<dark_gray> ---"
   help-war: "<gray>/ca war <white>list | cancel | forceend | extend | rollback | rollbackstatus | verify | immunity"
+  help-inspect: "<gray>/ca <white>info | player | ledger | audit | inspect | alts | economy stats"
+  info:
+    header: "<dark_gray>--- <gold><city><dark_gray> ---"
+    identity: "<gray>id <white><id></white>, tag <white><tag></white>, sindaco <white><mayor></white>, fondata <white><founded>"
+    money: "<gray>Tesoreria <white><treasury></white>, mantenimento <white><upkeep></white>/giorno, morosa <white><delinquent>"
+    land: "<gray>Terreni <white><claims></white>, avamposti <white><outposts></white>, nucleo <white><core>"
+    people: "<gray>Membri <white><members></white>/<white><cap>"
+    state: "<gray>Congelata <white><frozen></white>, eliminata <white><deleted></white>, immunita' <white><immunity>"
+    upgrades: "<gray>Livelli di potenziamento <white><bought></white>, unita' di difesa <white><defense>"
+  player:
+    header: "<dark_gray>--- <gold><player><dark_gray> ---"
+    money: "<gray>Saldo <white><balance></white>, congelato <white><frozen>"
+    city: "<gray>Citta' <white><city></white>, uuid <white><uuid>"
+    time: "<gray>Gioco <white><playtime></white>h, attivo <white><active></white>h, primo accesso <white><first></white>, ultimo <white><seen>"
+  ledger:
+    empty: "<gray>Nessuna transazione per <white><subject></white> in quel periodo."
+    header-player: "<dark_gray>--- <gold><count> transazione/i di <subject><dark_gray> ---"
+    header-city: "<dark_gray>--- <gold><count> transazione/i di <subject><dark_gray> ---"
+    header-type: "<dark_gray>--- <gold><count> transazione/i <subject><dark_gray> ---"
+    entry: "<gray><when> <white><type></white> <gold><amount></gold> <dark_gray>(dopo <after>, <actor>)"
+    exported: "<green>Scritte <white><count></white> righe in <white>exports/<file></white>."
+    export-failed: "<red>Impossibile scrivere l'esportazione. I dettagli sono nella console."
+  audit:
+    running: "<gray>Controllo degli ultimi <white><days></white> giorni..."
+    nothing: "<green>Niente di anomalo."
+    header: "<dark_gray>--- <gold><count> cosa/e da controllare<dark_gray> ---"
+    hit: "<yellow><rule> <gray><subject> <dark_gray><detail>"
+    disclaimer: "<gray>Sono indizi, non prove. Ognuno ha una spiegazione innocente: controlla il registro prima di agire."
+    log-empty: "<gray>Nessuna azione amministrativa in quel periodo."
+    log-header: "<dark_gray>--- <gold><count> azione/i amministrativa/e<dark_gray> ---"
+    log-entry: "<gray><when> <white><actor></white> <yellow><action></yellow> <gray><target> <dark_gray><reason>"
+  inspect:
+    "on": "<green>Modalita' ispezione attiva. Clicca un blocco per vedere chi lo possiede; i clic non romperanno nulla."
+    "off": "<gray>Modalita' ispezione disattivata."
+    wilderness: "<gray><world> <white><x>,<z></white>: terra di nessuno."
+    protected-wilderness: "<gray><world> <white><x>,<z></white>: terra di nessuno, <yellow>protetta dagli admin</yellow>."
+    claimed: "<gray><world> <white><x>,<z></white>: <gold><city></gold> (<type>), reclamato <white><claimed></white> da <white><by></white>, protetto <white><protected>"
+  alts:
+    none: "<gray>Nessun altro account condivide una connessione con <white><player></white>."
+    header: "<dark_gray>--- <gold><count> account che condividono una connessione con <player><dark_gray> ---"
+    entry: "<gray>  <player>"
+  economy:
+    header: "<dark_gray>--- <gold>Economia<dark_gray> --- <gray>circolante <white><circulation>"
+    entry: "<gray><rank>. <white><player></white> <gold><balance>"
   war:
     none: "<gray>Nessuna guerra registrata."
     already-finished: "<red>Quella guerra e' gia' finita."

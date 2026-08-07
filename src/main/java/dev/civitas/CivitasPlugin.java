@@ -550,6 +550,12 @@ public final class CivitasPlugin extends JavaPlugin {
         // SPEC 17.6 case 80. Built early because every admin command writes to it.
         dev.civitas.core.admin.AuditService auditService =
                 new dev.civitas.core.admin.AuditService(loadedDaos.auditLog(), getLogger());
+        dev.civitas.core.admin.FraudHeuristics fraudHeuristics =
+                new dev.civitas.core.admin.FraudHeuristics(configs);
+        dev.civitas.core.admin.InspectMode inspectMode =
+                new dev.civitas.core.admin.InspectMode(claimRegistry, cityRegistry);
+        dev.civitas.core.admin.LedgerExport ledgerExport =
+                new dev.civitas.core.admin.LedgerExport(getDataFolder());
 
         // SPEC 4.7's bounties. Beside the economy rather than inside the war package: the
         // money moves whether or not a war ever happens, and only the payout is war-gated.
@@ -594,7 +600,8 @@ public final class CivitasPlugin extends JavaPlugin {
                 challengeService, leaderboardService, statsService, contestService,
                 eventService, warWiring.service(), warWiring.allies(), warWiring.peace(),
                 warWiring.capturePoints(), warWiring.rollback(), warWiring.trigger(),
-                auditService, loadedDaos, warWiring.scoreboard(),
+                auditService, fraudHeuristics, inspectMode, ledgerExport,
+                loadedDaos, warWiring.scoreboard(),
                 outpostService, outpostTeleport, upgradeService,
                 defenseService, diplomacyService, vaultService, vaultView,
                 menuManager, layoutLoader,
@@ -624,6 +631,9 @@ public final class CivitasPlugin extends JavaPlugin {
         getServer().getPluginManager().registerEvents(
                 new TeleportWarmupListener(spawnService, outpostTeleport), this);
         getServer().getPluginManager().registerEvents(new VaultListener(vaultView), this);
+        getServer().getPluginManager().registerEvents(new dev.civitas.listener
+                .AdminInspectListener(inspectMode, lang,
+                dev.civitas.listener.AdminInspectListener.ProtectedChunkLookup.none()), this);
         getServer().getPluginManager().registerEvents(new DefenseListener(this, defenseService,
                 defenseBehaviour, cityRegistry, lang, getLogger()), this);
         scheduleDefenseLeash(new dev.civitas.core.defense.DefenseLeash(defenseRegistry,
