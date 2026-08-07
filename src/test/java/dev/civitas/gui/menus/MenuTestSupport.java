@@ -153,6 +153,8 @@ final class MenuTestSupport implements AutoCloseable {
                         new dev.civitas.core.war.ChunkHasher(cities.configs), quiet()),
                 war -> { },
                 new dev.civitas.core.admin.AuditService(cities.daos.auditLog(), quiet()),
+                new dev.civitas.core.admin.AdminProtection(cities.daos.protectedChunks(),
+                        quiet()),
                 new dev.civitas.core.admin.FraudHeuristics(cities.configs),
                 new dev.civitas.core.admin.InspectMode(cities.claimRegistry, cities.registry),
                 new dev.civitas.core.admin.LedgerExport(dataFolder),

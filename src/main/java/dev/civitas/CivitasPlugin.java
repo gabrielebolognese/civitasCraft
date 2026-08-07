@@ -550,6 +550,18 @@ public final class CivitasPlugin extends JavaPlugin {
         // SPEC 17.6 case 80. Built early because every admin command writes to it.
         dev.civitas.core.admin.AuditService auditService =
                 new dev.civitas.core.admin.AuditService(loadedDaos.auditLog(), getLogger());
+        // SPEC 9.4.3's protected chunks, loaded before anything can ask about them.
+        dev.civitas.core.admin.AdminProtection adminProtection =
+                new dev.civitas.core.admin.AdminProtection(loadedDaos.protectedChunks(),
+                        getLogger());
+        adminProtection.loadAll().thenAccept(loaded -> {
+            if (loaded > 0) {
+                getLogger().info("Loaded " + loaded + " admin-protected chunk(s).");
+            }
+        });
+        claimService.useAdminProtection(adminProtection);
+        protection.useAdminProtection(adminProtection);
+
         dev.civitas.core.admin.FraudHeuristics fraudHeuristics =
                 new dev.civitas.core.admin.FraudHeuristics(configs);
         dev.civitas.core.admin.InspectMode inspectMode =
@@ -591,6 +603,7 @@ public final class CivitasPlugin extends JavaPlugin {
         statsService.useWars(warWiring.registry());                   // SPEC 13.3 Builder
         defenseService.useWars(warWiring.registry());                 // SPEC 12.4 price
         defenseBehaviour.useWars(warWiring.registry());               // SPEC 12.3 targeting
+        warWiring.restrictions().useAdminProtection(adminProtection); // SPEC 11.6
 
         services.set(new CivitasServices(cityRegistry, cityService, rankService, claimRegistry,
                 claimService, claimMap, borderRenderer, protection, protectionGuard,
@@ -600,7 +613,8 @@ public final class CivitasPlugin extends JavaPlugin {
                 challengeService, leaderboardService, statsService, contestService,
                 eventService, warWiring.service(), warWiring.allies(), warWiring.peace(),
                 warWiring.capturePoints(), warWiring.rollback(), warWiring.trigger(),
-                auditService, fraudHeuristics, inspectMode, ledgerExport,
+                auditService, adminProtection, fraudHeuristics, inspectMode,
+                ledgerExport,
                 loadedDaos, warWiring.scoreboard(),
                 outpostService, outpostTeleport, upgradeService,
                 defenseService, diplomacyService, vaultService, vaultView,

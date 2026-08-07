@@ -48,7 +48,8 @@ public final class AdminCommand {
                     help(context.getSource().getSender());
                     return Command.SINGLE_SUCCESS;
                 })
-                .then(new AdminWarCommands(services, lang, scheduler, logger).build());
+                .then(new AdminWarCommands(services, lang, scheduler, logger).build())
+                .then(new AdminClaimCommands(services, lang, scheduler, logger).build());
         new AdminInspectCommands(services, lang, scheduler, logger).build()
                 .forEach(root::then);
         return root.build();
@@ -57,6 +58,7 @@ public final class AdminCommand {
     private void help(net.kyori.adventure.audience.Audience audience) {
         lang.sendRaw(audience, "admin.help-header");
         lang.sendRaw(audience, "admin.help-inspect");
+        lang.sendRaw(audience, "admin.help-claim");
         lang.sendRaw(audience, "admin.help-war");
     }
 }

@@ -801,6 +801,137 @@ public final class ClaimService {
     }
 
     // ==================================================================================
+    // SPEC 9.4.3, the admin paths
+    // ==================================================================================
+
+    /**
+     * SPEC 9.4.3: "Force-claim current chunk for a city, ignoring adjacency, distance, cost,
+     * and contiguity."
+     *
+     * <p>A separate method rather than a flag on {@link #claim}, for the reason every admin
+     * path in this plugin is separate: those five rules exist to constrain a player, and a
+     * flag would put the bypass inside the branch a player takes. The one rule kept is the
+     * unique index, which is not a rule but a fact — two cities cannot own one chunk, and an
+     * admin cannot make them.
+     *
+     * <p>Free, per SPEC. The city pays nothing and {@code cost_paid} is zero, which means a
+     * later unclaim refunds nothing: land an admin gave is not land the city bought.
+     */
+    public CompletableFuture<Result<Claim>> adminForceClaim(City city, String world, int chunkX,
+                                                             int chunkZ, UUID admin) {
+        long now = System.currentTimeMillis();
+        if (registry.at(world, chunkX, chunkZ).isPresent()) {
+            return completed(Result.failure("CHUNK_CLAIMED", "claim.chunk-claimed"));
+        }
+
+        return db.transaction(connection -> {
+            long id;
+            try {
+                id = daos.claims().insert(connection, new ClaimRow(0, city.id(), world,
+                        chunkX, chunkZ, now, admin, BigDecimal.ZERO,
+                        ClaimType.NORMAL.name(), null));
+            } catch (SQLException e) {
+                if (isUniqueViolation(e)) {
+                    return Result.<Claim>failure("CHUNK_CLAIMED", "claim.chunk-claimed");
+                }
+                throw e;
+            }
+            return Result.success(new Claim(id, city.id(), world, chunkX, chunkZ, now, admin,
+                    BigDecimal.ZERO, ClaimType.NORMAL, null));
+        }).thenApply(result -> {
+            if (result instanceof Result.Success<Claim>(Claim claim)) {
+                scheduler.runOnMain(() -> registry.put(claim));
+            }
+            return result;
+        });
+    }
+
+    /**
+     * SPEC 9.4.3: "Force-unclaim current chunk, no refund."
+     *
+     * <p>Ignores every reason a player would be refused, including the contiguity rule — which
+     * is the point, since SPEC 9.4.3 also gives an admin {@code fixcontiguity} to clean up
+     * after. It can therefore leave a city split or, per SPEC 17.2 case 19, without a core.
+     * Promoting the oldest remaining claim to CORE is handled here rather than left to be
+     * discovered.
+     */
+    public CompletableFuture<Result<Claim>> adminForceUnclaim(String world, int chunkX,
+                                                               int chunkZ) {
+        Claim claim = registry.at(world, chunkX, chunkZ).orElse(null);
+        if (claim == null) {
+            return completed(Result.failure("NOT_CLAIMED", "claim.not-claimed"));
+        }
+
+        return db.transaction(connection -> {
+            daos.claims().deleteAt(connection, world, chunkX, chunkZ);
+            return Result.success(claim);
+        }).thenApply(result -> {
+            if (result instanceof Result.Success<Claim>(Claim removed)) {
+                scheduler.runOnMain(() -> {
+                    registry.remove(removed);
+                    promoteCoreIfNeeded(removed);
+                });
+            }
+            return result;
+        });
+    }
+
+    /**
+     * SPEC 17.2 case 19: "Core chunk is force-unclaimed by an admin. The oldest remaining
+     * claim is promoted to CORE. If none, city becomes homeless."
+     *
+     * <p>Only the in-memory type is changed here; the row keeps its stored type until the next
+     * write. That is a knowing simplification: nothing reads {@code claims.type} from storage
+     * at runtime, because the registry is the authority (SPEC 2.3), and the alternative is a
+     * second write inside a path an admin uses to clean up a broken city.
+     */
+    private void promoteCoreIfNeeded(Claim removed) {
+        if (removed.type() != ClaimType.CORE) {
+            return;
+        }
+        registry.claimsOf(removed.cityId()).stream()
+                .filter(claim -> claim.type() != ClaimType.OUTPOST)
+                .min(Comparator.comparingLong(Claim::claimedAt))
+                .ifPresent(oldest -> {
+                    Claim promoted = new Claim(oldest.id(), oldest.cityId(), oldest.world(),
+                            oldest.chunkX(), oldest.chunkZ(), oldest.claimedAt(),
+                            oldest.claimedBy(), oldest.costPaid(), ClaimType.CORE,
+                            oldest.outpostId());
+                    registry.remove(oldest);
+                    registry.put(promoted);
+                });
+    }
+
+    /** SPEC 9.4.3: "Move ownership of current chunk to another city." */
+    public CompletableFuture<Result<Claim>> adminTransfer(City to, String world, int chunkX,
+                                                           int chunkZ) {
+        Claim claim = registry.at(world, chunkX, chunkZ).orElse(null);
+        if (claim == null) {
+            return completed(Result.failure("NOT_CLAIMED", "claim.not-claimed"));
+        }
+        if (claim.cityId() == to.id()) {
+            return completed(Result.failure("ALREADY_OWNED", "admin.claim.already-owned"));
+        }
+
+        Claim moved = new Claim(claim.id(), to.id(), world, chunkX, chunkZ, claim.claimedAt(),
+                claim.claimedBy(), claim.costPaid(), ClaimType.NORMAL, null);
+
+        return db.transaction(connection -> {
+            daos.claims().updateCity(connection, claim.id(), to.id());
+            return Result.success(moved);
+        }).thenApply(result -> {
+            if (result instanceof Result.Success<Claim>(Claim updated)) {
+                scheduler.runOnMain(() -> {
+                    registry.remove(claim);
+                    registry.put(updated);
+                    promoteCoreIfNeeded(claim);
+                });
+            }
+            return result;
+        });
+    }
+
+    // ==================================================================================
     // Seams for milestones that do not exist yet
     // ==================================================================================
 
@@ -827,10 +958,18 @@ public final class ClaimService {
     /**
      * SPEC 6.3 precondition 10: admin-protected chunks cannot be claimed.
      *
-     * <p>Always false until M21 adds {@code /ca claim protect}. Same reasoning as above.
+     * <p>The last seam in the plugin, open since M3 and closed by SPEC 9.4.3's
+     * {@code /ca claim protect}. Answers from memory, because it is asked on every claim.
      */
     private boolean isAdminProtected(String world, int chunkX, int chunkZ) {
-        return false;
+        return adminProtection != null && adminProtection.isProtected(world, chunkX, chunkZ);
+    }
+
+    private dev.civitas.core.admin.AdminProtection adminProtection;
+
+    /** SPEC 6.3 precondition 10, wired by M21. */
+    public void useAdminProtection(dev.civitas.core.admin.AdminProtection protection) {
+        this.adminProtection = protection;
     }
 
     // ==================================================================================

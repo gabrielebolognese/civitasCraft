@@ -96,6 +96,14 @@ public final class WarRestrictions {
         if (actor == null) {
             return false;
         }
+        // SPEC 11.6 lists admin-protected chunks among the three things that stay protected
+        // even in war, alongside the City Hall and defense unit spawners. Without this a
+        // protected build inside a zone would be flattened and then restored, which is not
+        // the same as never being touched: the rollback is a promise about the end state and
+        // this is a promise about the whole war.
+        if (adminProtection != null && adminProtection.isProtectedAtBlock(world, x, z)) {
+            return false;
+        }
         Optional<Integer> actorCity = cities.cityOf(actor).map(dev.civitas.core.city.City::id);
         if (actorCity.isEmpty()) {
             return false;
@@ -155,6 +163,13 @@ public final class WarRestrictions {
      */
     public boolean suppressesDrops(String world, int x, int z) {
         return !registry.activeWarsCovering(world, x, z).isEmpty();
+    }
+
+    private dev.civitas.core.admin.AdminProtection adminProtection;
+
+    /** SPEC 11.6's admin-protected chunks, wired by M21. */
+    public void useAdminProtection(dev.civitas.core.admin.AdminProtection protection) {
+        this.adminProtection = protection;
     }
 
     /** Whether any war is ACTIVE at all, for the listeners' first line. */

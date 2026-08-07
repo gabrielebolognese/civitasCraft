@@ -195,6 +195,7 @@ city:
 claim:
   # SPEC 6.3, buying land
   chunk-claimed: "<red>This chunk already belongs to another city."
+  not-claimed: "<red>This chunk belongs to no city."
   already-owned: "<red>Your city already owns this chunk."
   not-adjacent: "<red>A new chunk must share an edge with land you already own. Corners do not count."
   no-anchor: "<red>Your city owns nothing in this world. Use an outpost to settle a new one."
@@ -1033,6 +1034,19 @@ bounty:
 admin:
   help-header: "<dark_gray>--- <gold>CivitasCraft administration<dark_gray> ---"
   help-war: "<gray>/ca war <white>list | cancel | forceend | extend | rollback | rollbackstatus | verify | immunity"
+  help-claim: "<gray>/ca claim <white>info | force | unclaim | transfer | protect <on|off>"
+  protection:
+    blocked: "<red>This chunk is protected by an administrator."
+  claim:
+    not-claimed: "<gray>This chunk belongs to no city."
+    already-owned: "<red>That city already owns this chunk."
+    info-claimed: "<gray><world> <white><x>,<z></white>: <gold><city></gold> (<type>), admin-protected <white><protected>"
+    info-wilderness: "<gray><world> <white><x>,<z></white>: wilderness, admin-protected <white><protected>"
+    forced: "<green>Claimed <white><x>,<z></white> for <white><city></white>, free and ignoring every precondition."
+    unclaimed: "<green>Released <white><x>,<z></white>. Nothing was refunded."
+    transferred: "<green><x>,<z></white> now belongs to <white><city></white>."
+    protected: "<green><world> <white><x>,<z></white> is now admin-protected: unclaimable, unbuildable and war-immune."
+    unprotected: "<gray><world> <white><x>,<z></white> is no longer admin-protected."
   help-inspect: "<gray>/ca <white>info | player | ledger | audit | inspect | alts | economy stats"
   info:
     header: "<dark_gray>--- <gold><city><dark_gray> ---"

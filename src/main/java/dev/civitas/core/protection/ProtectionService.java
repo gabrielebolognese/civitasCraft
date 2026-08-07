@@ -50,6 +50,18 @@ public final class ProtectionService {
             return ProtectionDecision.ALLOWED;
         }
 
+        // SPEC 9.4.3: an admin-protected chunk is "unbuildable", full stop. Checked before
+        // ownership because it is not a question about ownership: the answer is no for the
+        // city that owns the ground as much as for a stranger, which is what makes it usable
+        // for a spawn area sitting inside somebody's claims.
+        //
+        // After bypass, though. An admin who protected a chunk by mistake must be able to
+        // reach it, and civitas.bypass.claim is how.
+        if (isAdminProtected(world, chunkX, chunkZ)) {
+            return ProtectionDecision.deny("ADMIN_PROTECTED", "admin.protection.blocked",
+                    Map.of());
+        }
+
         Optional<Claim> claim = claims.at(world, chunkX, chunkZ);
         if (claim.isEmpty()) {
             // Wilderness. SPEC 5.5 protects claims, not the world.
@@ -276,6 +288,24 @@ public final class ProtectionService {
     private boolean isAtWar(City city, String world, int chunkX, int chunkZ) {
         return wars != null && wars.isEngaged(city.id())
                 && !wars.isZoneClosed(world, chunkX << 4, chunkZ << 4);
+    }
+
+    private dev.civitas.core.admin.AdminProtection adminProtection;
+
+    /**
+     * SPEC 9.4.3's "unbuildable", wired by M21.
+     *
+     * <p>Stronger than a claim and deliberately so: a claim answers "may this player build
+     * here", and this answers "may anybody". That is what makes it usable for a spawn area,
+     * where the answer has to be no even for the city that owns the ground.
+     */
+    public void useAdminProtection(dev.civitas.core.admin.AdminProtection protection) {
+        this.adminProtection = protection;
+    }
+
+    /** Whether an admin has taken this chunk out of play entirely. */
+    public boolean isAdminProtected(String world, int chunkX, int chunkZ) {
+        return adminProtection != null && adminProtection.isProtected(world, chunkX, chunkZ);
     }
 
     private dev.civitas.core.war.WarRestrictions wars;

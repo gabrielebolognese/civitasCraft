@@ -195,6 +195,7 @@ city:
 claim:
   # SPEC 6.3, acquisto del territorio
   chunk-claimed: "<red>Questo chunk appartiene gia a un'altra citta."
+  not-claimed: "<red>Questo chunk non appartiene a nessuna citta'."
   already-owned: "<red>La tua citta possiede gia questo chunk."
   not-adjacent: "<red>Un nuovo chunk deve condividere un lato con territorio che gia possiedi. Gli angoli non contano."
   no-anchor: "<red>La tua citta non possiede nulla in questo mondo. Usa un avamposto per insediarti."
@@ -1032,6 +1033,19 @@ bounty:
 admin:
   help-header: "<dark_gray>--- <gold>Amministrazione CivitasCraft<dark_gray> ---"
   help-war: "<gray>/ca war <white>list | cancel | forceend | extend | rollback | rollbackstatus | verify | immunity"
+  help-claim: "<gray>/ca claim <white>info | force | unclaim | transfer | protect <on|off>"
+  protection:
+    blocked: "<red>Questo chunk e' protetto da un amministratore."
+  claim:
+    not-claimed: "<gray>Questo chunk non appartiene a nessuna citta'."
+    already-owned: "<red>Quella citta' possiede gia' questo chunk."
+    info-claimed: "<gray><world> <white><x>,<z></white>: <gold><city></gold> (<type>), protetto <white><protected>"
+    info-wilderness: "<gray><world> <white><x>,<z></white>: terra di nessuno, protetto <white><protected>"
+    forced: "<green>Chunk <white><x>,<z></white> assegnato a <white><city></white>, gratis e ignorando ogni condizione."
+    unclaimed: "<green>Rilasciato <white><x>,<z></white>. Nessun rimborso."
+    transferred: "<green><x>,<z></white> ora appartiene a <white><city></white>."
+    protected: "<green><world> <white><x>,<z></white> e' ora protetto: non reclamabile, non edificabile e immune alla guerra."
+    unprotected: "<gray><world> <white><x>,<z></white> non e' piu' protetto."
   help-inspect: "<gray>/ca <white>info | player | ledger | audit | inspect | alts | economy stats"
   info:
     header: "<dark_gray>--- <gold><city><dark_gray> ---"

@@ -1,5 +1,6 @@
 package dev.civitas;
 
+import dev.civitas.core.admin.AdminProtection;
 import dev.civitas.core.admin.AuditService;
 import dev.civitas.core.admin.FraudHeuristics;
 import dev.civitas.core.admin.InspectMode;
@@ -92,6 +93,7 @@ public record CivitasServices(
         RollbackEngine rollback,
         java.util.function.Consumer<War> rollbackTrigger,
         AuditService audit,
+        AdminProtection adminProtection,
         FraudHeuristics fraud,
         InspectMode inspect,
         LedgerExport ledgerExport,

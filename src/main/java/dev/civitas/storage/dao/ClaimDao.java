@@ -148,6 +148,12 @@ public final class ClaimDao extends Dao<ClaimRow> {
     }
 
     /** Moves a chunk to another city, SPEC 9.4.3 {@code /ca claim transfer}. */
+    /** SPEC 9.4.3's claim transfer, inside the caller's transaction. */
+    public int updateCity(Connection connection, long claimId, int cityId) throws SQLException {
+        return updateSync(connection, "UPDATE claims SET city_id = ? WHERE id = ?",
+                cityId, claimId);
+    }
+
     public CompletableFuture<Integer> updateCity(long claimId, int cityId) {
         return db.call(connection -> updateSync(connection,
                 "UPDATE claims SET city_id = ? WHERE id = ?", cityId, claimId));
