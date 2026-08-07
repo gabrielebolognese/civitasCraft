@@ -1,5 +1,6 @@
 package dev.civitas;
 
+import dev.civitas.core.admin.AuditService;
 import dev.civitas.core.city.CityRegistry;
 import dev.civitas.core.city.CityService;
 import dev.civitas.core.city.CityHall;
@@ -26,6 +27,8 @@ import dev.civitas.core.contest.ContestService;
 import dev.civitas.core.diplomacy.DiplomacyService;
 import dev.civitas.core.events.EventService;
 import dev.civitas.core.war.CapturePoints;
+import dev.civitas.core.war.RollbackEngine;
+import dev.civitas.core.war.War;
 import dev.civitas.core.war.PeaceOffer;
 import dev.civitas.core.war.WarAllies;
 import dev.civitas.core.war.WarScoreboard;
@@ -83,6 +86,10 @@ public record CivitasServices(
         WarAllies warAllies,
         PeaceOffer peaceOffers,
         CapturePoints capturePoints,
+        RollbackEngine rollback,
+        java.util.function.Consumer<War> rollbackTrigger,
+        AuditService audit,
+        dev.civitas.storage.dao.DaoRegistry daos,
         WarScoreboard warScoreboard,
         OutpostService outposts,
         OutpostTeleport outpostTeleport,

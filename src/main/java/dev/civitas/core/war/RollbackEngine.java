@@ -475,6 +475,95 @@ public final class RollbackEngine {
         });
     }
 
+    /**
+     * SPEC 9.4.5's {@code /ca war verify}: "Dry-run integrity check of the block log, reports
+     * any entries that would fail to restore and why."
+     *
+     * <p>A dry run in the strict sense — it reads every entry, asks whether it could be
+     * applied, and writes nothing. The value is in running it <em>before</em> a rollback rather
+     * than finding the answer during one, which is why SPEC 18.3 step 9 makes it the last check
+     * before a server may launch.
+     *
+     * <p>Three things can make an entry unrestorable, and each is reported separately because
+     * each has a different fix: a world that no longer exists (restore the world, or accept the
+     * loss), block data this build cannot parse (a version change), and a position outside the
+     * world's height range (a height change since the war).
+     */
+    public CompletableFuture<VerifyReport> verifyLog(int warId) {
+        return verifyPage(warId, Long.MAX_VALUE, new VerifyAccumulator());
+    }
+
+    /** What a dry run found. Clean means every entry could be applied today. */
+    public record VerifyReport(int warId, long entries, long unreadable, long missingWorlds,
+                               List<String> problems) {
+
+        public boolean isClean() {
+            return unreadable == 0 && missingWorlds == 0;
+        }
+    }
+
+    /** Running totals for the paged walk, kept out of the report so the report is immutable. */
+    private static final class VerifyAccumulator {
+        private long entries;
+        private long unreadable;
+        private long missingWorlds;
+        private final List<String> problems = new ArrayList<>();
+
+        void problem(String detail) {
+            // Bounded: a log with a million broken rows would otherwise produce a million
+            // lines of chat, and the first twenty say the same thing as the millionth.
+            if (problems.size() < 20) {
+                problems.add(detail);
+            }
+        }
+    }
+
+    private CompletableFuture<VerifyReport> verifyPage(int warId, long before,
+                                                       VerifyAccumulator totals) {
+        return daos.warBlockLog().findForReplay(warId, before, readPageSize())
+                .thenCompose(rows -> {
+                    if (rows.isEmpty()) {
+                        return CompletableFuture.completedFuture(new VerifyReport(warId,
+                                totals.entries, totals.unreadable, totals.missingWorlds,
+                                List.copyOf(totals.problems)));
+                    }
+                    long lowest = before;
+                    for (WarBlockLogRow row : rows) {
+                        totals.entries++;
+                        lowest = Math.min(lowest, row.sequence());
+                        verifyRow(row, totals);
+                    }
+                    return verifyPage(warId, lowest, totals);
+                });
+    }
+
+    private void verifyRow(WarBlockLogRow row, VerifyAccumulator totals) {
+        World world = Bukkit.getWorld(row.world());
+        if (world == null) {
+            totals.missingWorlds++;
+            totals.problem("world '" + row.world() + "' is not loaded, so "
+                    + row.x() + "," + row.y() + "," + row.z() + " cannot be restored");
+            return;
+        }
+        if (WarBlockRecorder.HANGING_MARKER.equals(row.oldBlockData())) {
+            // An entity rather than a block; its payload is checked when it is restored, and
+            // an unreadable one costs a decoration rather than a wall.
+            return;
+        }
+        if (row.y() < world.getMinHeight() || row.y() >= world.getMaxHeight()) {
+            totals.unreadable++;
+            totals.problem("y=" + row.y() + " is outside " + row.world() + "'s height range");
+            return;
+        }
+        try {
+            Bukkit.createBlockData(row.oldBlockData());
+        } catch (IllegalArgumentException e) {
+            totals.unreadable++;
+            totals.problem("unreadable block data '" + row.oldBlockData() + "' at "
+                    + row.x() + "," + row.y() + "," + row.z());
+        }
+    }
+
     /** Takes the pre-war hashes SPEC 11.8.4 compares against. Called at war start by M19. */
     public CompletableFuture<Integer> recordPreWarHashes(int warId, World world,
                                                          List<long[]> chunks) {

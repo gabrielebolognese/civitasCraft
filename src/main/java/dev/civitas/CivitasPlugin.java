@@ -9,6 +9,7 @@ import java.util.logging.Level;
 import dev.civitas.command.CommandRegistry;
 import dev.civitas.command.city.CityCommand;
 import dev.civitas.command.player.MoneyCommand;
+import dev.civitas.command.admin.AdminCommand;
 import dev.civitas.command.player.BountyCommand;
 import dev.civitas.command.player.PayCommand;
 import dev.civitas.command.diplomacy.AllianceChatCommand;
@@ -174,6 +175,8 @@ public final class CivitasPlugin extends JavaPlugin {
         PayCommand payCommand = new PayCommand(services::get, lang, scheduler, getLogger());
         BountyCommand bountyCommand =
                 new BountyCommand(services::get, lang, scheduler, getLogger());
+        AdminCommand adminCommand =
+                new AdminCommand(services::get, lang, scheduler, getLogger());
         ShopCommand shopCommand = new ShopCommand(services::get, lang, scheduler, getLogger());
         SellCommand sellCommand = new SellCommand(services::get, lang, scheduler, getLogger());
         WorthCommand worthCommand = new WorthCommand(services::get, lang);
@@ -192,7 +195,7 @@ public final class CivitasPlugin extends JavaPlugin {
                         allyCommand.buildAlly(), allyCommand.buildTruce(),
                         allianceChat.build(), leaderboardCommand.build(),
                         contestCommand.build(), warCommand.build(),
-                        bountyCommand.build()));
+                        bountyCommand.build(), adminCommand.build()));
 
         warnIfRollbackDisabled();
         openDatabaseAsync(scheduler);
@@ -544,6 +547,10 @@ public final class CivitasPlugin extends JavaPlugin {
 
         this.borders = borderRenderer;
 
+        // SPEC 17.6 case 80. Built early because every admin command writes to it.
+        dev.civitas.core.admin.AuditService auditService =
+                new dev.civitas.core.admin.AuditService(loadedDaos.auditLog(), getLogger());
+
         // SPEC 4.7's bounties. Beside the economy rather than inside the war package: the
         // money moves whether or not a war ever happens, and only the payout is war-gated.
         dev.civitas.core.economy.BountyService bountyService =
@@ -586,7 +593,8 @@ public final class CivitasPlugin extends JavaPlugin {
                 upkeepTask, marketService, marketFilter, shopService, questService,
                 challengeService, leaderboardService, statsService, contestService,
                 eventService, warWiring.service(), warWiring.allies(), warWiring.peace(),
-                warWiring.capturePoints(), warWiring.scoreboard(),
+                warWiring.capturePoints(), warWiring.rollback(), warWiring.trigger(),
+                auditService, loadedDaos, warWiring.scoreboard(),
                 outpostService, outpostTeleport, upgradeService,
                 defenseService, diplomacyService, vaultService, vaultView,
                 menuManager, layoutLoader,
@@ -819,7 +827,9 @@ public final class CivitasPlugin extends JavaPlugin {
                              dev.civitas.core.war.PeaceOffer peace,
                              dev.civitas.core.war.CapturePoints capturePoints,
                              dev.civitas.core.war.WarScoreboard scoreboard,
-                             dev.civitas.core.war.WarRestrictions restrictions) { }
+                             dev.civitas.core.war.WarRestrictions restrictions,
+                             dev.civitas.core.war.RollbackEngine rollback,
+                             java.util.function.Consumer<dev.civitas.core.war.War> trigger) { }
 
     private WarWiring startWarSystem(DatabaseManager database, DaoRegistry loadedDaos,
                                 CityRegistry cityRegistry, ClaimRegistry claimRegistry,
@@ -974,7 +984,13 @@ public final class CivitasPlugin extends JavaPlugin {
         Bukkit.getScheduler().runTaskTimerAsynchronously(this, lootLog::flush, ticks, ticks);
 
         return new WarWiring(warRegistry, warRewards, payouts.marketBonusPercent(),
-                warService, warAllies, peaceOffers, capturePoints, scoreboard, warRestrictions);
+                warService, warAllies, peaceOffers, capturePoints, scoreboard, warRestrictions,
+                rollback, war -> {
+                    // SPEC 9.4.5's /ca war rollback, taking exactly the path the phase task
+                    // takes when a war ends on its own: freeze the log, then replay it.
+                    blockLog.freeze(war.id());
+                    beginRollbackFor(rollback, blockLog, war.id());
+                });
     }
 
     /**

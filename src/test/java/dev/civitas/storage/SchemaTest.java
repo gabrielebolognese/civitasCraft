@@ -143,6 +143,13 @@ class SchemaTest {
         // in a war is gone before anything can ask it what it was.
         schema.put("war_entity_snapshots", List.of("id", "war_id", "entity_uuid", "entity_type",
                 "world", "x", "y", "z", "payload", "died_at", "snapshot_at"));
+        // V13, SPEC 9.4.3: chunks an admin has taken out of play entirely. Its own table
+        // because a protected chunk is usually wilderness and so is not a claim in any sense.
+        schema.put("admin_protected_chunks", List.of("world", "chunk_x", "chunk_z",
+                "protected_by", "protected_at", "reason"));
+        // V13, SPEC 15.3: the moderation queue.
+        schema.put("reports", List.of("id", "reporter_uuid", "target_uuid", "reason",
+                "created_at", "state", "handled_by", "handled_at", "resolution"));
         return schema;
     }
 

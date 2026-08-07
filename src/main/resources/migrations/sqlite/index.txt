@@ -13,3 +13,4 @@ V9__contests.sql
 V10__server_events.sql
 V11__rollback.sql
 V12__war_lifecycle.sql
+V13__admin.sql

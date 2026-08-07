@@ -360,6 +360,176 @@ public final class WarService {
         return daos.wars().findByCity(cityId, limit);
     }
 
+    // ==================================================================================
+    // SPEC 9.4.5, the admin paths
+    // ==================================================================================
+
+    /**
+     * SPEC 9.4.5: "Cancels a war, refunds both wagers in full, triggers immediate rollback."
+     *
+     * <p>Deliberately its own method rather than a flag on the player path. Every precondition
+     * in SPEC 11.3 exists to stop a player doing something; an admin is expected to be able to
+     * do it anyway, and expressing that as a bypass flag would put the bypass inside the same
+     * branch a player takes. A separate method cannot leak.
+     *
+     * <p>Both wagers come back in full, which is SPEC 11.9's "Admin cancelled" row: the war did
+     * not happen, so nobody should be poorer for it. The rollback still runs, because the
+     * damage did happen.
+     */
+    public CompletableFuture<Result<War>> adminCancel(UUID admin, int warId, String reason,
+                                                      long now) {
+        War war = registry.war(warId).orElse(null);
+        if (war == null) {
+            return completed(Result.failure("NO_SUCH_WAR", "war.unknown"));
+        }
+        if (war.state().isFinished()) {
+            return completed(Result.failure("ALREADY_FINISHED", "admin.war.already-finished"));
+        }
+
+        WarPayouts payouts = new WarPayouts(configs);
+        BigDecimal each = payouts.cancelled(war.wager()).winnerReturn();
+
+        return db.transaction(connection -> {
+            for (int cityId : war.side(true)) {
+                Result<BigDecimal> back = refund(connection, cityId, each, warId, "cancelled");
+                if (back instanceof Result.Failure<BigDecimal> failure) {
+                    return Result.<War>propagate(failure);
+                }
+            }
+            for (int cityId : war.side(false)) {
+                Result<BigDecimal> back = refund(connection, cityId, each, warId, "cancelled");
+                if (back instanceof Result.Failure<BigDecimal> failure) {
+                    return Result.<War>propagate(failure);
+                }
+            }
+            return Result.success(war);
+        }).thenApply(result -> {
+            if (result instanceof Result.Success<War>) {
+                // No winner: a cancelled war goes on nobody's record. SPEC 11.9 pays it out
+                // as a non-event, and a W or an L for a war an admin stopped would be a lie.
+                //
+                // A war that was ACTIVE still has damage logged against it, and SPEC 1.2 does
+                // not care why the war ended, so it goes to ROLLING_BACK. One still in PREP
+                // destroyed nothing and simply cancels.
+                war.winnerCityId(null);
+                war.state(war.state() == WarState.ACTIVE
+                        ? WarState.ROLLING_BACK
+                        : WarState.CANCELLED);
+            }
+            return result;
+        });
+    }
+
+    /**
+     * SPEC 9.4.5: "Ends a war early with a specified result, runs rollback."
+     *
+     * <p>The result is imposed rather than computed, which is the whole point of the command:
+     * an admin uses it when the scores do not reflect what happened. The payout follows SPEC
+     * 11.9 exactly as a natural ending would, so a war an admin ended pays what a war that ran
+     * its course would have paid.
+     */
+    public CompletableFuture<Result<War>> adminForceEnd(UUID admin, int warId, String result,
+                                                        String reason, long now) {
+        War war = registry.war(warId).orElse(null);
+        if (war == null) {
+            return completed(Result.failure("NO_SUCH_WAR", "war.unknown"));
+        }
+        if (war.state().isFinished()) {
+            return completed(Result.failure("ALREADY_FINISHED", "admin.war.already-finished"));
+        }
+
+        // The clock is moved to now so the phase task treats the war as over rather than
+        // fighting the admin over it on the next sweep.
+        war.winnerCityId(switch (result) {
+            case "attacker" -> war.attackerCityId();
+            case "defender" -> war.defenderCityId();
+            default -> null;
+        });
+        war.state(WarState.ROLLING_BACK);
+
+        return daos.wars().findById(warId)
+                .thenCompose(row -> row.map(existing -> daos.wars().update(
+                                new dev.civitas.storage.row.WarRow(existing.id(),
+                                        existing.attackerCityId(), existing.defenderCityId(),
+                                        existing.declaredAt(), existing.prepEndsAt(), now,
+                                        WarState.ROLLING_BACK.key(), existing.attackerScore(),
+                                        existing.defenderScore(), war.winnerCityId(),
+                                        existing.wager(), null,
+                                        existing.rollbackCheckpointSequence()))
+                                .thenApply(updated -> Result.success(war)))
+                        .orElseGet(() -> completed(Result.failure("NO_SUCH_WAR", "war.unknown"))));
+    }
+
+    /** SPEC 9.4.5: "Extends the war window." */
+    public CompletableFuture<Result<War>> adminExtend(int warId, long extraMillis) {
+        War war = registry.war(warId).orElse(null);
+        if (war == null) {
+            return completed(Result.failure("NO_SUCH_WAR", "war.unknown"));
+        }
+        if (war.state().isFinished()) {
+            return completed(Result.failure("ALREADY_FINISHED", "admin.war.already-finished"));
+        }
+
+        return daos.wars().findById(warId)
+                .thenCompose(row -> row.map(existing -> daos.wars().update(
+                                new dev.civitas.storage.row.WarRow(existing.id(),
+                                        existing.attackerCityId(), existing.defenderCityId(),
+                                        existing.declaredAt(), existing.prepEndsAt(),
+                                        existing.warEndsAt() + extraMillis, existing.state(),
+                                        existing.attackerScore(), existing.defenderScore(),
+                                        existing.winnerCityId(), existing.wager(), null,
+                                        existing.rollbackCheckpointSequence()))
+                                .thenApply(updated -> {
+                                    // War.warEndsAt is final, so extending means replacing the
+                                    // cached object. Everything else about it is carried over,
+                                    // including the zone, which SPEC 11.4 forbids recomputing.
+                                    War extended = new War(war.id(), war.attackerCityId(),
+                                            war.defenderCityId(), war.declaredAt(),
+                                            war.prepEndsAt(), war.warEndsAt() + extraMillis,
+                                            war.state(), war.wager());
+                                    extended.zone(war.zone());
+                                    extended.winnerCityId(war.winnerCityId());
+                                    extended.addScore(true, war.attackerScore());
+                                    extended.addScore(false, war.defenderScore());
+                                    for (int ally : war.attackerAllies()) {
+                                        extended.addAlly(ally, true);
+                                    }
+                                    for (int ally : war.defenderAllies()) {
+                                        extended.addAlly(ally, false);
+                                    }
+                                    registry.remember(extended);
+                                    return Result.success(extended);
+                                }))
+                        .orElseGet(() -> completed(
+                                Result.<War>failure("NO_SUCH_WAR", "war.unknown"))));
+    }
+
+    /** SPEC 9.4.5: "Grants war immunity." */
+    public CompletableFuture<Result<City>> adminGrantImmunity(City city, long until) {
+        return daos.cities().updateWarProtection(city.id(), until)
+                .thenApply(updated -> {
+                    city.setWarProtectionUntil(until);
+                    return Result.success(city);
+                });
+    }
+
+    /** Puts a wager back into one city's treasury, inside the caller's transaction. */
+    private Result<BigDecimal> refund(java.sql.Connection connection, int cityId,
+                                      BigDecimal amount, int warId, String why)
+            throws java.sql.SQLException {
+        if (amount.signum() <= 0) {
+            return Result.success(BigDecimal.ZERO);
+        }
+        City city = cities.city(cityId).orElse(null);
+        if (city == null) {
+            // A city that no longer exists cannot be paid. The war still ends.
+            return Result.success(BigDecimal.ZERO);
+        }
+        return treasury.adjust(connection, city, amount,
+                dev.civitas.core.economy.TransactionType.WAR_WAGER_REFUND, null,
+                "{\"war\":" + warId + ",\"reason\":\"" + why + "\"}");
+    }
+
     /** The last kills of a war, for SPEC 8.8's kill feed. */
     public java.util.concurrent.CompletableFuture<java.util.List<dev.civitas.storage.row.WarKillRow>>
             recentKills(int warId, int limit) {

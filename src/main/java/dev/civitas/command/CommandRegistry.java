@@ -39,14 +39,25 @@ public final class CommandRegistry {
             // SPEC 9.3, war and diplomacy.
 
 
-            // SPEC 9.4, admin.
-            CommandSpec.of("cityadmin", "civitas.admin", 21, "CivitasCraft administration.", "ca"),
-
             // SPEC 15.3, moderation.
             CommandSpec.of("report", "civitas.use", 22, "Report a player to the moderation queue."),
 
             // SPEC 9.1, the rules book.
             CommandSpec.of("civitas", "civitas.use", 23, "Plugin information and server rules."));
+
+    /**
+     * Aliases for commands that have a real implementation.
+     *
+     * <p>A stubbed command carries its aliases in its {@link CommandSpec}; an implemented one
+     * is a Brigadier node, which has no notion of an alias, so they live here. SPEC 9.4 gives
+     * {@code /cityadmin} the alias {@code /ca} and uses the short form throughout, so a server
+     * without it would not match its own documentation.
+     */
+    private static final java.util.Map<String, List<String>> ALIASES = java.util.Map.of(
+            "cityadmin", List.of("ca"),
+            // SPEC 9.1 lists these two as one command.
+            "money", List.of("balance"),
+            "citychat", List.of("cc"));
 
     private final JavaPlugin plugin;
     private final LangManager lang;
@@ -70,7 +81,8 @@ public final class CommandRegistry {
         plugin.getLifecycleManager().registerEventHandler(LifecycleEvents.COMMANDS, event -> {
             Commands registrar = event.registrar();
             for (LiteralCommandNode<CommandSourceStack> node : implemented) {
-                registrar.register(node, "CivitasCraft command.", List.of());
+                registrar.register(node, "CivitasCraft command.",
+                        ALIASES.getOrDefault(node.getLiteral(), List.of()));
             }
             for (CommandSpec spec : COMMANDS) {
                 registrar.register(build(spec), spec.description(), spec.aliases());
