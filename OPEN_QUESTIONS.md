@@ -1604,3 +1604,83 @@ Format:
   method on `QuotaCommand`, used by the two call sites that need it. Building the shared
   formatter now would be building part of M7a early and would then be replaced by it, since
   every other message in the plugin has to use the same one. *Date:* 2026-08-08
+
+- **[M9a]** Two of this milestone's seven mitigations **supersede a rule the codebase stated on
+  purpose**, and both deserve recording because a later reader will otherwise "fix" them back.
+  SPEC 21.4 F6 overrides SPEC 17.1 case 10's even disband split, which it identifies as a way to
+  launder money past the 25% withdrawal cap using alts who never deposited. And SPEC 21.4 F7
+  overrides what M19 recorded about SPEC 4.7's silence on self-claimed bounties — M19's reasoning
+  was that refusing a self-claim "would only teach players to place bounties through a second
+  account", and F7's answer is to block the second account too rather than allow the first. Both
+  carry a test that names the older rule in its comment. *Date:* 2026-08-08
+
+- **[M9a]** **`DatabaseManager.transaction` rolls back on a returned `Result.Failure`, and that
+  bit twice in this milestone in the same shape**: a write performed inside a transaction whose
+  common outcome is a refusal is silently discarded. `BountyService.claim` refunded a self-placed
+  bounty and then returned `NO_BOUNTY`, undoing the refund and leaving the bounty open;
+  `DailyLoginService` stamped SPEC 21.4 F12's daily baseline and then returned `NOT_ACTIVE_TODAY`,
+  so the baseline never persisted and "active playtime today" read zero forever. *Implemented
+  default:* the bounty path returns `Success(ZERO)` once a refund has happened, and the baseline
+  is written in its own transaction before the claim. Both were found by tests rather than by
+  review. The general rule, now hit four times across M14, M17, M18 and here: **if a method can
+  write and then refuse, the write and the refusal cannot share a transaction.** *Date:* 2026-08-08
+
+- **[M9a]** SPEC 21.11 lists `disband-treasury-split: BY_CONTRIBUTION | EVEN`. `EVEN` is the
+  exploit F6 exists to close, so the key is **not shipped**. Shipping it would put the
+  vulnerability behind a setting, which is the same call the config sweep made about
+  `player-shops.tax-percent` and `bounties.claimable-only-during-war`. There is a test asserting
+  the key is absent, so re-adding it is a decision somebody makes rather than a tidy-up.
+  *Date:* 2026-08-08
+
+- **[M9a]** SPEC 21.11 also names `stipend-required-distinct-action-types: 3`, which is the key
+  `income.stipend.required-actions` has held since M9 with the same default and the same meaning.
+  *Implemented default:* the older name is kept and the new one is not shipped, because two names
+  for one concept is exactly the dead twin the config sweep found three of. Only the genuinely new
+  half, `stipend-required-distinct-minutes`, is added. The value is a config key either way, which
+  is what the hard rule requires. *Date:* 2026-08-08
+
+- **[M9a]** SPEC 21.4 F12's "30 minutes of active playtime **that day**" has no data behind it:
+  `players.active_playtime_ms` is a lifetime counter. *Implemented default:* V17's
+  `player_daily_activity` stores a **baseline** — the lifetime figure as it stood when the day
+  turned — so today is the difference. That keeps the SPEC 4.2.1 filter as the only thing that
+  ever writes active playtime, where a second accrual could drift against the first. It also
+  means the rule fails open when the table is unreadable, deliberately: a missing table must not
+  stop legitimate players being paid, and the lifetime gate still stops the case F12 cares most
+  about. *Date:* 2026-08-08
+
+- **[M9a]** SPEC 21.4 F9 says "breaking a player-placed block does not count for mining quests",
+  which taken literally would break farming: a wheat crop is a block a player placed, and
+  harvesting it is the whole of SPEC 13.1's farming category. *Implemented default:* ripe crops
+  are exempt from the placed-block rule. Planting and harvesting is farming, and the point of a
+  farm is that somebody put the seed there. Without the exemption the "harvest 256 wheat" quest
+  would have become uncompletable by anyone who grew the wheat. *Date:* 2026-08-08
+
+- **[M9a]** SPEC 21.10.5 requires the placed-block cache to be "memory-bounded with LRU eviction"
+  and names no bound, so `placed-block-cache-max-chunks` (4,096) is this implementation's number.
+  What matters more than the number is the **direction eviction fails in**: a forgotten position
+  counts, so the worst case is a player getting quest credit they marginally should not have,
+  never a player robbed of credit they earned by a cache they cannot see. Asserted explicitly,
+  because the opposite choice looks equally reasonable in code and is much worse in play.
+  *Date:* 2026-08-08
+
+- **[M9a]** SPEC 21.4 F7's IP-linked rule reuses M15's `player_logins`, which stores a salted hash
+  and never an address. Two consequences carried over deliberately: it **fails open** when the
+  hash cannot be read, for the reason M15 recorded about losing the salt, and the refusal is
+  **silent** — telling a killer their bounty was voided would report on somebody else's connection
+  to a player who has no business knowing it, the same reasoning SPEC 13.4 uses for discarded
+  contest votes. The self-claim half does not depend on the table, so it still holds when the
+  IP half cannot run; there is a test for exactly that. *Date:* 2026-08-08
+
+- **[M9a]** SPEC 21.4 F4 filters the **leaderboard**, not the war. A walkover is still resolved,
+  still paid out and still in `/war history`; it simply does not rank, which is what "recorded but
+  not ranked" asks for. The threshold is compared with `CASE` rather than `MIN`/`LEAST`, because
+  the two-argument scalar form is spelled differently on SQLite and MySQL and `WarDao` runs on
+  both. *Date:* 2026-08-08
+
+- **[M9a]** Three existing test classes asserted the pre-F11 and pre-F16 behaviour and now turn
+  the new rule off in their own setup rather than being weakened. `ActivityTrackerTest` covers
+  SPEC 4.2.1's distinct-**kinds** rule and records in one burst to do it; `TreasuryServiceTest`
+  covers SPEC 8.5's 25% cap and every member in it joined moments ago. Each says why in a comment
+  and points at the class that does cover the new rule — including one asserting the 25% cap still
+  applies once F16's hold has passed, so the two rules are not traded for one another.
+  *Date:* 2026-08-08

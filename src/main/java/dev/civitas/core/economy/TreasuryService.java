@@ -12,6 +12,7 @@ import java.util.concurrent.CompletableFuture;
 import dev.civitas.config.ConfigFile;
 import dev.civitas.config.ConfigManager;
 import dev.civitas.core.city.City;
+import dev.civitas.core.city.CityMember;
 import dev.civitas.core.city.CityPermission;
 import dev.civitas.core.income.IncomeReporter;
 import dev.civitas.core.income.QuestMetric;
@@ -118,6 +119,43 @@ public final class TreasuryService {
     // ==================================================================================
 
     /** Moves money from the treasury into a member's wallet, subject to the 24-hour cap. */
+    /**
+     * SPEC 21.4 F16's 72-hour hold on a new member's first withdrawal.
+     *
+     * <p>Measured from when they joined <b>this</b> city, so leaving and rejoining restarts it
+     * — which is the point, since F16's exploit is "joining a city, withdrawing 25%, leaving,
+     * repeat" and a hold that survived the rejoin would only need to be waited out once.
+     *
+     * <p>A member the city does not know about is refused rather than allowed. Reaching this
+     * with no membership row means the permission check above passed on state that has since
+     * changed, and the safe answer to a race over somebody's treasury is no.
+     */
+    private Result<Void> requireMemberAge(City city, UUID actor, long now) {
+        Optional<CityMember> member = city.member(actor);
+        if (member.isEmpty()) {
+            return Result.failure("NOT_A_MEMBER", "city.not-a-member");
+        }
+        long held = holdMillis();
+        long elapsed = now - member.get().joinedAt();
+        if (held <= 0 || elapsed >= held) {
+            return Result.success(null);
+        }
+        long remaining = held - elapsed;
+        return Result.failure("MEMBER_TOO_NEW", "city.treasury.withdraw-too-new", Map.of(
+                "hours", String.valueOf(holdHours()),
+                "remaining", String.valueOf(Math.max(1, remaining / 3_600_000L))));
+    }
+
+    /** SPEC 21.11 {@code anti-abuse.treasury-withdraw-member-age-hours}, default 72. */
+    public long holdHours() {
+        return configs.get(ConfigFile.ECONOMY)
+                .getLong("anti-abuse.treasury-withdraw-member-age-hours", 72);
+    }
+
+    private long holdMillis() {
+        return holdHours() * 3_600_000L;
+    }
+
     public CompletableFuture<Result<BigDecimal>> withdraw(UUID actor, City city, BigDecimal amount) {
         Result<Void> guard = require(city, actor, CityPermission.WITHDRAW);
         if (guard instanceof Result.Failure<Void> failure) {
@@ -134,6 +172,17 @@ public final class TreasuryService {
 
         long now = System.currentTimeMillis();
         boolean isMayor = city.isMayor(actor);
+
+        // SPEC 21.4 F16: "a member cannot withdraw from the treasury during their first 72
+        // hours in a city, regardless of rank. Mayor is exempt." The 25% cap below already
+        // bounds how much one member can take; this bounds how quickly someone who just
+        // walked in can start taking it, which the cap alone does not.
+        if (!isMayor) {
+            Result<Void> age = requireMemberAge(city, actor, now);
+            if (age instanceof Result.Failure<Void> failure) {
+                return completed(Result.propagate(failure));
+            }
+        }
 
         return db.transaction(connection -> {
             Optional<CityRow> current = daos.cities().findById(connection, city.id());

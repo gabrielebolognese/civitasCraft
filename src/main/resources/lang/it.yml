@@ -128,6 +128,7 @@ city:
     deposited: "<green>Hai depositato <white><amount></white>. Il tesoro contiene ora <white><treasury></white>."
     withdrawn: "<green>Hai prelevato <white><amount></white>. Il tesoro contiene ora <white><treasury></white>."
     cap: "<red>Puoi prelevare al massimo il <white><percent>%</white> del tesoro al giorno, cioe <white><limit> C</white>. Hai gia prelevato <white><taken> C</white>, restano <white><remaining> C</white>."
+    withdraw-too-new: "<red>I nuovi membri non possono prelevare dal tesoro per <white><hours> ore</white>. <dark_gray>Mancano circa <remaining>h.</dark_gray>"
 
   settings:
     motd-set: "<green>Messaggio del giorno aggiornato."
@@ -686,6 +687,7 @@ income:
   daily:
     claimed: "<green>Premio giornaliero: <white><amount> C</white>. Serie: <white><streak></white> giorni."
     already: "<gray>Hai gia ritirato il premio di oggi."
+    not-active-today: "<gray>Gioca <white><minutes> minuti attivi</white> oggi per riscuotere la ricompensa giornaliera. <dark_gray>Finora <so-far>.</dark_gray>"
     disabled: "<gray>I premi giornalieri sono disattivati su questo server."
   quest:
     completed: "<green>Missione completata! <white>+<amount> C</white>"

@@ -43,10 +43,23 @@ public final class IncomeMultipliers {
         return activePlaytimeMs >= minimumPlaytimeMillis();
     }
 
-    /** How long a new account must play before any income reaches it. */
+    /**
+     * How long a new account must play before any income reaches it.
+     *
+     * <p>SPEC 21.4 F12 raises SPEC 17.6 case 70's thirty minutes to sixty: "no income of any
+     * kind for the first 60 minutes of active playtime on a new account". Active playtime, so
+     * an alt parked in a corner never gets there at all — the SPEC 4.2.1 filter, strengthened
+     * by F11 above, is what makes the hour cost an hour.
+     *
+     * <p>The older {@code income.stipend.min-active-playtime-minutes} is still read when the
+     * new key is absent, so an operator who tuned it keeps their value rather than being
+     * silently moved to sixty by an upgrade.
+     */
     public long minimumPlaytimeMillis() {
-        return configs.get(ConfigFile.ECONOMY)
-                .getLong("income.stipend.min-active-playtime-minutes", 30) * 60_000L;
+        var economy = configs.get(ConfigFile.ECONOMY);
+        long fallback = economy.getLong("income.stipend.min-active-playtime-minutes", 60);
+        return economy.getLong("anti-abuse.new-account-income-block-minutes", fallback)
+                * 60_000L;
     }
 
     /** Whether this player is still inside their SPEC 15.1 newcomer window. */

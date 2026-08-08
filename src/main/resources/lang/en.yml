@@ -128,6 +128,7 @@ city:
     deposited: "<green>Deposited <white><amount></white>. The treasury now holds <white><treasury></white>."
     withdrawn: "<green>Withdrew <white><amount></white>. The treasury now holds <white><treasury></white>."
     cap: "<red>You may take at most <white><percent>%</white> of the treasury a day, which is <white><limit> C</white>. You have already taken <white><taken> C</white>, leaving <white><remaining> C</white>."
+    withdraw-too-new: "<red>New members cannot withdraw from the treasury for <white><hours> hours</white>. <dark_gray>About <remaining>h to go.</dark_gray>"
 
   settings:
     motd-set: "<green>Message of the day updated."
@@ -686,6 +687,7 @@ income:
   daily:
     claimed: "<green>Daily reward: <white><amount> C</white>. Streak: <white><streak></white> days."
     already: "<gray>You have already claimed today's reward."
+    not-active-today: "<gray>Play <white><minutes> active minutes</white> today to claim your daily reward. <dark_gray>You have <so-far> so far.</dark_gray>"
     disabled: "<gray>Daily rewards are turned off on this server."
   quest:
     completed: "<green>Quest complete! <white>+<amount> C</white>"

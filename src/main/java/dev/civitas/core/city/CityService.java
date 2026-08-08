@@ -381,6 +381,7 @@ public final class CityService {
         }
 
         List<UUID> memberUuids = city.members().stream().map(CityMember::uuid).toList();
+        List<CityMember> membersAtDisband = List.copyOf(city.members());
         BigDecimal treasury = city.treasury();
 
         // SPEC 5.3: half of what was paid for the land comes back, to the mayor personally.
@@ -392,16 +393,16 @@ public final class CityService {
         UUID mayor = city.mayorUuid();
 
         return db.transaction(connection -> {
-            // SPEC 17.1 case 10: whatever is in the treasury is split evenly among members.
-            if (treasury.signum() > 0 && !memberUuids.isEmpty()) {
-                BigDecimal share = treasury.divide(BigDecimal.valueOf(memberUuids.size()),
-                        dev.civitas.storage.SqlDialect.MONEY_SCALE, java.math.RoundingMode.DOWN);
-                if (share.signum() > 0) {
-                    for (UUID member : memberUuids) {
-                        funds.deposit(connection, member, share, TransactionType.TREASURY_WITHDRAW,
-                                city.id(), "{\"reason\":\"disband\"}");
-                    }
-                }
+            // SPEC 21.4 F6 supersedes SPEC 17.1 case 10's even split. The even split is a
+            // laundering channel: "create a city with alts, deposit, disband, treasury splits
+            // evenly among members. Bypasses the 25% withdrawal cap." Splitting by lifetime
+            // contribution closes it, because "a member who contributed nothing receives
+            // nothing" — the alts were never the ones who put the money in.
+            for (Map.Entry<UUID, BigDecimal> share
+                    : disbandShares(membersAtDisband, treasury).entrySet()) {
+                funds.deposit(connection, share.getKey(), share.getValue(),
+                        TransactionType.TREASURY_WITHDRAW, city.id(),
+                        "{\"reason\":\"disband\"}");
             }
 
             if (landRefund.signum() > 0) {
@@ -1160,6 +1161,76 @@ public final class CityService {
     // ==================================================================================
     // SPEC 11.11: what a war forbids a city to do to itself
     // ==================================================================================
+
+    /**
+     * How a disbanded city's treasury is divided, SPEC 21.4 F6.
+     *
+     * <p>By lifetime contribution, so "a member who contributed nothing receives nothing". This
+     * supersedes SPEC 17.1 case 10's even split, which F6 identifies as a way to launder money
+     * past the 25% withdrawal cap using alts who never deposited anything.
+     *
+     * <p>Three cases SPEC does not spell out, all resolved toward not destroying money:
+     *
+     * <ul>
+     *   <li><b>Nobody contributed anything</b> — a treasury built entirely from contest prizes
+     *       or war payouts, which are paid to the city rather than by a member. Falls back to
+     *       an even split, because the alternative is burning money that belongs to somebody.
+     *   <li><b>Rounding</b> — shares are floored to whole cents, so a three-way split of one
+     *       cent leaves a remainder. It goes to the largest contributor, which is the only
+     *       recipient nobody can arrange to be by adding alts.
+     *   <li><b>Empty city</b> — no members, so nothing to divide and the treasury is gone with
+     *       the city. Only reachable through admin removal, since SPEC 17.1 case 4 blocks the
+     *       last member from leaving.
+     * </ul>
+     */
+    static Map<UUID, BigDecimal> disbandShares(List<CityMember> members, BigDecimal treasury) {
+        if (treasury.signum() <= 0 || members.isEmpty()) {
+            return Map.of();
+        }
+        BigDecimal contributed = members.stream()
+                .map(CityMember::contributedTotal)
+                .filter(amount -> amount.signum() > 0)
+                .reduce(dev.civitas.storage.SqlDialect.zero(), BigDecimal::add);
+
+        Map<UUID, BigDecimal> shares = new java.util.LinkedHashMap<>();
+        BigDecimal handedOut = dev.civitas.storage.SqlDialect.zero();
+        UUID remainderTo = null;
+
+        if (contributed.signum() <= 0) {
+            // Nothing was ever deposited, so there is no contribution to be proportional to.
+            BigDecimal even = treasury.divide(BigDecimal.valueOf(members.size()),
+                    dev.civitas.storage.SqlDialect.MONEY_SCALE, java.math.RoundingMode.DOWN);
+            for (CityMember member : members) {
+                shares.put(member.uuid(), even);
+                handedOut = handedOut.add(even);
+            }
+            remainderTo = members.get(0).uuid();
+        } else {
+            BigDecimal largest = dev.civitas.storage.SqlDialect.zero();
+            for (CityMember member : members) {
+                if (member.contributedTotal().signum() <= 0) {
+                    continue;
+                }
+                BigDecimal share = treasury.multiply(member.contributedTotal())
+                        .divide(contributed, dev.civitas.storage.SqlDialect.MONEY_SCALE,
+                                java.math.RoundingMode.DOWN);
+                if (share.signum() > 0) {
+                    shares.put(member.uuid(), share);
+                    handedOut = handedOut.add(share);
+                }
+                if (member.contributedTotal().compareTo(largest) > 0) {
+                    largest = member.contributedTotal();
+                    remainderTo = member.uuid();
+                }
+            }
+        }
+
+        BigDecimal remainder = treasury.subtract(handedOut);
+        if (remainder.signum() > 0 && remainderTo != null) {
+            shares.merge(remainderTo, remainder, BigDecimal::add);
+        }
+        return Map.copyOf(shares);
+    }
 
     private boolean blocksDisband(City city) {
         return wars != null && wars.blocksDisband(city.id());

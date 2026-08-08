@@ -39,6 +39,16 @@ public final class DailyLoginService {
     private final ConfigManager configs;
     private final ZoneId zone;
 
+    /**
+     * SPEC 21.4 F12's per-day baseline table.
+     *
+     * <p>Optional: null means the rule cannot run and the daily reward falls back to the
+     * lifetime gate alone. That is the same failing-open choice M15 made for the contest IP
+     * check — a missing table must not stop legitimate players being paid, and the lifetime
+     * gate still stops the case F12 cares most about, which is a brand new alt.
+     */
+    private dev.civitas.storage.dao.DailyActivityDao dailyActivity;
+
     public DailyLoginService(DatabaseManager db, PlayerDao players, EconomyService economy,
                              IncomeMultipliers multipliers, ConfigManager configs, ZoneId zone) {
         this.db = Objects.requireNonNull(db, "db");
@@ -58,12 +68,82 @@ public final class DailyLoginService {
      *
      * @return the amount paid, or a failure saying why not
      */
+    /** Hands the service the baseline table, so SPEC 21.4 F12's rule can run. */
+    public void useDailyActivity(dev.civitas.storage.dao.DailyActivityDao dao) {
+        this.dailyActivity = java.util.Objects.requireNonNull(dao, "dao");
+    }
+
+    /**
+     * How much active playtime this player has accrued today, SPEC 21.4 F12.
+     *
+     * <p>The stored row is the lifetime figure as it stood when the day turned, so today is
+     * the difference. Meeting a player whose baseline belongs to an earlier day rewrites it to
+     * their current lifetime figure and returns zero, which is what makes the first login of a
+     * day start the clock rather than inheriting yesterday's total.
+     */
+    private long activeTodaySync(java.sql.Connection connection, PlayerRow row, long now)
+            throws java.sql.SQLException {
+        if (dailyActivity == null) {
+            return Long.MAX_VALUE;
+        }
+        var stored = dailyActivity.findSync(connection, row.uuid());
+        if (stored.isEmpty() || stored.get().dayStart() != startOfDay(now)) {
+            return 0L;
+        }
+        // Never negative: a baseline above the live counter would mean active playtime went
+        // backwards, which only an admin edit can do, and reading that as "a lot of playtime
+        // today" would hand out the reward it is meant to gate.
+        return Math.max(0L, row.activePlaytimeMs() - stored.get().baselineMs());
+    }
+
+    /**
+     * Stamps today's baseline if it is missing or belongs to an earlier day.
+     *
+     * <p>Deliberately <b>outside</b> the claim transaction, and this is not a style choice.
+     * {@code DatabaseManager.transaction} rolls back on a returned {@code Result.Failure} as
+     * well as on an exception, and the common outcome of a claim is a refusal — already
+     * claimed, too new, not active enough. A baseline written inside that transaction is
+     * discarded with it, so every call would re-stamp the baseline to the current lifetime
+     * figure and "active playtime today" would be zero forever.
+     */
+    private CompletableFuture<Integer> ensureBaseline(UUID player, long now) {
+        if (dailyActivity == null) {
+            return CompletableFuture.completedFuture(0);
+        }
+        long dayStart = startOfDay(now);
+        return db.call(connection -> {
+            Optional<PlayerRow> found = players.findByUuid(connection, player);
+            if (found.isEmpty()) {
+                return 0;
+            }
+            var stored = dailyActivity.findSync(connection, player);
+            if (stored.isPresent() && stored.get().dayStart() == dayStart) {
+                return 0;
+            }
+            return dailyActivity.upsertSync(connection,
+                    new dev.civitas.storage.row.DailyActivityRow(player, dayStart,
+                            found.get().activePlaytimeMs()));
+        });
+    }
+
+    /** 00:00 server time of the day containing {@code now}. */
+    public long startOfDay(long now) {
+        return java.time.Instant.ofEpochMilli(now).atZone(zone).toLocalDate()
+                .atStartOfDay(zone).toInstant().toEpochMilli();
+    }
+
+    /** SPEC 21.11 {@code anti-abuse.daily-login-requires-active-minutes}, default 30. */
+    public long requiredActiveTodayMillis() {
+        return configs.get(ConfigFile.ECONOMY)
+                .getLong("anti-abuse.daily-login-requires-active-minutes", 30) * 60_000L;
+    }
+
     public CompletableFuture<Result<Claim>> claim(UUID player, long now) {
         if (!enabled()) {
             return completed(Result.failure("DISABLED", "income.daily.disabled"));
         }
 
-        return db.transaction(connection -> {
+        return ensureBaseline(player, now).thenCompose(ignored -> db.transaction(connection -> {
             Optional<PlayerRow> found = players.findByUuid(connection, player);
             if (found.isEmpty()) {
                 return Result.<Claim>failure("NO_PLAYER_RECORD", "economy.no-account");
@@ -76,11 +156,24 @@ public final class DailyLoginService {
                 return Result.<Claim>failure("ALREADY_CLAIMED", "income.daily.already");
             }
 
-            // SPEC 17.6 case 70: a fresh alt gets nothing, and does not build a streak either.
+            // SPEC 17.6 case 70, strengthened by SPEC 21.4 F12 to sixty minutes: a fresh alt
+            // gets nothing, and does not build a streak either.
             if (!multipliers.mayEarn(row.activePlaytimeMs())) {
                 return Result.<Claim>failure("TOO_NEW", "income.too-new",
                         Map.of("minutes",
                                 String.valueOf(multipliers.minimumPlaytimeMillis() / 60_000L)));
+            }
+
+            // SPEC 21.4 F12's second half: "daily login rewards require 30 minutes of active
+            // playtime that day before paying out." The lifetime gate above stops an alt on
+            // its first day; this stops a farm of established alts logging in for a second
+            // each morning, which the lifetime gate lets through forever after day one.
+            long activeToday = activeTodaySync(connection, row, now);
+            if (activeToday < requiredActiveTodayMillis()) {
+                return Result.<Claim>failure("NOT_ACTIVE_TODAY", "income.daily.not-active-today",
+                        Map.of("minutes",
+                                String.valueOf(requiredActiveTodayMillis() / 60_000L),
+                                "so-far", String.valueOf(activeToday / 60_000L)));
             }
 
             int streak = nextStreak(row, now);
@@ -98,7 +191,7 @@ public final class DailyLoginService {
             players.updateDailyClaim(connection, player, streak, now);
 
             return Result.success(new Claim(amount, streak, paid.orElseThrow()));
-        });
+        }));
     }
 
     // ==================================================================================

@@ -49,7 +49,21 @@ public final class ActivityTracker {
 
     /** Records one action. Repeating the same kind adds nothing, by design. */
     public void record(UUID player, ActivityKind kind) {
-        session(player).kinds.add(kind);
+        record(player, kind, System.currentTimeMillis());
+    }
+
+    /**
+     * Records one action at a stated time.
+     *
+     * <p>The time is what SPEC 21.4 F11 needs: "the 3 actions must be of 3 different types,
+     * <b>and must occur in at least 3 different minutes</b> of the 15-minute window. A single
+     * repeating macro produces one action type and fails." The distinct-types half was already
+     * here; without the minute, a macro that fires three different actions in one burst passes.
+     */
+    public void record(UUID player, ActivityKind kind, long now) {
+        Session session = session(player);
+        session.kinds.add(kind);
+        session.minutes.add(now / 60_000L);
     }
 
     /**
@@ -64,10 +78,19 @@ public final class ActivityTracker {
         if (blocks <= 0) {
             return;
         }
+        recordMovement(player, blocks, System.currentTimeMillis());
+    }
+
+    /** Records movement at a stated time, for the SPEC 21.4 F11 minute. */
+    public void recordMovement(UUID player, double blocks, long now) {
+        if (blocks <= 0) {
+            return;
+        }
         Session session = session(player);
         session.movedBlocks += blocks;
         if (session.movedBlocks >= requiredDistance()) {
             session.kinds.add(ActivityKind.MOVED);
+            session.minutes.add(now / 60_000L);
         }
     }
 
@@ -88,9 +111,22 @@ public final class ActivityTracker {
                         ? EnumSet.noneOf(ActivityKind.class) : session.kinds);
     }
 
-    /** Whether this player counts as active for the interval just ended. */
+    /**
+     * Whether this player counts as active for the interval just ended.
+     *
+     * <p>Both halves of SPEC 21.4 F11: enough distinct kinds, spread over enough distinct
+     * minutes. Either alone is passable by a macro — three key presses in one second are three
+     * kinds, and fifteen minutes of one repeated action is fifteen minutes.
+     */
     public boolean wasActive(UUID player) {
-        return distinctKinds(player) >= requiredActions();
+        return distinctKinds(player) >= requiredActions()
+                && distinctMinutes(player) >= requiredDistinctMinutes();
+    }
+
+    /** In how many separate minutes this player did something, SPEC 21.4 F11. */
+    public int distinctMinutes(UUID player) {
+        Session session = sessions.get(player);
+        return session == null ? 0 : session.minutes.size();
     }
 
     /** Distance accumulated so far, for diagnostics and tests. */
@@ -136,6 +172,20 @@ public final class ActivityTracker {
         return configs.get(ConfigFile.ECONOMY).getInt("income.stipend.required-actions", 3);
     }
 
+    /**
+     * SPEC 21.11 {@code anti-abuse.stipend-required-distinct-minutes}, default three.
+     *
+     * <p>SPEC 21.11 also names {@code stipend-required-distinct-action-types}, which is the
+     * key {@code income.stipend.required-actions} has held since M9 with the same default.
+     * Shipping both would be the twin the config sweep found three of, where the file offers
+     * one name and the code reads another, so the older name is kept and the new one is not
+     * shipped. The value is a config key either way, which is what the rule requires.
+     */
+    public int requiredDistinctMinutes() {
+        return configs.get(ConfigFile.ECONOMY)
+                .getInt("anti-abuse.stipend-required-distinct-minutes", 3);
+    }
+
     /** SPEC 4.2.1: 32 blocks of cumulative movement counts as one action. */
     public double requiredDistance() {
         return configs.get(ConfigFile.ECONOMY)
@@ -150,6 +200,9 @@ public final class ActivityTracker {
     private static final class Session {
         private final Set<ActivityKind> kinds =
                 java.util.Collections.synchronizedSet(EnumSet.noneOf(ActivityKind.class));
+        /** Which minutes saw activity. Bounded by the interval, so at most a handful. */
+        private final Set<Long> minutes =
+                java.util.Collections.synchronizedSet(new java.util.HashSet<>());
         private volatile double movedBlocks;
     }
 }

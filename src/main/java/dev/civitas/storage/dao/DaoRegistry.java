@@ -44,6 +44,7 @@ public final class DaoRegistry {
     private final TruceDao truces;
     private final MarketStockDao marketStock;
     private final SellQuotaDao sellQuota;
+    private final DailyActivityDao dailyActivity;
     private final PlayerShopDao playerShops;
     private final PlayerQuestDao playerQuests;
     private final CityChallengeDao cityChallenges;
@@ -87,6 +88,7 @@ public final class DaoRegistry {
         this.truces = new TruceDao(db);
         this.marketStock = new MarketStockDao(db);
         this.sellQuota = new SellQuotaDao(db);
+        this.dailyActivity = new DailyActivityDao(db);
         this.playerShops = new PlayerShopDao(db);
         this.playerQuests = new PlayerQuestDao(db);
         this.cityChallenges = new CityChallengeDao(db);
@@ -221,6 +223,11 @@ public final class DaoRegistry {
         return sellQuota;
     }
 
+    /** {@code player_daily_activity}, SPEC 21.4 F12's active-playtime-today baseline. */
+    public DailyActivityDao dailyActivity() {
+        return dailyActivity;
+    }
+
     public PlayerShopDao playerShops() {
         return playerShops;
     }
@@ -267,7 +274,7 @@ public final class DaoRegistry {
                 ledger, economySnapshots, wars, warBlockLog, warContainerLog, warParticipants, warKills,
                 warEntitySnapshots, bounties, protectedChunks, reports,
                 upkeepMultipliers, alliances,
-                truces, marketStock, sellQuota, playerShops, playerQuests, cityChallenges, contests, contestEntries, contestVotes,
+                truces, marketStock, sellQuota, dailyActivity, playerShops, playerQuests, cityChallenges, contests, contestEntries, contestVotes,
                 cityUpgrades, cityVault, defenseUnits, auditLog);
     }
 }

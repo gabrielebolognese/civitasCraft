@@ -152,6 +152,33 @@ sinks:
   # This block holds the sinks that belong to no other module.
   market-sale-tax-percent: 5
 
+
+# SPEC 21.4's Class F mitigations: exploits internal to this plugin rather than to Minecraft.
+# Part I built each of these systems with a reasonable rule; Part II audited them
+# adversarially and found a way around every one.
+anti-abuse:
+  # F12. No income of any kind until an account has this much ACTIVE playtime, so an alt
+  # parked in a corner never qualifies. Raised from SPEC 17.6 case 70's thirty minutes.
+  new-account-income-block-minutes: 60
+  # F12. The daily reward also needs this much active playtime on the day itself, which stops
+  # a farm of established alts logging in for a second each morning.
+  daily-login-requires-active-minutes: 30
+  # F16. A new member cannot withdraw from the treasury at all for this long, whatever their
+  # rank. The mayor is exempt. The 25% cap bounds how much; this bounds how soon.
+  treasury-withdraw-member-age-hours: 72
+  # F11. The SPEC 4.2.1 actions must fall in this many separate minutes of the interval. A
+  # macro can produce three action types in one burst; it cannot produce three minutes.
+  stipend-required-distinct-minutes: 3
+  # F9 and F10. How long the cache remembers that a player placed or broke a block, so that
+  # placing and breaking the same block cannot complete a quest.
+  placed-block-cache-ttl-hours: 24
+  # How many chunks that cache holds before evicting the least recently used. SPEC 21.10.5
+  # requires a bound and names no number, so this one is not from SPEC.
+  placed-block-cache-max-chunks: 4096
+  # F4. A war ranks on the leaderboard only if the loser scored at least this share of the
+  # winner's score. Collusive walkovers are still recorded, they simply do not rank.
+  war-leaderboard-min-loser-score-percent: 25
+
 market:
   enabled: true
 

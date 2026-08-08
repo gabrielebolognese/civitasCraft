@@ -43,13 +43,16 @@ public final class ActivityListener implements Listener {
     private final QuestService quests;
     private final ChallengeService challenges;
     private final StatsService stats;
+    private final dev.civitas.core.abuse.PlacedBlockCache placed;
 
     public ActivityListener(ActivityTracker activity, QuestService quests,
-                            ChallengeService challenges, StatsService stats) {
+                            ChallengeService challenges, StatsService stats,
+                            dev.civitas.core.abuse.PlacedBlockCache placed) {
         this.activity = Objects.requireNonNull(activity, "activity");
         this.quests = Objects.requireNonNull(quests, "quests");
         this.challenges = Objects.requireNonNull(challenges, "challenges");
         this.stats = Objects.requireNonNull(stats, "stats");
+        this.placed = Objects.requireNonNull(placed, "placed");
     }
 
     // ==================================================================================
@@ -87,14 +90,26 @@ public final class ActivityListener implements Listener {
         activity.record(player.getUniqueId(), ActivityKind.BROKE_BLOCK);
 
         Block block = event.getBlock();
-        report(player, QuestMetric.BREAK_BLOCKS, 1);
+
+        // SPEC 21.4 F10: breaking a block a player placed earns no mining credit, or "mine
+        // 128 iron ore" is completed by placing and mining the same ore. Crops are exempt:
+        // planting and harvesting is farming, and the whole point of a farm is that a player
+        // put the seed there.
+        boolean earned = placed.onBreak(block.getWorld().getName(), block.getX(),
+                block.getY(), block.getZ(), System.currentTimeMillis());
 
         if (isRipeCrop(block)) {
+            report(player, QuestMetric.BREAK_BLOCKS, 1);
             report(player, QuestMetric.HARVEST_CROPS, 1);
             // SPEC 13.3's Farmer board counts the same harvest, but for a career rather than
             // for today's quest, so it goes to a counter the daily reset cannot touch.
             stats.record(player.getUniqueId(), PlayerStat.CROPS_HARVESTED, 1);
+            return;
         }
+        if (!earned) {
+            return;
+        }
+        report(player, QuestMetric.BREAK_BLOCKS, 1);
         if (isOre(block.getType())) {
             report(player, QuestMetric.MINE_ORE, 1);
         }
@@ -103,9 +118,17 @@ public final class ActivityListener implements Listener {
     @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
     public void onPlace(BlockPlaceEvent event) {
         activity.record(event.getPlayer().getUniqueId(), ActivityKind.PLACED_BLOCK);
+
+        // SPEC 21.4 F9: re-filling a hole a player just made earns no building credit, or
+        // "place 512 blocks" is completed by placing and breaking one block 512 times.
+        Block block = event.getBlock();
+        if (!placed.onPlace(block.getWorld().getName(), block.getX(), block.getY(),
+                block.getZ(), System.currentTimeMillis())) {
+            return;
+        }
         report(event.getPlayer(), QuestMetric.PLACE_BLOCKS, 1);
         // SPEC 13.3's Builder board, which excludes war zones; StatsService owns that test.
-        stats.recordPlacement(event.getPlayer().getUniqueId(), event.getBlock().getLocation());
+        stats.recordPlacement(event.getPlayer().getUniqueId(), block.getLocation());
     }
 
     // ==================================================================================

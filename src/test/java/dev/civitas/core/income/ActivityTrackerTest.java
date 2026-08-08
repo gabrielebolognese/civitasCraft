@@ -44,6 +44,13 @@ class ActivityTrackerTest {
 
         configs = new ConfigManager(PluginResources.ofClasspath(directory.toFile(), quiet));
         configs.loadAll();
+        // This class covers SPEC 4.2.1's distinct-KINDS rule, and records everything in one
+        // burst to do it. SPEC 21.4 F11 adds a second requirement — the actions must also
+        // fall in three separate minutes — which would fail every test here for a reason
+        // none of them is about. That half has its own tests in AntiAbuseTest, so it is
+        // turned off here rather than quietly weakening what these assert.
+        configs.get(dev.civitas.config.ConfigFile.ECONOMY)
+                .set("anti-abuse.stipend-required-distinct-minutes", 1);
         tracker = new ActivityTracker(configs);
         player = UUID.randomUUID();
     }

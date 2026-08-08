@@ -295,6 +295,18 @@ public final class LeaderboardService {
      * already settled and tested in {@link #warRecordOrder()}: more wins first, then fewer
      * losses, then name.
      */
+    /**
+     * SPEC 21.11 {@code anti-abuse.war-leaderboard-min-loser-score-percent}, default 25.
+     *
+     * <p>SPEC 21.4 F4: a war where the loser scored less than this share of the winner's score
+     * is "recorded but not ranked", because two friendly cities trading walkovers is otherwise
+     * a way to farm the board that the 21-day cooldown only slows down.
+     */
+    private int minLoserScorePercent() {
+        return configs.get(dev.civitas.config.ConfigFile.ECONOMY)
+                .getInt("anti-abuse.war-leaderboard-min-loser-score-percent", 25);
+    }
+
     private List<LeaderboardEntry> warRecords() {
         if (wars == null) {
             return List.of();
@@ -302,7 +314,7 @@ public final class LeaderboardService {
         try {
             // Already ordered by the query: wins descending, then fewest losses, which is
             // exactly what warRecordOrder describes and what SPEC 13.3 asks for.
-            return rank(wars.findRecords(size()).join().stream()
+            return rank(wars.findRecords(size(), minLoserScorePercent()).join().stream()
                     .map(row -> new Ranked(row.name(),
                             BigDecimal.valueOf(row.wins()),
                             BigDecimal.valueOf(row.losses())))

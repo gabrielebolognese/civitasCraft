@@ -113,8 +113,13 @@ public final class WarScoringListener implements Listener {
             bounties.claim(killer.getUniqueId(), victim.getUniqueId(), true,
                             System.currentTimeMillis())
                     .thenAccept(result -> {
+                        // A zero payout is SPEC 21.4 F7 refunding a self-placed or IP-linked
+                        // bounty to whoever staked it. "Both are silent rejections", so the
+                        // killer is told nothing rather than being announced as claiming
+                        // nothing.
                         if (result instanceof dev.civitas.util.Result.Success<
-                                java.math.BigDecimal>(java.math.BigDecimal paid)) {
+                                java.math.BigDecimal>(java.math.BigDecimal paid)
+                                && paid.signum() > 0) {
                             bountyPaid.accept(killer.getUniqueId(), paid);
                         }
                     })

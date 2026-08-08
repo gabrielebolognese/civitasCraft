@@ -41,6 +41,19 @@ public final class PlayerLoginDao extends Dao<PlayerLoginRow> {
                 rs.getLong("updated_at"));
     }
 
+    /**
+     * One player's fingerprint, on the caller's thread.
+     *
+     * <p>Needed by SPEC 21.4 F7, where the check has to happen inside the bounty payout's own
+     * transaction: reading it beforehand would leave a gap in which the answer could change.
+     */
+    public Optional<PlayerLoginRow> findSync(java.sql.Connection connection, UUID player)
+            throws java.sql.SQLException {
+        return queryOneSync(connection,
+                "SELECT " + COLUMNS + " FROM player_logins WHERE uuid = ?", this::map,
+                player.toString());
+    }
+
     public CompletableFuture<Optional<PlayerLoginRow>> find(UUID player) {
         return queryOne("SELECT " + COLUMNS + " FROM player_logins WHERE uuid = ?", player);
     }

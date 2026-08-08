@@ -36,7 +36,14 @@ import org.junit.jupiter.api.io.TempDir;
 class IncomeSystemsTest {
 
     private static final ZoneId UTC = ZoneId.of("UTC");
-    private static final long HALF_HOUR = TimeUnit.MINUTES.toMillis(30);
+    /**
+     * Enough active playtime to clear the SPEC 17.6 case 70 income floor.
+     *
+     * <p>Was half an hour until SPEC 21.4 F12 raised the floor to sixty minutes. Named for
+     * what it is for rather than for its value, so the next change to the floor moves one
+     * number instead of nine call sites that all meant "past the floor".
+     */
+    private static final long PAST_THE_FLOOR = TimeUnit.MINUTES.toMillis(60);
 
     @TempDir
     Path directory;
@@ -130,10 +137,19 @@ class IncomeSystemsTest {
                 0L, current.frozen(), current.lastCityLeave(), current.lastCityDisband())));
     }
 
+    /**
+     * What a genuinely active player looks like to the tracker.
+     *
+     * <p>Spread over three minutes, because SPEC 21.4 F11 requires that as well as three
+     * distinct kinds: "a single repeating macro produces one action type and fails", and a
+     * burst in one second is the other shape a macro takes. A real farmer does both, so this
+     * helper does both.
+     */
     private void beActive() {
-        activity.record(player, ActivityKind.BROKE_BLOCK);
-        activity.record(player, ActivityKind.PLACED_BLOCK);
-        activity.record(player, ActivityKind.SPOKE);
+        long start = System.currentTimeMillis();
+        activity.record(player, ActivityKind.BROKE_BLOCK, start);
+        activity.record(player, ActivityKind.PLACED_BLOCK, start + 60_000);
+        activity.record(player, ActivityKind.SPOKE, start + 120_000);
     }
 
     // ==================================================================================
@@ -147,7 +163,7 @@ class IncomeSystemsTest {
         @Test
         @DisplayName("an active interval pays, and credits filtered active playtime")
         void activeIntervalPays() {
-            givePlaytime(HALF_HOUR);
+            givePlaytime(PAST_THE_FLOOR);
             endNewcomerWindow();
             BigDecimal before = wallet();
             beActive();
@@ -155,28 +171,28 @@ class IncomeSystemsTest {
             assertTrue(stipend.settle(player, System.currentTimeMillis()));
 
             assertEquals(0, before.add(new BigDecimal("40")).compareTo(wallet()));
-            assertEquals(HALF_HOUR + TimeUnit.MINUTES.toMillis(15), row().activePlaytimeMs(),
+            assertEquals(PAST_THE_FLOOR + TimeUnit.MINUTES.toMillis(15), row().activePlaytimeMs(),
                     "one qualifying interval of active playtime");
         }
 
         @Test
         @DisplayName("an idle interval pays nothing and credits no playtime either")
         void idleIntervalPaysNothing() {
-            givePlaytime(HALF_HOUR);
+            givePlaytime(PAST_THE_FLOOR);
             BigDecimal before = wallet();
             activity.record(player, ActivityKind.BROKE_BLOCK);
 
             assertFalse(stipend.settle(player, System.currentTimeMillis()));
 
             assertEquals(0, before.compareTo(wallet()));
-            assertEquals(HALF_HOUR, row().activePlaytimeMs(),
+            assertEquals(PAST_THE_FLOOR, row().activePlaytimeMs(),
                     "an AFK machine must not accumulate the playtime the city gate reads");
         }
 
         @Test
         @DisplayName("SPEC 4.2: the daily cap holds, and is read from the ledger")
         void dailyCap() {
-            givePlaytime(HALF_HOUR);
+            givePlaytime(PAST_THE_FLOOR);
             endNewcomerWindow();
 
             // Sixteen intervals of 40 C is 640 C, which is the cap exactly.
@@ -196,7 +212,7 @@ class IncomeSystemsTest {
         @Test
         @DisplayName("SPEC 15.1: a newcomer is paid one and a half times as much")
         void newcomerMultiplier() {
-            givePlaytime(HALF_HOUR);
+            givePlaytime(PAST_THE_FLOOR);
             beNewcomer();
             BigDecimal before = wallet();
             beActive();
@@ -285,7 +301,7 @@ class IncomeSystemsTest {
         @Test
         @DisplayName("claiming pays, starts the streak, and cannot be repeated the same day")
         void claimOncePerDay() {
-            givePlaytime(HALF_HOUR);
+            givePlaytime(PAST_THE_FLOOR);
             endNewcomerWindow();
             long now = System.currentTimeMillis();
 
@@ -369,7 +385,7 @@ class IncomeSystemsTest {
         @Test
         @DisplayName("progress accumulates and completion pays once")
         void progressAndPayout() {
-            givePlaytime(HALF_HOUR);
+            givePlaytime(PAST_THE_FLOOR);
             endNewcomerWindow();
             long now = System.currentTimeMillis();
 
@@ -417,12 +433,12 @@ class IncomeSystemsTest {
         @DisplayName("SPEC 13.1: rewards never scale with wealth")
         void rewardIgnoresWealth() {
             QuestDefinition definition = questPool.all().get(0);
-            BigDecimal poor = questPool.rewardFor(definition, HALF_HOUR, 7L);
+            BigDecimal poor = questPool.rewardFor(definition, PAST_THE_FLOOR, 7L);
 
             await(support.economy.give(player, new BigDecimal("100000000"),
                     TransactionType.ADMIN_GIVE, null, null));
 
-            assertEquals(0, poor.compareTo(questPool.rewardFor(definition, HALF_HOUR, 7L)),
+            assertEquals(0, poor.compareTo(questPool.rewardFor(definition, PAST_THE_FLOOR, 7L)),
                     "nothing in the reward path reads a balance");
         }
     }
@@ -506,7 +522,8 @@ class IncomeSystemsTest {
         assertTrue(multipliers.isNewcomer(fresh, System.currentTimeMillis()));
         assertEquals(0, new BigDecimal("1.5")
                 .compareTo(multipliers.multiplierFor(fresh, System.currentTimeMillis())));
-        assertEquals(TimeUnit.MINUTES.toMillis(30), multipliers.minimumPlaytimeMillis());
+        // SPEC 21.4 F12 raised SPEC 17.6 case 70's thirty minutes to sixty.
+        assertEquals(TimeUnit.MINUTES.toMillis(60), multipliers.minimumPlaytimeMillis());
 
         support.configs.get(ConfigFile.ECONOMY).set("income.newcomer.multiplier", 2.0);
         assertEquals(0, new BigDecimal("2.0")

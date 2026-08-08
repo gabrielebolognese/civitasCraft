@@ -51,6 +51,17 @@ public final class BountyService {
     private final Scheduler scheduler;
     private final Logger logger;
 
+    /**
+     * The SPEC 13.4 login fingerprints, for SPEC 21.4 F7's IP-linked check.
+     *
+     * <p>Optional: null means the check cannot run, and a bounty then pays out on the
+     * self-claim rule alone. Failing open here is deliberate — the table stores a salted hash
+     * and M15 records that losing the salt must fail open rather than discard everyone's
+     * votes. Silently refusing every bounty payout because a hash was unreadable would be a
+     * worse outcome than an alt occasionally getting paid.
+     */
+    private dev.civitas.storage.dao.PlayerLoginDao logins;
+
     public BountyService(DatabaseManager db, BountyDao bounties, EconomyService economy,
                          ConfigManager configs, Scheduler scheduler, Logger logger) {
         this.db = Objects.requireNonNull(db, "db");
@@ -71,6 +82,34 @@ public final class BountyService {
      * <p>The withdrawal and the row go in one transaction, so a bounty either exists and has
      * been paid for, or neither.
      */
+    /** Hands the service the login table, so SPEC 21.4 F7's IP-linked rule can run. */
+    public void useLogins(dev.civitas.storage.dao.PlayerLoginDao playerLogins) {
+        this.logins = java.util.Objects.requireNonNull(playerLogins, "playerLogins");
+    }
+
+    /**
+     * Whether two accounts connect from the same place, SPEC 21.4 F7.
+     *
+     * <p>Compares the salted hashes M15 stores; the address itself is never kept, so this can
+     * answer "the same place" without anyone being able to say where.
+     */
+    private boolean shareConnection(java.sql.Connection connection, UUID first, UUID second) {
+        if (logins == null) {
+            return false;
+        }
+        try {
+            var one = logins.findSync(connection, first);
+            var two = logins.findSync(connection, second);
+            return one.isPresent() && two.isPresent()
+                    && one.get().loginHash() != null
+                    && one.get().loginHash().equals(two.get().loginHash());
+        } catch (java.sql.SQLException e) {
+            // Fails open, for the reason on the field above.
+            logger.log(Level.WARNING, "Could not compare login fingerprints for a bounty.", e);
+            return false;
+        }
+    }
+
     public CompletableFuture<Result<BountyRow>> place(UUID placer, UUID target, BigDecimal amount,
                                                       long now) {
         if (placer.equals(target)) {
@@ -127,11 +166,38 @@ public final class BountyService {
         return db.transaction(connection -> {
             List<BountyRow> open = bounties.findOpenOnSync(connection, victim);
             BigDecimal total = BigDecimal.ZERO;
+            int refunded = 0;
+
+            // SPEC 21.4 F7: "Place a bounty on an alt, kill the alt, reclaim." The two
+            // rules that close it are a self-claim block and an IP-linked block, and this is
+            // the second one — whether the killer and the victim connect from the same place.
+            // Asked once rather than per bounty: it is a fact about the pair.
+            boolean sameConnection = shareConnection(connection, killer, victim);
 
             for (BountyRow bounty : open) {
-                // A bounty the killer placed themselves pays out normally. SPEC 4.7 names no
-                // exception, and refusing it would only teach players to place bounties
-                // through a second account.
+                // SPEC 21.4 F7 supersedes what M19 read into SPEC 4.7's silence here. That
+                // reading was that refusing a self-claim "would only teach players to place
+                // bounties through a second account" — which is exactly why F7 blocks the
+                // second account as well, rather than allowing the first.
+                //
+                // "Both are silent rejections that refund to the placer": the money goes back
+                // where it came from and the killer is told nothing, because telling them
+                // would report on somebody else's connection to a player who has no business
+                // knowing it. Same reasoning as SPEC 13.4's discarded contest votes.
+                if (bounty.placerUuid().equals(killer) || sameConnection) {
+                    if (bounties.settle(connection, bounty.id(), BountyDao.REFUNDED, null,
+                            now) == 0) {
+                        continue;
+                    }
+                    Result<BigDecimal> back = economy.deposit(connection, bounty.placerUuid(),
+                            bounty.amount(), TransactionType.BOUNTY_REFUND, null,
+                            "{\"bounty\":" + bounty.id() + ",\"reason\":\"self_claim\"}");
+                    if (back instanceof Result.Failure<BigDecimal> failure) {
+                        return Result.<BigDecimal>propagate(failure);
+                    }
+                    refunded++;
+                    continue;
+                }
                 if (bounties.settle(connection, bounty.id(), BountyDao.CLAIMED, killer, now) == 0) {
                     // Somebody else settled it between the read and the write.
                     continue;
@@ -148,7 +214,14 @@ public final class BountyService {
             }
 
             if (total.signum() == 0) {
-                return Result.<BigDecimal>failure("NO_BOUNTY", "bounty.none-on-target");
+                // A refusal here would roll the transaction back, and the SPEC 21.4 F7
+                // refunds above are inside it — so returning a failure once a refund has
+                // happened would undo the refund and leave the bounty open, which is the
+                // opposite of a silent rejection. Zero is the honest answer: the killer was
+                // paid nothing, and something did happen.
+                return refunded > 0
+                        ? Result.success(BigDecimal.ZERO)
+                        : Result.<BigDecimal>failure("NO_BOUNTY", "bounty.none-on-target");
             }
             return Result.success(total);
         });

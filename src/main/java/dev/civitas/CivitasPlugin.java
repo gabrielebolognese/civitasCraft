@@ -145,6 +145,7 @@ public final class CivitasPlugin extends JavaPlugin {
                                  IncomeMultipliers multipliers) { }
 
     private ConfigManager configs;
+    private dev.civitas.core.abuse.PlacedBlockCache placedBlocks;
     private LangManager lang;
     private StatsService stats;
     private EventBossBar eventBar;
@@ -442,6 +443,9 @@ public final class CivitasPlugin extends JavaPlugin {
         // SPEC 4.2, 13.1 and 13.2, the income systems.
         ActivityTracker activityTracker = new ActivityTracker(configs);
         IncomeMultipliers incomeMultipliers = new IncomeMultipliers(configs);
+
+        // SPEC 21.10.5, the placed-block cache behind SPEC 21.4 F9 and F10.
+        placedBlocks = new dev.civitas.core.abuse.PlacedBlockCache(configs);
         QuestPool questPool = new QuestPool(configs, getLogger());
         questPool.load("income.quests.pool");
         QuestPool challengePool = new QuestPool(configs, getLogger());
@@ -455,6 +459,8 @@ public final class CivitasPlugin extends JavaPlugin {
                 configs, StipendTask.Notifier.online(lang), java.time.ZoneId.systemDefault());
         DailyLoginService dailyLogin = new DailyLoginService(manager, loadedDaos.players(),
                 economyService, incomeMultipliers, configs, java.time.ZoneId.systemDefault());
+        // SPEC 21.4 F12: the daily reward also needs active playtime on the day itself.
+        dailyLogin.useDailyActivity(loadedDaos.dailyActivity());
         this.income = new IncomeSystems(activityTracker, questService, challengeService,
                 dailyLogin, incomeMultipliers);
 
@@ -621,6 +627,9 @@ public final class CivitasPlugin extends JavaPlugin {
         dev.civitas.core.economy.BountyService bountyService =
                 new dev.civitas.core.economy.BountyService(manager, loadedDaos.bounties(),
                         economyService, configs, scheduler, getLogger());
+        // SPEC 21.4 F7: a bounty on an account that connects from the same place as the
+        // killer refunds instead of paying, so an alt cannot be a payday.
+        bountyService.useLogins(loadedDaos.playerLogins());
         scheduleBountyExpiry(bountyService);
 
         // SPEC 9.4.4's /ca eco rollback. Beside the economy because it writes ledger rows,
@@ -735,7 +744,7 @@ public final class CivitasPlugin extends JavaPlugin {
                 defenseSpawner, defenseBehaviour, claimRegistry), defenseRegistry);
         getServer().getPluginManager().registerEvents(
                 new ActivityListener(activityTracker, questService, challengeService,
-                        statsService), this);
+                        statsService, placedBlocks), this);
         getServer().getPluginManager().registerEvents(new IncomeJoinListener(questService,
                 challengeService, dailyLogin, cityRegistry, lang, scheduler, getLogger()), this);
 

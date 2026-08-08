@@ -151,6 +151,31 @@ public final class WarDao extends Dao<WarRow> {
      * war whose rollback failed has not finished being dealt with.
      */
     public CompletableFuture<List<WarRecordRow>> findRecords(int limit) {
+        return findRecords(limit, 0);
+    }
+
+    /**
+     * Ranked war records, SPEC 21.4 F4.
+     *
+     * <p>"A war only counts toward the leaderboard if the losing side scored at least 25% of
+     * the winner's score. Collusive wars with a walkover score are recorded but not ranked."
+     * Two friendly cities alternating staged wins is otherwise a way to farm the board, and
+     * the 21-day cooldown only slows it rather than stopping it.
+     *
+     * <p>The filter is on the <b>board</b>, not on the war: an excluded war is still resolved,
+     * still paid out, and still in {@code /war history}. It simply does not rank, which is what
+     * "recorded but not ranked" asks for.
+     *
+     * <p>{@code CASE} rather than {@code MIN}/{@code LEAST}, because the scalar two-argument
+     * form is spelled differently on SQLite and MySQL and this file has to run on both.
+     *
+     * @param minLoserPercent the loser's share of the winner's score, 0 to rank every war
+     */
+    public CompletableFuture<List<WarRecordRow>> findRecords(int limit, int minLoserPercent) {
+        String loser = "CASE WHEN w.attacker_score < w.defender_score "
+                + "THEN w.attacker_score ELSE w.defender_score END";
+        String winner = "CASE WHEN w.attacker_score > w.defender_score "
+                + "THEN w.attacker_score ELSE w.defender_score END";
         return db.call(connection -> queryListSync(connection,
                 "SELECT c.id AS city_id, c.name AS name, "
                         + "SUM(CASE WHEN w.winner_city_id = c.id THEN 1 ELSE 0 END) AS wins, "
@@ -159,6 +184,7 @@ public final class WarDao extends Dao<WarRow> {
                         + "FROM cities c "
                         + "JOIN wars w ON (w.attacker_city_id = c.id OR w.defender_city_id = c.id) "
                         + "WHERE w.state = ? "
+                        + "AND (" + loser + ") * 100 >= (" + winner + ") * ? "
                         + "GROUP BY c.id, c.name "
                         + "HAVING wins > 0 OR losses > 0 "
                         + "ORDER BY wins DESC, losses ASC, c.name ASC LIMIT ?",
@@ -167,7 +193,7 @@ public final class WarDao extends Dao<WarRow> {
                         rs.getString("name"),
                         rs.getInt("wins"),
                         rs.getInt("losses")),
-                "RESOLVED", limit));
+                "RESOLVED", minLoserPercent, limit));
     }
 
     /**

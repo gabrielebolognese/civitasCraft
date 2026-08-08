@@ -103,6 +103,9 @@ class SchemaTest {
         // V16, SPEC 21.5's daily sell quota. One row per player rather than one per player
         // per day: yesterday's figure is of no interest once the day has turned.
         schema.put("player_sell_quota", List.of("uuid", "period_start", "used"));
+        // V17, SPEC 21.4 F12's "30 minutes of active playtime that day". A baseline rather
+        // than an accrual, so the SPEC 4.2.1 filter stays the only writer of active playtime.
+        schema.put("player_daily_activity", List.of("uuid", "day_start", "baseline_ms"));
         // V5, SPEC 13.2: weekly challenges, which SPEC 3 lists no table for. Keyed by city
         // and week because progress is pooled across every member.
         schema.put("city_challenges", List.of("id", "city_id", "challenge_id", "progress",

@@ -43,6 +43,14 @@ class TreasuryServiceTest {
         support = CityTestSupport.open(directory);
         treasury = support.treasury;
 
+        // This class covers SPEC 8.5's 25% withdrawal cap. SPEC 21.4 F16 adds a 72-hour hold
+        // on a new member's first withdrawal, and every member here joined moments ago, so
+        // the hold would refuse each withdrawal before the cap was ever consulted. F16 has
+        // its own tests in AntiAbuseTest, including one asserting the cap still applies once
+        // the hold has passed, so it is turned off here rather than making these tests wait.
+        support.configs.get(dev.civitas.config.ConfigFile.ECONOMY)
+                .set("anti-abuse.treasury-withdraw-member-age-hours", 0);
+
         mayor = support.givenEligiblePlayer("Romulus");
         city = support.givenCity(mayor, "Roma", 0, 0);
         member = support.givenMember(city, "Titus");
