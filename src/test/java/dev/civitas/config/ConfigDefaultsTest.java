@@ -119,7 +119,14 @@ class ConfigDefaultsTest {
         assertEquals(25, config.getInt("members.withdraw-percent-per-day"));
 
         assertEquals(2, config.getInt("outposts.base-max"));
-        assertEquals(2000, config.getInt("outposts.upkeep-per-day"));
+        // SPEC 39.15 "replaces the outposts block in Part I 16.2", so SPEC 16.2's flat
+        // upkeep-per-day: 2000 is gone and SPEC 39.5's per-chunk, distance-scaled figure
+        // stands in its place. Asserted here rather than quietly dropped, because a key a
+        // superseded section mandated is exactly the kind that gets restored by accident.
+        assertFalse(config.contains("outposts.upkeep-per-day"),
+                "SPEC 39.5 prices upkeep per chunk and by distance, not as a flat fee");
+        assertEquals(1200, config.getInt("outposts.upkeep.base-per-chunk-per-day"));
+        assertTrue(config.getBoolean("outposts.upkeep.scales-with-distance"));
         assertEquals(32, config.getInt("outposts.min-distance-from-own-city"));
         // SPEC 39.6, which Part I 7.2 had no equivalent of.
         assertEquals(24, config.getInt("outposts.min-distance-from-own-outposts"));

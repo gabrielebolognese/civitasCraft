@@ -318,6 +318,47 @@ class UpkeepTaskTest {
         }
 
         @Test
+        @DisplayName("SPEC 39.5: outposts go before city chunks, furthest first")
+        void outpostsGoFirst() {
+            // "A city should lose its frontier before it loses its home."
+            dev.civitas.core.outpost.OutpostRegistry outpostRegistry =
+                    new dev.civitas.core.outpost.OutpostRegistry(support.daos.outposts());
+            dev.civitas.core.outpost.OutpostService outposts =
+                    new dev.civitas.core.outpost.OutpostService(support.db, support.daos,
+                            support.registry, support.claimRegistry, support.claims,
+                            outpostRegistry, support.treasury, support.configs,
+                            Scheduler.direct());
+            task.useOutposts(outposts);
+
+            fundTreasury("10000000.00");
+            assertTrue(await(outposts.create(mayor, city, "Near", WORLD, 40, 0,
+                    640.0, 64.0, 0.0, 0f, 0f)).isSuccess());
+            assertTrue(await(outposts.create(mayor, city, "Far", WORLD, 400, 0,
+                    6400.0, 64.0, 0.0, 0f, 0f)).isSuccess());
+
+            int cityChunks = support.claimRegistry.claimsOf(city.id()).size();
+
+            long now = 2_000_000_000_000L;
+            fundTreasury("0.00");
+            dueAt(now - 1_000L);
+            task.sweep(now);
+
+            long later = now + 4 * DAY;
+            fundTreasury("0.00");
+            dueAt(later - 1_000L);
+            task.sweep(later);
+
+            assertEquals(0, outpostRegistry.countOf(city.id()),
+                    "both outposts released before any city chunk was touched");
+            assertTrue(support.claimRegistry.claimsOf(city.id()).stream()
+                            .noneMatch(claim -> claim.chunkX() == 400),
+                    "and the furthest went first");
+            assertEquals(cityChunks - 2 * 1 - 1,
+                    support.claimRegistry.claimsOf(city.id()).size(),
+                    "two outpost chunks and then one city chunk, inside the three-a-day budget");
+        }
+
+        @Test
         @DisplayName("the chunks sold are the furthest from the core, and never the core itself")
         void furthestFirst() {
             long now = 2_000_000_000_000L;

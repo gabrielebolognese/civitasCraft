@@ -60,7 +60,10 @@ public final class OutpostsMenu extends CityMenu {
         set(22, info(Material.PAPER, text("gui.outposts.summary"),
                 text("gui.outposts.used", "used", String.valueOf(all.size()),
                         "max", String.valueOf(services.outposts().maxOutposts(city))),
-                text("gui.outposts.upkeep", "amount", money(dailyUpkeep(all.size())))));
+                // SPEC 39.5 prices each outpost by its own distance, so this is a sum and not
+                // a count times a rate.
+                text("gui.outposts.upkeep", "amount",
+                        money(services.outposts().upkeepFor(city)))));
 
         set(31, createButton(city));
     }
@@ -122,7 +125,8 @@ public final class OutpostsMenu extends CityMenu {
 
         builder.lore(text("gui.outposts.create-cost", "amount",
                         money(services.outposts().creationCost(city, chunkX, chunkZ))))
-                .lore(text("gui.outposts.create-upkeep", "amount", money(dailyUpkeepEach())))
+                .lore(text("gui.outposts.create-upkeep", "amount",
+                        money(services.outposts().upkeepForNewAt(city, chunkX, chunkZ))))
                 .lore(text("gui.outposts.create-here",
                         "x", String.valueOf(chunkX * 16), "z", String.valueOf(chunkZ * 16)));
 
@@ -168,14 +172,6 @@ public final class OutpostsMenu extends CityMenu {
     // Helpers
     // ==================================================================================
 
-    private BigDecimal dailyUpkeepEach() {
-        return new BigDecimal(manager.configs().get(dev.civitas.config.ConfigFile.CITIES)
-                .getString("outposts.upkeep-per-day", "2000"));
-    }
-
-    private BigDecimal dailyUpkeep(int count) {
-        return dailyUpkeepEach().multiply(BigDecimal.valueOf(count));
-    }
 
     private <T> void report(Player player, Result<T> result, Throwable error, String successKey) {
         if (error != null) {

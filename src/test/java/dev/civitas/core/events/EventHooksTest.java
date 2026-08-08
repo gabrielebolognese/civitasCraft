@@ -199,11 +199,11 @@ class EventHooksTest {
     @DisplayName("and it doubles the discounted figure, not the undiscounted one")
     void doubleUpkeepRespectsTheUpgrade() {
         BigDecimal landValue = new BigDecimal("100000.00");
-        BigDecimal discounted = support.upkeep.dailyUpkeep(landValue, 0,
+        BigDecimal discounted = support.upkeep.dailyUpkeep(landValue, dev.civitas.storage.SqlDialect.zero(),
                 dev.civitas.storage.SqlDialect.zero(), 5);
 
         start(ServerEventType.DOUBLE_UPKEEP);
-        BigDecimal during = support.upkeep.dailyUpkeep(landValue, 0,
+        BigDecimal during = support.upkeep.dailyUpkeep(landValue, dev.civitas.storage.SqlDialect.zero(),
                 dev.civitas.storage.SqlDialect.zero(), 5);
 
         // A city that paid for cheaper upkeep keeps its discount and pays double the

@@ -1,5 +1,7 @@
 package dev.civitas.command.city;
 
+import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
@@ -16,8 +18,11 @@ import dev.civitas.core.city.City;
 import dev.civitas.core.claim.Claim;
 import dev.civitas.core.economy.Money;
 import dev.civitas.core.outpost.Outpost;
+import dev.civitas.core.outpost.OutpostCostEngine;
+import dev.civitas.core.outpost.OutpostService;
 import dev.civitas.lang.LangManager;
 import dev.civitas.lang.Msg;
+import dev.civitas.msg.Formats;
 import dev.civitas.util.Result;
 import dev.civitas.util.Scheduler;
 import io.papermc.paper.command.brigadier.CommandSourceStack;
@@ -69,7 +74,17 @@ public final class OutpostCommands {
                         .then(Commands.argument("name", StringArgumentType.word())
                                 .suggests(outpostNames())
                                 .then(Commands.argument("new", StringArgumentType.word())
-                                        .executes(this::rename))));
+                                        .executes(this::rename))))
+                // SPEC 39.11, new with the SPEC 39 rework: an outpost is one to four chunks
+                // now, so it can be grown and trimmed rather than only created and deleted.
+                .then(Commands.literal("claim")
+                        .then(named("name", this::claimChunk)))
+                .then(Commands.literal("unclaim")
+                        .executes(this::unclaimChunk))
+                .then(Commands.literal("info")
+                        .then(named("name", this::info)))
+                .then(Commands.literal("cost")
+                        .executes(this::cost));
     }
 
     /**
@@ -198,6 +213,135 @@ public final class OutpostCommands {
         return Command.SINGLE_SUCCESS;
     }
 
+    /**
+     * {@code /city outpost claim <name>}, SPEC 39.11.
+     *
+     * <p>Adds the chunk the player is standing in to an outpost they name. The name is required
+     * rather than inferred from proximity: a city may hold six outposts, and guessing which one
+     * a player meant is how somebody spends two million coins on the wrong one.
+     */
+    private int claimChunk(CommandContext<CommandSourceStack> command, String name) {
+        Named target = namedOutpost(command, name);
+        if (target == null) {
+            return Command.SINGLE_SUCCESS;
+        }
+        Player player = target.player();
+        Location at = player.getLocation();
+
+        Replies.reply(services.get().outposts().expand(player.getUniqueId(), target.city(),
+                        target.outpost(), at.getWorld().getName(),
+                        at.getBlockX() >> 4, at.getBlockZ() >> 4),
+                player, lang, scheduler, logger,
+                claim -> lang.send(player, "outpost.chunk-claimed",
+                        LangManager.placeholder("name", target.outpost().name()),
+                        LangManager.placeholder("chunks", String.valueOf(
+                                services.get().outposts().chunkCount(target.outpost()))),
+                        LangManager.placeholder("max", String.valueOf(
+                                services.get().outposts().maxChunksPerOutpost()))));
+        return Command.SINGLE_SUCCESS;
+    }
+
+    /**
+     * {@code /city outpost unclaim}, SPEC 39.11.
+     *
+     * <p>No name argument: the chunk a player is standing in belongs to exactly one outpost, so
+     * there is nothing to disambiguate and asking would be asking a question the game can
+     * already answer.
+     */
+    private int unclaimChunk(CommandContext<CommandSourceStack> command) {
+        Context context = contextOf(command.getSource().getSender());
+        if (context == null) {
+            return Command.SINGLE_SUCCESS;
+        }
+        Player player = context.player();
+        Location at = player.getLocation();
+
+        Replies.reply(services.get().outposts().unclaimChunk(player.getUniqueId(),
+                        context.city(), at.getWorld().getName(),
+                        at.getBlockX() >> 4, at.getBlockZ() >> 4),
+                player, lang, scheduler, logger,
+                claim -> lang.send(player, "outpost.chunk-unclaimed",
+                        LangManager.placeholder("x", String.valueOf(claim.chunkX())),
+                        LangManager.placeholder("z", String.valueOf(claim.chunkZ()))));
+        return Command.SINGLE_SUCCESS;
+    }
+
+    /** {@code /city outpost info <name>}, SPEC 39.11. */
+    private int info(CommandContext<CommandSourceStack> command, String name) {
+        Named target = namedOutpost(command, name);
+        if (target == null) {
+            return Command.SINGLE_SUCCESS;
+        }
+        OutpostService service = services.get().outposts();
+        Player player = target.player();
+        Outpost outpost = target.outpost();
+
+        lang.sendRaw(player, "outpost.info-header",
+                LangManager.placeholder("name", outpost.name()));
+        lang.sendRaw(player, "outpost.info-chunks",
+                LangManager.placeholder("chunks", String.valueOf(service.chunkCount(outpost))),
+                LangManager.placeholder("max", String.valueOf(service.maxChunksPerOutpost())));
+        lang.sendRaw(player, "outpost.info-distance",
+                LangManager.placeholder("blocks",
+                        Formats.count(Math.round(service.blocksFromCore(target.city(), outpost)))));
+        lang.sendRaw(player, "outpost.info-upkeep",
+                LangManager.placeholder("amount", money(service.upkeepFor(target.city(), outpost))));
+        lang.sendRaw(player, "outpost.info-teleport",
+                LangManager.placeholder("amount",
+                        money(service.teleportCost(target.city(), outpost))));
+        return Command.SINGLE_SUCCESS;
+    }
+
+    /**
+     * {@code /city outpost cost}, SPEC 39.11's own addition to the command set.
+     *
+     * <p>SPEC argues for it directly: "A formula with four terms is opaque unless the game shows
+     * its work, and a player about to spend two million coins deserves to see exactly why." So
+     * this prints every term rather than a total.
+     */
+    private int cost(CommandContext<CommandSourceStack> command) {
+        Context context = contextOf(command.getSource().getSender());
+        if (context == null) {
+            return Command.SINGLE_SUCCESS;
+        }
+        Player player = context.player();
+        Location at = player.getLocation();
+        int chunkX = at.getBlockX() >> 4;
+        int chunkZ = at.getBlockZ() >> 4;
+
+        OutpostService service = services.get().outposts();
+        OutpostCostEngine.Breakdown breakdown =
+                service.priceBreakdown(context.city(), 1, chunkX, chunkZ);
+        long blocks = Math.round(service.blocksFromCore(context.city(), chunkX, chunkZ));
+
+        lang.sendRaw(player, "outpost.cost-header");
+        lang.sendRaw(player, "outpost.cost-base",
+                LangManager.placeholder("amount", money(breakdown.base())));
+        lang.sendRaw(player, "outpost.cost-distance",
+                LangManager.placeholder("multiplier", twoPlaces(breakdown.distance())),
+                LangManager.placeholder("blocks", Formats.count(blocks)));
+        lang.sendRaw(player, "outpost.cost-chunk",
+                LangManager.placeholder("multiplier", twoPlaces(breakdown.factor())));
+        lang.sendRaw(player, "outpost.cost-members",
+                LangManager.placeholder("divisor", twoPlaces(breakdown.divisor())));
+        lang.sendRaw(player, "outpost.cost-total",
+                LangManager.placeholder("amount", money(breakdown.total())));
+        return Command.SINGLE_SUCCESS;
+    }
+
+    /** Every price in this class goes through here, so the formatter pair is written once. */
+    private String money(BigDecimal amount) {
+        return Money.format(amount, services.get().economy().configs());
+    }
+
+    /** A multiplier as a player would read it: 1.25, not 1.2499999999999998. */
+    private static String twoPlaces(double value) {
+        return BigDecimal.valueOf(value)
+                .setScale(2, RoundingMode.HALF_UP)
+                .stripTrailingZeros()
+                .toPlainString();
+    }
+
     private int rename(CommandContext<CommandSourceStack> command) {
         Named target = namedOutpost(command, StringArgumentType.getString(command, "name"));
         if (target == null) {
@@ -262,7 +406,6 @@ public final class OutpostCommands {
      * the world border went.
      */
     public String creationCost(City city, int chunkX, int chunkZ) {
-        return Money.format(services.get().outposts().creationCost(city, chunkX, chunkZ),
-                services.get().economy().configs());
+        return money(services.get().outposts().creationCost(city, chunkX, chunkZ));
     }
 }

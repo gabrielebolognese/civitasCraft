@@ -14,10 +14,15 @@ import org.bukkit.configuration.file.FileConfiguration;
  *
  * <pre>
  *   upkeep = land_value * 0.4%
- *          + outposts * 2,000
+ *          + outpost upkeep
  *          + defense unit upkeep
  *          reduced by 4% per Treasury Interest level
  * </pre>
+ *
+ * <p>Outpost upkeep arrives as a figure rather than a count. Part I 7.2 charged every outpost
+ * the same 2,000 a day, so a count was enough; SPEC 39.5 scales it by distance and by chunks
+ * held, so two outposts of the same city rarely cost the same and only the outpost service can
+ * price them. Taking a count here would have meant this class quietly averaging them.</p>
  *
  * <p>Pure arithmetic, so SPEC 18.1's three city sizes can be checked directly.
  *
@@ -39,22 +44,18 @@ public final class UpkeepCalculator {
      * The daily charge.
      *
      * @param landValue             sum of what was paid for every claim
-     * @param outpostCount          outposts held; each costs a flat daily fee (SPEC 7.2)
+     * @param outpostUpkeep         total daily cost of every outpost, priced by SPEC 39.5
      * @param defenseUpkeep         total daily cost of active defense units (SPEC 12.2)
      * @param treasuryInterestLevel the SPEC 5.7 upgrade level, 0 to 5
      */
-    public BigDecimal dailyUpkeep(BigDecimal landValue, int outpostCount,
+    public BigDecimal dailyUpkeep(BigDecimal landValue, BigDecimal outpostUpkeep,
                                   BigDecimal defenseUpkeep, int treasuryInterestLevel) {
         FileConfiguration cities = configs.get(ConfigFile.CITIES);
 
         double landPercent = cities.getDouble("upkeep.percent-of-land-value-per-day", 0.4);
         BigDecimal fromLand = Money.percentOf(landValue, landPercent);
 
-        BigDecimal fromOutposts = new BigDecimal(
-                cities.getString("outposts.upkeep-per-day", "2000"))
-                .multiply(BigDecimal.valueOf(Math.max(0, outpostCount)));
-
-        BigDecimal gross = fromLand.add(fromOutposts).add(defenseUpkeep);
+        BigDecimal gross = fromLand.add(outpostUpkeep.max(SqlDialect.zero())).add(defenseUpkeep);
 
         double reductionPerLevel = cities.getDouble("upgrades.treasury-interest.effect-per-level", 4.0);
         double reduction = Math.min(100.0, reductionPerLevel * Math.max(0, treasuryInterestLevel));
@@ -80,7 +81,7 @@ public final class UpkeepCalculator {
 
     /** The charge for a city with no outposts, no defense units and no upgrades. */
     public BigDecimal dailyUpkeep(BigDecimal landValue) {
-        return dailyUpkeep(landValue, 0, SqlDialect.zero(), 0);
+        return dailyUpkeep(landValue, SqlDialect.zero(), SqlDialect.zero(), 0);
     }
 
     /** How many whole days a treasury can pay for at this rate, for the SPEC 8.5 runway line. */

@@ -557,7 +557,7 @@ public final class CivitasPlugin extends JavaPlugin {
         OutpostTeleport outpostTeleport = new OutpostTeleport(this, outpostService,
                 economyService, configs, lang);
         this.outposts = outpostTeleport;
-        upkeepTask.useOutposts(outpostRegistry);
+        upkeepTask.useOutposts(outpostService);
         outpostService.useUpgrades(upgradeService);
 
         // SPEC 7.4: a claim that reaches an outpost absorbs it.

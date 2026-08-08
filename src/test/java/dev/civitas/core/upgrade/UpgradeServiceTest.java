@@ -247,9 +247,9 @@ class UpgradeServiceTest {
         @DisplayName("SPEC 5.7 Treasury Interest lowers the bill the upkeep sweep produces")
         void treasuryInterest() {
             BigDecimal landValue = new BigDecimal("1000000.00");
-            BigDecimal full = support.upkeep.dailyUpkeep(landValue, 0,
+            BigDecimal full = support.upkeep.dailyUpkeep(landValue, dev.civitas.storage.SqlDialect.zero(),
                     dev.civitas.storage.SqlDialect.zero(), 0);
-            BigDecimal discounted = support.upkeep.dailyUpkeep(landValue, 0,
+            BigDecimal discounted = support.upkeep.dailyUpkeep(landValue, dev.civitas.storage.SqlDialect.zero(),
                     dev.civitas.storage.SqlDialect.zero(), 3);
 
             assertEquals(0, new BigDecimal("4000.00").compareTo(full));

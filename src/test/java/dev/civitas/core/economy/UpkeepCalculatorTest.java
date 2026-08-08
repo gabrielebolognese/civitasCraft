@@ -117,20 +117,34 @@ class UpkeepCalculatorTest {
     // ==================================================================================
 
     @Test
-    @DisplayName("each outpost adds its SPEC 7.2 flat daily fee")
+    @DisplayName("outpost upkeep is added on top, SPEC 39.5")
     void outpostsAddUpkeep() {
-        BigDecimal none = calculator.dailyUpkeep(new BigDecimal("100000.00"), 0,
+        // A figure, not a count. Part I 7.2 charged every outpost a flat 2,000, so this test
+        // used to multiply. SPEC 39.5 scales the bill by distance and by chunks held, so what
+        // an outpost costs is the cost engine's question and OutpostCostEngineTest asserts it
+        // against SPEC 39.5's own table. What belongs here is only that the figure lands.
+        BigDecimal none = calculator.dailyUpkeep(new BigDecimal("100000.00"), SqlDialect.zero(),
                 SqlDialect.zero(), 0);
-        BigDecimal two = calculator.dailyUpkeep(new BigDecimal("100000.00"), 2,
+        BigDecimal withOutposts = calculator.dailyUpkeep(new BigDecimal("100000.00"),
+                new BigDecimal("9448.00"), SqlDialect.zero(), 0);
+
+        assertEquals(0, none.add(new BigDecimal("9448")).compareTo(withOutposts));
+    }
+
+    @Test
+    @DisplayName("a negative outpost figure cannot pay down the land bill")
+    void outpostUpkeepNeverSubtracts() {
+        BigDecimal land = calculator.dailyUpkeep(new BigDecimal("100000.00"), SqlDialect.zero(),
                 SqlDialect.zero(), 0);
 
-        assertEquals(0, none.add(new BigDecimal("4000")).compareTo(two));
+        assertEquals(0, land.compareTo(calculator.dailyUpkeep(new BigDecimal("100000.00"),
+                new BigDecimal("-5000.00"), SqlDialect.zero(), 0)));
     }
 
     @Test
     @DisplayName("defense unit upkeep is added on top, SPEC 12.2")
     void defenseUnitsAddUpkeep() {
-        BigDecimal with = calculator.dailyUpkeep(new BigDecimal("100000.00"), 0,
+        BigDecimal with = calculator.dailyUpkeep(new BigDecimal("100000.00"), SqlDialect.zero(),
                 new BigDecimal("1600.00"), 0);
 
         assertEquals(0, new BigDecimal("2000.00").compareTo(with), "400 from land plus 1,600");
@@ -139,21 +153,21 @@ class UpkeepCalculatorTest {
     @Test
     @DisplayName("Treasury Interest takes 4% off per level, SPEC 5.7")
     void treasuryInterestReducesUpkeep() {
-        BigDecimal base = calculator.dailyUpkeep(new BigDecimal("1000000.00"), 0,
+        BigDecimal base = calculator.dailyUpkeep(new BigDecimal("1000000.00"), SqlDialect.zero(),
                 SqlDialect.zero(), 0);
         assertEquals(0, new BigDecimal("4000.00").compareTo(base));
 
         assertEquals(0, new BigDecimal("3840.00").compareTo(
-                calculator.dailyUpkeep(new BigDecimal("1000000.00"), 0, SqlDialect.zero(), 1)));
+                calculator.dailyUpkeep(new BigDecimal("1000000.00"), SqlDialect.zero(), SqlDialect.zero(), 1)));
         assertEquals(0, new BigDecimal("3200.00").compareTo(
-                calculator.dailyUpkeep(new BigDecimal("1000000.00"), 0, SqlDialect.zero(), 5)),
+                calculator.dailyUpkeep(new BigDecimal("1000000.00"), SqlDialect.zero(), SqlDialect.zero(), 5)),
                 "five levels is 20% off");
     }
 
     @Test
     @DisplayName("upkeep never goes negative, however much is discounted")
     void neverNegative() {
-        assertTrue(calculator.dailyUpkeep(new BigDecimal("1000.00"), 0, SqlDialect.zero(), 99)
+        assertTrue(calculator.dailyUpkeep(new BigDecimal("1000.00"), SqlDialect.zero(), SqlDialect.zero(), 99)
                 .signum() >= 0);
     }
 

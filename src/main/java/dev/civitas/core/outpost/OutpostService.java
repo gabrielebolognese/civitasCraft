@@ -273,6 +273,23 @@ public final class OutpostService {
         if (isCityAtWar(city)) {
             return completed(Result.failure("CITY_AT_WAR", "outpost.at-war"));
         }
+        return release(city, outpost, actor);
+    }
+
+    /**
+     * Releases an outpost for unpaid upkeep, SPEC 39.5.
+     *
+     * <p>No permission, freeze or war check, matching {@link
+     * dev.civitas.core.claim.ClaimService#releaseForDebt}: this is not a member acting, it is
+     * the upkeep sweep collecting, and a debt that stopped being collectable the moment an
+     * admin froze a city would be a way to stop paying.
+     */
+    public CompletableFuture<Result<Outpost>> releaseForDebt(City city, Outpost outpost) {
+        return release(city, outpost, null);
+    }
+
+    /** The shared body: drop every chunk, delete the row, refund half of each to the treasury. */
+    private CompletableFuture<Result<Outpost>> release(City city, Outpost outpost, UUID actor) {
         // SPEC 39.2: an outpost is up to four chunks, so deleting releases all of them and
         // refunds half of each. Part I could take the single chunk because there was only one.
         java.util.List<Claim> held = chunksOf(outpost);
@@ -828,6 +845,29 @@ public final class OutpostService {
     /** Daily upkeep for one outpost, SPEC 39.5: {@code 1200 * D(d) * chunks}. */
     public BigDecimal upkeepFor(City city, Outpost outpost) {
         return costs.upkeepPerDay(chunkCount(outpost), blocksFromCore(city, outpost));
+    }
+
+    /**
+     * Daily upkeep for every outpost the city holds, SPEC 39.5.
+     *
+     * <p>Summed rather than counted: each outpost is priced by its own distance and its own
+     * chunk count, so a city holding one nearby and one at half a million blocks owes very
+     * different amounts for the two.
+     */
+    public BigDecimal upkeepFor(City city) {
+        return outposts.of(city.id()).stream()
+                .map(outpost -> upkeepFor(city, outpost))
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+    }
+
+    /**
+     * Daily upkeep a one-chunk outpost founded at this spot would cost, for the create button.
+     *
+     * <p>Takes a position for the same reason {@link #creationCost(City, int, int)} does: under
+     * SPEC 39.5 the bill scales with distance, so a figure quoted without a place is not a bill.
+     */
+    public BigDecimal upkeepForNewAt(City city, int chunkX, int chunkZ) {
+        return costs.upkeepPerDay(1, blocksFromCore(city, chunkX, chunkZ));
     }
 
     /** The teleport fee, SPEC 39.5: {@code 100 * D(d)}. */

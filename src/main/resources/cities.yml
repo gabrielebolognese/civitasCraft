@@ -102,7 +102,6 @@ inactivity:
 # makes remote territory reachable, which promoted them from convenience to primary system.
 outposts:
   base-max: 2
-  upkeep-per-day: 2000
   min-distance-from-own-city: 32
   # SPEC 39.6, new with the rework. Outposts grew to four chunks, and six of them is
   # twenty-four remote chunks — without spacing they could be laid end to end into a

@@ -465,24 +465,65 @@ class OutpostServiceTest {
     }
 
     // ==================================================================================
-    // Upkeep, SPEC 7.2
+    // Upkeep, SPEC 39.5
     // ==================================================================================
 
     @Test
-    @DisplayName("SPEC 7.2: each outpost adds its flat daily fee to the city's upkeep")
+    @DisplayName("SPEC 39.5: an outpost adds its own distance-scaled fee to the city's upkeep")
     void upkeep() {
         BigDecimal landOnly = support.upkeep.dailyUpkeep(
-                support.claims.landValueOf(city.id()), 0,
+                support.claims.landValueOf(city.id()), dev.civitas.storage.SqlDialect.zero(),
                 dev.civitas.storage.SqlDialect.zero(), 0);
 
         given("North", 40, 0);
 
         BigDecimal withOne = support.upkeep.dailyUpkeep(
-                support.claims.landValueOf(city.id()), registry.countOf(city.id()),
+                support.claims.landValueOf(city.id()), outposts.upkeepFor(city),
                 dev.civitas.storage.SqlDialect.zero(), 0);
 
-        assertTrue(withOne.subtract(landOnly).compareTo(new BigDecimal("2000")) >= 0,
-                "at least the flat 2,000 a day, plus the land the outpost itself is worth");
+        // 1,200 a chunk a day before distance, so one chunk is at least that.
+        assertTrue(withOne.subtract(landOnly).compareTo(new BigDecimal("1200")) >= 0,
+                "at least the base per-chunk fee, plus the land the outpost itself is worth");
+    }
+
+    @Test
+    @DisplayName("SPEC 39.5: the same outpost costs more the further out it is")
+    void upkeepScalesWithDistance() {
+        // The whole point of the rework. Under Part I 7.2's flat 2,000 these two were
+        // identical, which is what made holding the frontier no dearer than holding the
+        // next valley over.
+        Outpost near = given("Near", 40, 0);
+        BigDecimal nearly = outposts.upkeepFor(city, near);
+
+        assertTrue(await(outposts.delete(mayor, city, near)).isSuccess());
+        Outpost far = given("Far", 4000, 0);
+
+        assertTrue(outposts.upkeepFor(city, far).compareTo(nearly) > 0,
+                "one sixty-four thousand blocks out should cost more than one six hundred out");
+    }
+
+    @Test
+    @DisplayName("a city's outpost upkeep is the sum of its outposts, not a count times a rate")
+    void upkeepSumsEachOutpost() {
+        Outpost first = given("First", 40, 0);
+        Outpost second = given("Second", 200, 0);
+
+        assertEquals(0, outposts.upkeepFor(city, first).add(outposts.upkeepFor(city, second))
+                .compareTo(outposts.upkeepFor(city)));
+    }
+
+    @Test
+    @DisplayName("SPEC 39.5: a second chunk doubles that outpost's upkeep")
+    void upkeepScalesWithChunks() {
+        Outpost outpost = given("North", 40, 0);
+        BigDecimal one = outposts.upkeepFor(city, outpost);
+
+        assertTrue(await(outposts.expand(mayor, city, outpost, WORLD, 41, 0)).isSuccess());
+
+        assertEquals(0, one.multiply(new BigDecimal("2"))
+                        .compareTo(outposts.upkeepFor(city, outpost)),
+                "the formula is 1200 * D(d) * chunks, and distance is measured from the "
+                        + "founding chunk so it does not move when the outpost grows");
     }
 
     @Test

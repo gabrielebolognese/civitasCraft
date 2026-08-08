@@ -247,9 +247,15 @@ public final class UpkeepTask implements Runnable {
         int budget = calculator.unclaimsPerDay();
         List<Claim> released = new ArrayList<>();
 
+        // SPEC 39.5: "outposts are released before city chunks, furthest first, because a city
+        // should lose its frontier before it loses its home." Each outpost released also cuts
+        // the daily bill by its own distance-scaled share, so this is the cheapest debt to shed
+        // as well as the least painful.
+        int taken = releaseOutposts(city, budget, released);
+
         // Re-asked after every release, because removing the furthest chunk can make the
         // next-furthest safe to remove when it was not before.
-        for (int taken = 0; taken < budget; taken++) {
+        for (; taken < budget; taken++) {
             List<Claim> candidates = claims.releasableForDebt(city, 1);
             if (candidates.isEmpty()) {
                 break;
@@ -275,6 +281,46 @@ public final class UpkeepTask implements Runnable {
 
         // The refunds may have cleared the debt; find out now rather than tomorrow.
         retryAfterRefund(city, now);
+    }
+
+    /**
+     * Releases whole outposts, furthest first, up to the day's budget. SPEC 39.5.
+     *
+     * <p>A whole outpost at a time rather than a chunk at a time, and each counts once against
+     * the budget. An outpost is a place: leaving a city with two chunks of a four-chunk holding
+     * a million blocks away would still charge it a distance-scaled bill for a fragment nobody
+     * can use, where releasing the whole thing ends the cost and the journey together.
+     *
+     * @return how much of {@code budget} was spent
+     */
+    private int releaseOutposts(City city, int budget, List<Claim> released) {
+        if (outposts == null) {
+            return 0;
+        }
+        int taken = 0;
+        while (taken < budget) {
+            List<dev.civitas.core.outpost.Outpost> held =
+                    new ArrayList<>(outposts.registry().of(city.id()));
+            if (held.isEmpty()) {
+                break;
+            }
+            // Recomputed each time rather than sorted once: releasing one does not move the
+            // others, but a list read once and then mutated is how a stale entry gets picked.
+            dev.civitas.core.outpost.Outpost furthest = held.stream()
+                    .max(java.util.Comparator.comparingDouble(
+                            outpost -> outposts.blocksFromCore(city, outpost)))
+                    .orElseThrow();
+
+            List<Claim> chunks = outposts.chunksOf(furthest);
+            Result<dev.civitas.core.outpost.Outpost> result =
+                    await(outposts.releaseForDebt(city, furthest));
+            if (result instanceof Result.Failure<dev.civitas.core.outpost.Outpost>) {
+                break;
+            }
+            released.addAll(chunks);
+            taken++;
+        }
+        return taken;
     }
 
     /** Charges again immediately, in case the refunds covered what was owed. */
@@ -331,10 +377,9 @@ public final class UpkeepTask implements Runnable {
     /** What this city owes today. */
     public BigDecimal amountFor(City city) {
         BigDecimal landValue = ClaimCostEngine.landValue(claims.registry().claimsOf(city.id()));
-        // Outposts are M10 and defense units are M12; both are zero until then, and the
-        // upgrade level is M11. Passing them explicitly keeps the formula honest about what
-        // it is not yet counting.
-        BigDecimal standard = calculator.dailyUpkeep(landValue, outpostCount(city),
+        // Defense units are M12 and read zero until then. Passing every term explicitly keeps
+        // the formula honest about what it is not yet counting.
+        BigDecimal standard = calculator.dailyUpkeep(landValue, outpostUpkeep(city),
                 defenseUpkeep(city), treasuryInterestLevel(city));
 
         // SPEC 9.4.2's per-city override, applied last. An admin who halved a returning
@@ -355,22 +400,25 @@ public final class UpkeepTask implements Runnable {
         this.overrides = adminOverrides;
     }
 
-    /** SPEC 7.2: each outpost costs a flat daily fee on top of the land. */
-    private int outpostCount(City city) {
-        return outposts == null ? 0 : outposts.countOf(city.id());
+    /** SPEC 39.5: each outpost costs {@code 1200 * D(d) * chunks} a day, distance included. */
+    private BigDecimal outpostUpkeep(City city) {
+        return outposts == null ? SqlDialect.zero() : outposts.upkeepFor(city);
     }
 
     /**
      * Told about outposts once they exist.
      *
-     * <p>Set rather than injected because the upkeep sweep is built before the outpost
-     * registry and a city with no outposts owes nothing extra either way.
+     * <p>Set rather than injected because the upkeep sweep is built before the outpost service
+     * and a city with no outposts owes nothing extra either way.
+     *
+     * <p>The service rather than the registry: SPEC 39.5 prices an outpost by how far it is
+     * from the city core, which is the cost engine's question and not the registry's.
      */
-    public void useOutposts(dev.civitas.core.outpost.OutpostRegistry registry) {
-        this.outposts = registry;
+    public void useOutposts(dev.civitas.core.outpost.OutpostService service) {
+        this.outposts = service;
     }
 
-    private dev.civitas.core.outpost.OutpostRegistry outposts;
+    private dev.civitas.core.outpost.OutpostService outposts;
 
     /** SPEC 12.2: every standing unit costs its city a flat fee a day. */
     private BigDecimal defenseUpkeep(City city) {
