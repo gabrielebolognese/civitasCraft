@@ -139,7 +139,20 @@ class MigrationRunnerTest {
                 throw new AssertionError(e);
             }
 
-            assertEquals(Set.of(1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20), versions);
+            // Derived from the migrations on disk, not restated as a literal. A hardcoded set
+            // has to be edited by every milestone that adds a migration, which means it fails
+            // for the one reason that is never a defect — and this project has now found the
+            // same shape four times (ConfigKeyUsageTest's file list, HelpPagesTest's command
+            // list, the migration index before MigrationIndexTest, and here). What the test is
+            // for is that every discovered migration was applied and recorded, and that is what
+            // it now says.
+            Set<Integer> expected = new TreeSet<>(
+                    new MigrationRunner(quietLogger(), SqlDialect.SQLITE).discover().stream()
+                            .map(Migration::version)
+                            .toList());
+
+            assertFalse(expected.isEmpty(), "no migrations were discovered at all");
+            assertEquals(expected, versions);
         }
     }
 

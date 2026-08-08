@@ -151,6 +151,33 @@ outposts:
     cooldown-seconds: 180
 
 
+# SPEC 39.10. The resource-world counterpart to an outpost, and deliberately a different thing:
+# one per city per resource world from a pool of its own, one or two chunks, and a shared
+# teleport anchor rather than territory.
+#
+#   chunk 1 = chunk-1-cost * W(d)      chunk 2 = chunk-2-cost * W(d)
+#   upkeep  = base-upkeep-per-chunk-per-day * W(d) * chunks
+#   W(d)    = 1 + distance-constant * sqrt(d / distance-reference-blocks)
+#
+# d is measured from THAT WORLD'S SPAWN, not from the city core -- the core is in `world` and a
+# waystation is in `resource`, so there is no distance between them to measure.
+#
+# The constant is 0.10 against the outposts' 0.25, per SPEC 39.10: "the resource worlds exist to
+# be travelled deep into, and penalising that would defeat their purpose."
+waystations:
+  enabled: true
+  max-per-world-per-city: 1
+  max-chunks: 2
+  chunk-1-cost: 60000
+  chunk-2-cost: 90000
+  distance-constant: 0.10
+  distance-reference-blocks: 1000
+  base-upkeep-per-chunk-per-day: 1500
+  # Flat, unlike the outpost fare. A fee that rose with depth would tax the deep mining these
+  # worlds exist for, on every trip.
+  teleport-cost: 200
+  refund-percent: 50
+
 # Default ranks created with every new city, SPEC 5.4.
 # Permission flag names must match the CityPermission enum.
 ranks:

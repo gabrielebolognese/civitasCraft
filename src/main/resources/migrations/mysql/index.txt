@@ -21,3 +21,4 @@ V17__daily_activity.sql
 V18__player_toggles.sql
 V19__warps.sql
 V20__mining_claims.sql
+V21__waystations.sql
