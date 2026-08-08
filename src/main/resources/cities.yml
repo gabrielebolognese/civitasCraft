@@ -102,15 +102,19 @@ inactivity:
 # makes remote territory reachable, which promoted them from convenience to primary system.
 outposts:
   base-max: 2
-  creation-cost-flat: 25000
-  creation-cost-multiplier: 3.0
   upkeep-per-day: 2000
   min-distance-from-own-city: 32
+  # SPEC 39.6, new with the rework. Outposts grew to four chunks, and six of them is
+  # twenty-four remote chunks — without spacing they could be laid end to end into a
+  # continuous road, which is the SPEC 6.1 adjacency rule defeated by other means.
+  min-distance-from-own-outposts: 24
   min-distance-from-other-city: 8
   teleport-cost: 100
   teleport-warmup-seconds: 8
   teleport-cooldown-seconds: 180
   delete-refund-percent: 50
+  # SPEC 39.2: an outpost is one to four edge-connected chunks.
+  max-chunks-per-outpost: 4
 
   # SPEC 39.3's cost formula, which replaces the flat pricing above. Both are shipped while
   # the SPEC 39 rework is in progress; the Part I keys go when the code reading them does.

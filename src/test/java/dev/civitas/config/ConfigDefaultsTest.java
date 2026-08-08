@@ -119,10 +119,11 @@ class ConfigDefaultsTest {
         assertEquals(25, config.getInt("members.withdraw-percent-per-day"));
 
         assertEquals(2, config.getInt("outposts.base-max"));
-        assertEquals(25000, config.getInt("outposts.creation-cost-flat"));
-        assertEquals(3.0, config.getDouble("outposts.creation-cost-multiplier"), 1e-9);
         assertEquals(2000, config.getInt("outposts.upkeep-per-day"));
         assertEquals(32, config.getInt("outposts.min-distance-from-own-city"));
+        // SPEC 39.6, which Part I 7.2 had no equivalent of.
+        assertEquals(24, config.getInt("outposts.min-distance-from-own-outposts"));
+        assertEquals(4, config.getInt("outposts.max-chunks-per-outpost"));
         assertEquals(8, config.getInt("outposts.min-distance-from-other-city"));
         assertEquals(100, config.getInt("outposts.teleport-cost"));
         assertEquals(8, config.getInt("outposts.teleport-warmup-seconds"));

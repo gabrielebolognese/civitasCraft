@@ -718,6 +718,7 @@ outpost:
   no-chunk: "<red>That outpost has lost its chunk. Tell an administrator."
   too-close-own: "<red>An outpost must be at least <white><required></white> chunks from your own land. That spot is <white><actual></white> away."
   too-close-other: "<red>An outpost must be at least <white><required></white> chunks from another city. That spot is <white><actual></white> away."
+  too-close-outpost: "<red>An outpost must be at least <white><required></white> chunks from your other outposts. That spot is <white><actual></white> away."
   warp-outside: "<red>The warp point must be inside the outpost's own chunk."
   at-war: "<red>Outposts cannot be changed while your city is at war."
   world-missing: "<red>That outpost's world is not loaded."

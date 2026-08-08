@@ -126,34 +126,76 @@ class OutpostServiceTest {
         }
 
         @Test
-        @DisplayName("an existing outpost does not push the next one 32 chunks away")
-        void outpostsDoNotBlockEachOther() {
+        @DisplayName("SPEC 39.6: a city's outposts must be 24 chunks apart")
+        void outpostsSpaceThemselves() {
+            // This reverses Part I 7.2, which had no outpost-to-outpost distance at all and
+            // whose test asserted two outposts could sit side by side. SPEC 39.6 adds the rule
+            // because outposts grew to four chunks: six of them is twenty-four remote chunks,
+            // and without spacing they could be laid end to end into a continuous road across
+            // the map, which is the SPEC 6.1 adjacency rule defeated by other means.
             given("First", 40, 0);
 
-            // SPEC 7.2 measures from the city, and two outposts side by side break none of
-            // the rules the distance exists to protect.
+            assertEquals("TOO_CLOSE_TO_OWN_OUTPOST", reasonOf(create("Second", 41, 0)));
+            assertEquals("TOO_CLOSE_TO_OWN_OUTPOST", reasonOf(create("Second", 63, 0)),
+                    "23 chunks is still too close");
+            assertTrue(create("Second", 64, 0).isSuccess(),
+                    "24 chunks is the minimum, and a minimum is allowed");
+        }
+
+        @Test
+        @DisplayName("the spacing is configurable, and zero switches it off")
+        void spacingIsConfigurable() {
+            support.configs.get(dev.civitas.config.ConfigFile.CITIES)
+                    .set("outposts.min-distance-from-own-outposts", 0);
+            given("First", 40, 0);
+
             assertTrue(create("Second", 41, 0).isSuccess());
         }
 
         @Test
-        @DisplayName("SPEC 7.2: 25,000 flat plus three times the next normal chunk")
+        @DisplayName("SPEC 39.3 prices distance, replacing SPEC 7.2's flat fee")
         void creationCost() {
-            BigDecimal expected = new BigDecimal("25000").add(
-                    support.claims.costs().price(
-                                    support.claimRegistry.claimsOf(city.id()).size() + 1, 0,
-                                    support.claims.activeMemberCount(city),
-                                    city.ageMillis(System.currentTimeMillis()))
-                            .total()
-                            .multiply(new BigDecimal("3")));
+            // Part I 7.2 charged 25,000 plus three times a normal chunk, wherever the outpost
+            // was. SPEC 39.1 retires that along with the single-chunk design: with no world
+            // border, a flat fee makes a holding a million blocks away cost the same as one
+            // next door, which is not a price for distance at all.
+            //
+            // The engine's own figures are locked to SPEC 39.4's published tables in
+            // OutpostCostEngineTest. What matters here is that the service asks for the price
+            // of the chunk the player is actually standing on.
+            BigDecimal near = outposts.creationCost(city, 40, 0);
+            BigDecimal far = outposts.creationCost(city, 4000, 0);
 
-            assertEquals(0, dev.civitas.core.economy.Money.floor(expected)
-                    .compareTo(outposts.creationCost(city)));
+            assertTrue(far.compareTo(near) > 0,
+                    "an outpost 64,000 blocks out cost the same as one 640 blocks out");
+            assertEquals(0, outposts.costs()
+                    .chunkCost(support.claimRegistry.claimsOf(city.id()).size(), 1,
+                            outposts.blocksFromCore(city, 40, 0),
+                            support.claims.activeMemberCount(city))
+                    .compareTo(near),
+                    "the service and the engine must agree on the same chunk");
+        }
+
+        @Test
+        @DisplayName("SPEC 39.5: upkeep and the teleport fee scale with the same distance")
+        void distanceScalesEverything() {
+            Outpost near = given("Near", 40, 0);
+
+            // One outpost, so the comparison is between the figures the engine returns for
+            // two distances rather than between two outposts of different sizes.
+            double atNear = outposts.blocksFromCore(city, near);
+            assertTrue(outposts.costs().upkeepPerDay(1, atNear * 10)
+                            .compareTo(outposts.costs().upkeepPerDay(1, atNear)) > 0,
+                    "upkeep did not scale with distance");
+            assertTrue(outposts.costs().teleportCost(atNear * 10)
+                            .compareTo(outposts.costs().teleportCost(atNear)) > 0,
+                    "the teleport fee did not scale with distance");
         }
 
         @Test
         @DisplayName("the price actually leaves the treasury")
         void treasuryIsCharged() {
-            BigDecimal cost = outposts.creationCost(city);
+            BigDecimal cost = outposts.creationCost(city, 40, 0);
             BigDecimal before = city.treasury();
 
             given("North", 40, 0);
@@ -298,7 +340,7 @@ class OutpostServiceTest {
         @Test
         @DisplayName("SPEC 7.3: deleting refunds half of what it cost, to the treasury")
         void refund() {
-            BigDecimal cost = outposts.creationCost(city);
+            BigDecimal cost = outposts.creationCost(city, 40, 0);
             Outpost outpost = given("North", 40, 0);
             BigDecimal afterCreate = await(support.daos.cities().findById(city.id()))
                     .orElseThrow().treasury();
@@ -390,13 +432,20 @@ class OutpostServiceTest {
         }
 
         @Test
-        @DisplayName("two outposts touching each other stay outposts")
-        void outpostsDoNotConvertEachOther() {
+        @DisplayName("the city body absorbs an outpost; another outpost does not")
+        void onlyTheCityAbsorbs() {
+            // Part I's version of this test placed two outposts side by side, which SPEC 39.6
+            // now forbids outright — so the case it was really asserting is the one left here:
+            // convertAdjacent is about the CITY BODY reaching an outpost, and nothing else.
+            //
+            // Two outposts becoming adjacent is SPEC 39.7's other merge, and it can only happen
+            // through an expansion claim rather than through founding, so it belongs with the
+            // expansion path rather than here. OutpostGeometryTest covers the decision itself.
             given("First", 40, 0);
-            given("Second", 41, 0);
+            given("Second", 64, 0);
 
             assertTrue(await(outposts.convertAdjacent(city)).isEmpty(),
-                    "the city body is what absorbs an outpost, not another outpost");
+                    "neither outpost borders the city body, so neither converts");
             assertEquals(2, registry.countOf(city.id()));
         }
 

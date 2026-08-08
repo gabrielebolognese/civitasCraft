@@ -2106,3 +2106,25 @@ Format:
   truncating. A fourth case, SPEC 39.14 case 132, comes from the other direction — a city growing
   into its own outpost — and is a separate check because the bridging claim is a city claim.
   *Date:* 2026-08-08
+
+- **[M10, in progress]** SPEC 39.3's pricing is now what the service charges, and it changed a
+  method signature in a way worth recording: `creationCost` takes a **position**. Part I 7.2's
+  flat 25,000 C plus three chunk costs needed only a city, because the price was the same
+  everywhere. Under SPEC 39.3 the same outpost costs 31,721 at a thousand blocks and 225,999 at a
+  million, so a figure quoted without a place is not a price. Both callers — the command's help
+  line and the outposts menu — already knew where the player was standing. *Date:* 2026-08-08
+
+- **[M10, in progress]** Two Part I tests failed and **both were right to**. "An existing outpost
+  does not push the next one 32 chunks away" asserted that outposts had no spacing rule, which
+  Part I 7.2 intended; SPEC 39.6 adds 24 chunks because outposts grew to four, and six of them
+  could otherwise be laid end to end into a continuous road — the SPEC 6.1 adjacency rule defeated
+  by other means. "Two outposts touching each other stay outposts" asserted a state SPEC 39.6 now
+  forbids outright. Both were replaced rather than deleted, each carrying a note of what it used to
+  claim, because a test that vanishes leaves no record that the rule changed. *Date:* 2026-08-08
+
+- **[M10, in progress]** Distance is measured from an outpost's **founding chunk**, not from its
+  centre of mass, so expanding an outpost never moves its price or its upkeep. SPEC 39.3 says only
+  "from the city core chunk centre to this chunk centre" and does not say which chunk of a
+  multi-chunk outpost that is. Founding chunk is the stable answer: the alternative means a city's
+  daily bill shifts when it adds a chunk on the far side, for reasons no player could predict.
+  *Date:* 2026-08-08

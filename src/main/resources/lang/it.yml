@@ -718,6 +718,7 @@ outpost:
   no-chunk: "<red>Quell'avamposto ha perso il suo chunk. Avvisa un amministratore."
   too-close-own: "<red>Un avamposto deve distare almeno <white><required></white> chunk dal tuo territorio. Quel punto ne dista <white><actual></white>."
   too-close-other: "<red>Un avamposto deve distare almeno <white><required></white> chunk da un'altra citta. Quel punto ne dista <white><actual></white>."
+  too-close-outpost: "<red>Un avamposto deve stare ad almeno <white><required></white> chunk dagli altri tuoi avamposti. Quel punto e' a <white><actual></white>."
   warp-outside: "<red>Il punto di arrivo deve essere dentro il chunk dell'avamposto."
   at-war: "<red>Gli avamposti non si possono modificare mentre la citta e in guerra."
   world-missing: "<red>Il mondo di quell'avamposto non e caricato."

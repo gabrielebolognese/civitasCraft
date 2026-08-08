@@ -69,10 +69,86 @@ public final class OutpostService {
         this.treasury = Objects.requireNonNull(treasury, "treasury");
         this.configs = Objects.requireNonNull(configs, "configs");
         this.scheduler = Objects.requireNonNull(scheduler, "scheduler");
+        this.costs = new OutpostCostEngine(configs);
+    }
+
+    /**
+     * SPEC 39.3's pricing, replacing Part I 7.2's flat 25,000 C plus three chunk costs.
+     *
+     * <p>Built here rather than injected because it is a pure view over configuration, the same
+     * reasoning {@code WorldRegistry} uses.
+     */
+    private final OutpostCostEngine costs;
+
+    public OutpostCostEngine costs() {
+        return costs;
     }
 
     public OutpostRegistry registry() {
         return outposts;
+    }
+
+    // ==================================================================================
+    // SPEC 39.2, an outpost is up to four chunks
+    // ==================================================================================
+
+    /**
+     * Every chunk of one outpost.
+     *
+     * <p>The multi-chunk shape needs no schema of its own: {@code claims.outpost_id} is a
+     * foreign key, so several claims sharing one already is a multi-chunk outpost. Part I's
+     * table stores only the warp point, which is still all an outpost row needs.
+     */
+    public java.util.List<Claim> chunksOf(Outpost outpost) {
+        return claims.claimsOf(outpost.cityId()).stream()
+                .filter(claim -> claim.type() == ClaimType.OUTPOST)
+                .filter(claim -> Integer.valueOf(outpost.id()).equals(claim.outpostId()))
+                .toList();
+    }
+
+    /** How many chunks an outpost holds, for the SPEC 39.6 maximum and the upkeep. */
+    public int chunkCount(Outpost outpost) {
+        return chunksOf(outpost).size();
+    }
+
+    /** An outpost's chunks as geometry, for the SPEC 39.6 and 39.7 rules. */
+    public java.util.List<OutpostGeometry.Chunk> shapeOf(Outpost outpost) {
+        return chunksOf(outpost).stream()
+                .map(claim -> new OutpostGeometry.Chunk(claim.chunkX(), claim.chunkZ()))
+                .toList();
+    }
+
+    /**
+     * How far an outpost is from the city core, in blocks.
+     *
+     * <p>SPEC 39.3 measures "from the city core chunk centre to this chunk centre, in the
+     * horizontal plane". Taken from the outpost's founding chunk, so expanding an outpost does
+     * not move its price or its upkeep — the outpost is where it was founded.
+     */
+    public double blocksFromCore(City city, Outpost outpost) {
+        return chunksOf(outpost).stream()
+                .min(java.util.Comparator.comparingLong(Claim::id))
+                .map(claim -> blocksFromCore(city, claim.chunkX(), claim.chunkZ()))
+                .orElse(0.0);
+    }
+
+    /** The same, for a chunk that is not claimed yet. */
+    public double blocksFromCore(City city, int chunkX, int chunkZ) {
+        double dx = (chunkX * 16.0 + 8) - (city.coreChunkX() * 16.0 + 8);
+        double dz = (chunkZ * 16.0 + 8) - (city.coreChunkZ() * 16.0 + 8);
+        return Math.hypot(dx, dz);
+    }
+
+    /** SPEC 39.6's four-chunk maximum. */
+    public int maxChunksPerOutpost() {
+        return configs.get(dev.civitas.config.ConfigFile.CITIES)
+                .getInt("outposts.max-chunks-per-outpost", 4);
+    }
+
+    /** SPEC 39.6: how far a new outpost must be from the city's other outposts. */
+    public int minDistanceFromOwnOutposts() {
+        return configs.get(dev.civitas.config.ConfigFile.CITIES)
+                .getInt("outposts.min-distance-from-own-outposts", 24);
     }
 
     // ==================================================================================
@@ -122,7 +198,7 @@ public final class OutpostService {
             return Result.propagate(failure);
         }
 
-        return Result.success(creationCost(city));
+        return Result.success(creationCost(city, chunkX, chunkZ));
     }
 
     /** Creates an outpost at a chunk, SPEC 7.3. */
@@ -368,6 +444,10 @@ public final class OutpostService {
 
         int nearestOwn = Integer.MAX_VALUE;
         int nearestOther = Integer.MAX_VALUE;
+        // SPEC 39.6's third distance, new at M10. Six four-chunk outposts is twenty-four
+        // remote chunks, and without a spacing rule they could be laid end to end into a
+        // continuous road across the map — which is the adjacency rule defeated by other means.
+        int nearestOwnOutpost = Integer.MAX_VALUE;
 
         for (Claim claim : claims.allClaims()) {
             if (!claim.world().equals(world)) {
@@ -376,10 +456,12 @@ public final class OutpostService {
             int distance = Math.max(Math.abs(claim.chunkX() - chunkX),
                     Math.abs(claim.chunkZ() - chunkZ));
             if (claim.cityId() == city.id()) {
-                // An existing outpost of the same city is not "the city body" for the 32
-                // chunk rule; SPEC 7.2 measures from the city, and two outposts near each
-                // other break none of the rules the distance exists to protect.
-                if (claim.type() != ClaimType.OUTPOST) {
+                // An existing outpost of the same city is not "the city body" for the 32-chunk
+                // rule; SPEC 39.6 measures that from the city, and gives outposts their own
+                // 24-chunk spacing below.
+                if (claim.type() == ClaimType.OUTPOST) {
+                    nearestOwnOutpost = Math.min(nearestOwnOutpost, distance);
+                } else {
                     nearestOwn = Math.min(nearestOwn, distance);
                 }
             } else {
@@ -391,6 +473,12 @@ public final class OutpostService {
             return Result.failure("TOO_CLOSE_TO_OWN_CITY", "outpost.too-close-own",
                     Map.of("required", String.valueOf(fromOwn),
                             "actual", String.valueOf(nearestOwn)));
+        }
+        int fromOwnOutposts = minDistanceFromOwnOutposts();
+        if (fromOwnOutposts > 0 && nearestOwnOutpost < fromOwnOutposts) {
+            return Result.failure("TOO_CLOSE_TO_OWN_OUTPOST", "outpost.too-close-outpost",
+                    Map.of("required", String.valueOf(fromOwnOutposts),
+                            "actual", String.valueOf(nearestOwnOutpost)));
         }
         if (nearestOther < fromOthers) {
             return Result.failure("TOO_CLOSE_TO_OTHER_CITY", "outpost.too-close-other",
@@ -421,17 +509,44 @@ public final class OutpostService {
      * <p>"Current" means what the next ordinary chunk would cost this city, so an outpost
      * gets more expensive as the city grows, exactly like the land it is priced against.
      */
-    public BigDecimal creationCost(City city) {
-        BigDecimal flat = new BigDecimal(configs.get(ConfigFile.CITIES)
-                .getString("outposts.creation-cost-flat", "25000"));
-        double multiplier = configs.get(ConfigFile.CITIES)
-                .getDouble("outposts.creation-cost-multiplier", 3.0);
+    /**
+     * What the founding chunk of a new outpost costs here, SPEC 39.3.
+     *
+     * <p>Replaces Part I 7.2's flat 25,000 C plus three times a normal chunk. SPEC 39.1 retires
+     * that pricing along with the single-chunk design: with no world border, a flat fee made a
+     * holding a million blocks away cost the same as one next door, which is not a price for
+     * distance at all.
+     */
+    public BigDecimal creationCost(City city, int chunkX, int chunkZ) {
+        return costs.chunkCost(claims.claimsOf(city.id()).size(), 1,
+                blocksFromCore(city, chunkX, chunkZ), activeMembers(city));
+    }
 
-        int nextIndex = claims.claimsOf(city.id()).size() + 1;
-        BigDecimal normalChunk = claimService.costs().price(nextIndex, 0,
-                activeMembers(city), city.ageMillis(System.currentTimeMillis())).total();
+    /**
+     * What adding one more chunk to an existing outpost costs, SPEC 39.3.
+     *
+     * @param chunkNumber which chunk of this outpost it will be: 2, 3 or 4
+     */
+    public BigDecimal expansionCost(City city, Outpost outpost, int chunkNumber) {
+        return costs.chunkCost(claims.claimsOf(city.id()).size(), chunkNumber,
+                blocksFromCore(city, outpost), activeMembers(city));
+    }
 
-        return Money.floor(flat.add(normalChunk.multiply(BigDecimal.valueOf(multiplier))));
+    /** The price with its four terms shown, for SPEC 39.11's {@code /city outpost cost}. */
+    public OutpostCostEngine.Breakdown priceBreakdown(City city, int chunkNumber,
+                                                      int chunkX, int chunkZ) {
+        return costs.breakdown(claims.claimsOf(city.id()).size(), chunkNumber,
+                blocksFromCore(city, chunkX, chunkZ), activeMembers(city));
+    }
+
+    /** Daily upkeep for one outpost, SPEC 39.5: {@code 1200 * D(d) * chunks}. */
+    public BigDecimal upkeepFor(City city, Outpost outpost) {
+        return costs.upkeepPerDay(chunkCount(outpost), blocksFromCore(city, outpost));
+    }
+
+    /** The teleport fee, SPEC 39.5: {@code 100 * D(d)}. */
+    public BigDecimal teleportCost(City city, Outpost outpost) {
+        return costs.teleportCost(blocksFromCore(city, outpost));
     }
 
     /**

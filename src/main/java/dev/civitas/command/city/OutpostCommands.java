@@ -253,9 +253,16 @@ public final class OutpostCommands {
         return new Named(context.player(), context.city(), outpost.get());
     }
 
-    /** The creation price, for the help line and the menu. */
-    public String creationCost(City city) {
-        return Money.format(services.get().outposts().creationCost(city),
+    /**
+     * The creation price where a player is standing.
+     *
+     * <p>Takes a position because SPEC 39.3 prices distance: the same outpost costs 31,721 at a
+     * thousand blocks and 225,999 at a million, so a figure quoted without a place is not a
+     * price. Part I 7.2's flat fee had no such need, which is what made it the wrong shape once
+     * the world border went.
+     */
+    public String creationCost(City city, int chunkX, int chunkZ) {
+        return Money.format(services.get().outposts().creationCost(city, chunkX, chunkZ),
                 services.get().economy().configs());
     }
 }
