@@ -18,6 +18,8 @@ public enum ConfigFile {
     DEFENSE("defense.yml"),
     /** Scheduled server events and the building contest cycle. SPEC 13.4 and 13.5. */
     EVENTS("events.yml"),
+    /** What each world is for, SPEC 32.2. Deliberately carries no border: see SPEC 32.3. */
+    WORLD("world.yml"),
     /** Shared GUI furniture: the slots and icons SPEC 8.2 fixes for every menu. */
     GUI("gui/common.yml");
 

@@ -1684,3 +1684,62 @@ Format:
   and points at the class that does cover the new rule — including one asserting the 25% cap still
   applies once F16's hold has passed, so the two rules are not traded for one another.
   *Date:* 2026-08-08
+
+- **[M3a]** SPEC contradicts itself on the world border, and the contradiction is load-bearing.
+  SPEC 37 ships a `border:` block — `dynamic: true`, a base radius, an expansion bracket, a
+  maximum, a nether ratio. SPEC 32.3 rejects that design in full: "The vanilla Minecraft border
+  stands, unchanged, at roughly 30 million blocks. The plugin does not impose, expand, or manage
+  a border of any kind", and SPEC 41's M3a row repeats it in bold. *Implemented default:* the
+  later section wins, so **no border management and no border keys**. Shipping SPEC 37's block
+  anyway would be seven settings that change nothing, which is the failure the config sweep found
+  nineteen of. Two tests hold it: one asserting the keys are absent from `world.yml`, and one
+  asserting no non-comment line in `WorldRegistry` mentions a border. SPEC 32.3's own reasoning
+  is kept in the file beside the absence, because an absence looks like an oversight: "Emptiness
+  is the atmosphere, and the ability to disappear into it is a feature." *Date:* 2026-08-08
+
+- **[M3a]** SPEC 37's `world.yml` lists `worlds.claimable: [world]`, which is a second name for
+  SPEC 16.1's `worlds.city-enabled` in `config.yml`. *Implemented default:* not shipped. One
+  concept, one name — the twin is exactly what the config sweep found three of, where the file
+  offered one name, the code read another, and both sides were inert with the value stuck at its
+  default. The split that is shipped has no overlap: `config.yml` owns **permission** (which
+  worlds a city may claim in, which are forbidden), `world.yml` owns **identity** (which world is
+  the main one, which are the resource worlds). *Date:* 2026-08-08
+
+- **[M3a]** SPEC 37's `world.yml` also carries `resource-world:`, `mining-claims:`, `travel:` and
+  `backup:` blocks, none of which this milestone reads — they belong to M3b, M3c and M19c.
+  *Implemented default:* each milestone ships its own keys. Shipping them now would put four
+  blocks of settings in front of an operator that do nothing, and the whole point of the config
+  sweep was that a key with nothing behind it is indistinguishable from a working feature.
+  *Date:* 2026-08-08
+
+- **[M3a]** **The config-integrity sweep did not cover this milestone's new file, and the build
+  went green for that reason.** `ConfigKeyUsageTest.SHIPPED` was a hardcoded list of six
+  filenames, so `world.yml` shipped entirely outside the net that exists to catch exactly this.
+  Caught by suspecting a first-run green rather than by any test. *Implemented default:* the list
+  is now derived from `ConfigFile.values()`, so a file added to the enum is swept from the moment
+  it exists and the list cannot go stale again — the same structural fix `MigrationIndexTest`
+  applies to the migration index. Verified by adding a dead key to `world.yml` and confirming the
+  sweep fails, because a second green proves nothing after a first one was wrong. *Date:* 2026-08-08
+
+- **[M3a]** SPEC 41's M3a asks for "world whitelist enforcement in **every** protection listener",
+  and on inspection that is already true and always was — for a reason worth recording rather
+  than quietly agreeing with. Protection is driven by whether a chunk is **claimed**, not by
+  which world it is in, and a claim cannot exist in a world `ClaimService` refuses. So the
+  listeners need no world check, and adding one would create a second authority that could
+  disagree with the first. What genuinely did not exist was SPEC 17.2 case 21's "warn on
+  startup", which is now `WorldRegistry.auditClaimedWorlds`. Case 21's other two halves —
+  existing claims persist and stay protected, new claims blocked — come free from the same
+  property. *Date:* 2026-08-08
+
+- **[M3a]** `WorldKind.BLACKLISTED` wins over `CLAIMABLE` when an operator lists one world as
+  both, which SPEC does not address. *Implemented default:* refuse. Of the two readings, that is
+  the one that cannot lose anyone their land, and it matches the order the pre-existing code
+  already checked in. An unmentioned world is `PLAIN` for the same reason: an operator who adds a
+  world and forgets to configure it gets one nobody can claim rather than one anybody can.
+  *Date:* 2026-08-08
+
+- **[M3a]** `WorldRegistry` is built per-caller rather than threaded through constructors. It
+  holds no state — every method reads the live configuration — so `CityService` and `ClaimService`
+  each construct their own from the `ConfigManager` they already hold, and only the plugin builds
+  the logging variant for the startup audit. Threading it would have meant a tenth argument on two
+  constructors that every test and the plugin already call. *Date:* 2026-08-08

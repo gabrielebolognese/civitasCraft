@@ -56,9 +56,23 @@ class ConfigKeyUsageTest {
     private static final Path SOURCE_ROOT = Path.of("src/main/java");
     private static final Path RESOURCES = Path.of("src/main/resources");
 
-    /** The operator-facing files. {@code plugin.yml} is Bukkit's, and gui/lang have own tests. */
-    private static final List<String> SHIPPED = List.of(
-            "cities.yml", "config.yml", "defense.yml", "economy.yml", "events.yml", "war.yml");
+    /**
+     * The operator-facing files, derived from {@link ConfigFile} rather than listed.
+     *
+     * <p>This was a hardcoded list of six names until {@code world.yml} was added and shipped
+     * <b>outside the sweep entirely</b> — the build went green because the new file was never
+     * examined, which is the same shape as the defect this whole class exists to catch. A list
+     * that has to be edited whenever a file is added is a list that will not be.
+     *
+     * <p>{@code gui/common.yml} is excluded because layout keys are read by position rather
+     * than by name and {@code GuiLayoutTest} covers them; {@code plugin.yml} is Bukkit's; the
+     * language files have {@code LangKeyUsageTest}.
+     */
+    private static final List<String> SHIPPED = java.util.Arrays.stream(ConfigFile.values())
+            .map(ConfigFile::fileName)
+            .filter(name -> !name.startsWith("gui/"))
+            .sorted()
+            .toList();
 
     /**
      * Keys that are data rather than settings, so no code names them.

@@ -1,0 +1,50 @@
+# World layout, SPEC 32.
+#
+# This file says what each world IS. Which worlds a city may claim in stays in config.yml
+# under worlds.city-enabled and worlds.blacklisted, where SPEC 16.1 put it, so that no
+# concept ends up with two names in two files.
+#
+#
+# THERE IS NO WORLD BORDER, AND THAT IS DELIBERATE.
+#
+# SPEC 37 sketched a dynamic border that grew with the city count. SPEC 32.3 rejects it:
+# "The vanilla Minecraft border stands, unchanged, at roughly 30 million blocks. The plugin
+# does not impose, expand, or manage a border of any kind."
+#
+# The reasoning is worth keeping next to the absence, because the absence looks like an
+# oversight: "Extremely low density is the point. A world where a player can travel two
+# hundred thousand blocks and build entirely alone is doing something no curated server can
+# offer. Density is not a metric to optimise. Emptiness is the atmosphere, and the ability to
+# disappear into it is a feature."
+#
+# Structure comes from where the game SENDS people, not from where it stops them. That is
+# /rtp's radius, which arrives with the travel milestone.
+
+worlds:
+  # SPEC 32.2's main overworld: cities, outposts, contests and wars. This resolves SPEC 20
+  # Open Decision 4 — a city and its outposts exist here and nowhere else.
+  main: world
+
+  # Reachable and playable, and nothing may be claimed in either. This resolves SPEC 20 Open
+  # Decision 1: the Nether and the End are not claimable.
+  main-nether: world_nether
+  main-end: world_the_end
+
+  # SPEC 32.5's resource worlds. City claims are blocked entirely; these exist to be mined.
+  #
+  # They are NOT on an automatic reset schedule, which is where this project departs from
+  # standard practice. SPEC 32.5: "Mines are infrastructure. A player who spends three weeks
+  # digging a proper quarry with rail lines, lighting, storage and sorting has built
+  # something, and wiping it monthly punishes exactly the long-term investment a
+  # building-focused server should reward."
+  resource: resource
+  resource-nether: resource_nether
+
+  # Where SPEC 32.6's personal Mining Claims may be staked. One chunk each, the only land
+  # ownership available to a player with no city, and deliberately available to them.
+  #
+  # The claims themselves arrive with their own milestone; this list is what decides where
+  # they will be allowed.
+  mining-claimable:
+    - resource
+    - resource_nether

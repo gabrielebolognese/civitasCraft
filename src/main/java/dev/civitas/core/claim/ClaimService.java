@@ -22,6 +22,8 @@ import dev.civitas.config.ConfigManager;
 import dev.civitas.core.city.City;
 import dev.civitas.core.city.CityPermission;
 import dev.civitas.core.city.CityRegistry;
+import dev.civitas.core.world.WorldKind;
+import dev.civitas.core.world.WorldRegistry;
 import dev.civitas.core.economy.TransactionType;
 import dev.civitas.storage.DatabaseManager;
 import dev.civitas.storage.SqlDialect;
@@ -56,6 +58,7 @@ public final class ClaimService {
     private final ClaimRegistry registry;
     private final ClaimCostEngine costs;
     private final ConfigManager configs;
+    private final WorldRegistry worlds;
     private final Scheduler scheduler;
     private final EventBus events;
 
@@ -71,6 +74,7 @@ public final class ClaimService {
         this.registry = Objects.requireNonNull(registry, "registry");
         this.costs = Objects.requireNonNull(costs, "costs");
         this.configs = Objects.requireNonNull(configs, "configs");
+        this.worlds = new WorldRegistry(configs);
         this.scheduler = Objects.requireNonNull(scheduler, "scheduler");
         this.events = Objects.requireNonNull(events, "events");
     }
@@ -976,15 +980,22 @@ public final class ClaimService {
     // Helpers
     // ==================================================================================
 
+    /**
+     * SPEC 6.3 precondition 4 and SPEC 5.1 preconditions 8 and 9, through one authority.
+     *
+     * <p>Was two {@code getStringList} calls that happened to agree with the pair in the other
+     * service. SPEC 32.2 adds three more worlds and the milestones after this one add travel,
+     * mining claims and a PvP policy that all ask the same question, so it has one home now.
+     */
     private Result<Void> checkWorld(String world) {
-        FileConfiguration config = configs.get(ConfigFile.CONFIG);
-        if (config.getStringList("worlds.blacklisted").stream()
-                .anyMatch(name -> name.equalsIgnoreCase(world))) {
-            return Result.failure("WORLD_BLACKLISTED", "city.create.world-blocked");
+        WorldKind kind = worlds.kindOf(world);
+        if (kind == WorldKind.BLACKLISTED) {
+            return Result.failure("WORLD_BLACKLISTED", "city.create.world-blocked",
+                    java.util.Map.of("world", String.valueOf(world)));
         }
-        if (config.getStringList("worlds.city-enabled").stream()
-                .noneMatch(name -> name.equalsIgnoreCase(world))) {
-            return Result.failure("WORLD_NOT_ENABLED", "city.create.world-disabled");
+        if (!kind.allowsCityClaims()) {
+            return Result.failure("WORLD_NOT_ENABLED", "city.create.world-disabled",
+                    java.util.Map.of("world", String.valueOf(world)));
         }
         return Result.ok();
     }

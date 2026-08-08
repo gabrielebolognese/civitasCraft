@@ -341,6 +341,14 @@ public final class CivitasPlugin extends JavaPlugin {
                 int claimCount = claimRegistry.loadAll().join();
                 getLogger().info(() -> "Loaded " + cityCount + " cities and "
                         + claimCount + " claims into the cache.");
+
+                // SPEC 17.2 case 21's "warn on startup". Runs here rather than earlier
+                // because it needs the claims loaded to know which worlds hold any.
+                new dev.civitas.core.world.WorldRegistry(configs, getLogger())
+                        .auditClaimedWorlds(claimRegistry.allClaims().stream()
+                                .map(dev.civitas.core.claim.Claim::world)
+                                .collect(java.util.stream.Collectors.toCollection(
+                                        java.util.TreeSet::new)));
                 int configuredCacheSize = configs.get(ConfigFile.CONFIG)
                         .getInt("performance.claim-cache-size", 100000);
                 if (claimRegistry.exceedsConfiguredSize(configuredCacheSize)) {
