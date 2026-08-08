@@ -132,9 +132,14 @@ class ConfigDefaultsTest {
         assertEquals(24, config.getInt("outposts.min-distance-from-own-outposts"));
         assertEquals(4, config.getInt("outposts.max-chunks-per-outpost"));
         assertEquals(8, config.getInt("outposts.min-distance-from-other-city"));
-        assertEquals(100, config.getInt("outposts.teleport-cost"));
-        assertEquals(8, config.getInt("outposts.teleport-warmup-seconds"));
-        assertEquals(180, config.getInt("outposts.teleport-cooldown-seconds"));
+        // SPEC 16.2's three flat teleport keys go the same way as its flat upkeep-per-day,
+        // under SPEC 39.15's "replaces the outposts block in Part I 16.2". The numbers are
+        // unchanged; they moved into the teleport block and gained a distance multiplier.
+        assertFalse(config.contains("outposts.teleport-cost"));
+        assertFalse(config.contains("outposts.teleport-warmup-seconds"));
+        assertFalse(config.contains("outposts.teleport-cooldown-seconds"));
+        assertEquals(8, config.getInt("outposts.teleport.warmup-seconds"));
+        assertEquals(180, config.getInt("outposts.teleport.cooldown-seconds"));
 
         // SPEC 39.3 and 39.5, the rework that replaces the flat pricing above. These are the
         // numbers SPEC 39.4's published tables are computed from, so a change here changes

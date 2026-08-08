@@ -42,6 +42,9 @@ import org.bukkit.scheduler.BukkitTask;
  */
 public final class TeleportService {
 
+    /** SPEC 10: skips warmups and cooldowns, not fares. */
+    public static final String BYPASS_COOLDOWN = "civitas.bypass.cooldown";
+
     private final Plugin plugin;
     private final ConfigManager configs;
     private final EconomyService economy;
@@ -98,7 +101,32 @@ public final class TeleportService {
      * @return the warmup in seconds, zero if the player arrived at once
      */
     public Result<Long> begin(Player player, TravelKind kind, Location destination) {
+        return begin(player, kind, destination, cost(kind));
+    }
+
+    /**
+     * The same, with the fare supplied by the caller.
+     *
+     * <p>For SPEC 39.5's outposts, whose fare is {@code 100 * D(d)} and therefore depends on
+     * which outpost is being travelled to. Every other destination in SPEC 32.7 has a fixed
+     * number and uses the overload above.
+     */
+    public Result<Long> begin(Player player, TravelKind kind, Location destination,
+                              BigDecimal fare) {
+        return begin(player, kind, destination, fare, null);
+    }
+
+    /**
+     * The same, naming the destination in the warmup and arrival messages.
+     *
+     * <p>An outpost has a name its city chose and a player recognises, so "Travelling to North"
+     * beats "Travelling to your outpost". Everything else falls back to the destination's own
+     * label, which is what {@code label == null} selects.
+     */
+    public Result<Long> begin(Player player, TravelKind kind, Location destination,
+                              BigDecimal fare, String label) {
         UUID uuid = player.getUniqueId();
+        String named = label == null ? lang.plain(kind.messageKey()) : label;
 
         if (warmups.containsKey(uuid)) {
             return Result.failure("ALREADY_WARMING", "travel.already-warming");
@@ -106,17 +134,17 @@ public final class TeleportService {
         if (combatTag.isTagged(uuid)) {
             return Result.failure("COMBAT_TAGGED", "travel.combat-tagged");
         }
-        long remaining = cooldownRemaining(uuid, kind);
+        long remaining = player.hasPermission(BYPASS_COOLDOWN) ? 0L : cooldownRemaining(uuid, kind);
         if (remaining > 0) {
             return Result.failure("COOLDOWN", "travel.cooldown", Map.of(
                     "time", Formats.duration(remaining),
-                    "destination", lang.plain(kind.messageKey())));
+                    "destination", named));
         }
         if (destination == null || destination.getWorld() == null) {
             return Result.failure("NO_DESTINATION", "travel.no-destination");
         }
 
-        BigDecimal cost = cost(kind);
+        BigDecimal cost = fare == null ? BigDecimal.ZERO : fare;
         if (cost.signum() > 0 && economy.balanceOrZero(uuid).compareTo(cost) < 0) {
             // Refused now rather than after the warmup: making somebody wait five seconds to
             // be told they are poor is a worse message than telling them at once.
@@ -125,14 +153,14 @@ public final class TeleportService {
                     "balance", Money.format(economy.balanceOrZero(uuid), configs)));
         }
 
-        long seconds = warmupSeconds(kind);
+        long seconds = player.hasPermission(BYPASS_COOLDOWN) ? 0L : warmupSeconds(kind);
         if (plugin == null) {
             // Only reachable from a test that built the service without one. Refusing beats
             // teleporting with no way to cancel.
             return Result.failure("NO_SCHEDULER", "command.error");
         }
         if (seconds <= 0) {
-            arrive(player, kind, destination, cost);
+            arrive(player, kind, destination, cost, named);
             return Result.success(0L);
         }
 
@@ -140,17 +168,19 @@ public final class TeleportService {
         BukkitTask task = org.bukkit.Bukkit.getScheduler().runTaskLater(plugin, () -> {
             warmups.remove(uuid);
             if (player.isOnline()) {
-                arrive(player, kind, destination, cost);
+                arrive(player, kind, destination, cost, named);
             }
         }, seconds * 20L);
 
         warmups.put(uuid, new Warmup(task, origin));
-        lang.send(player, "travel.warmup", LangManager.placeholder(
-                "seconds", String.valueOf(seconds)));
+        lang.send(player, "travel.warmup",
+                LangManager.placeholder("seconds", String.valueOf(seconds)),
+                LangManager.placeholder("destination", named));
         return Result.success(seconds);
     }
 
-    private void arrive(Player player, TravelKind kind, Location destination, BigDecimal cost) {
+    private void arrive(Player player, TravelKind kind, Location destination,
+                        BigDecimal cost, String named) {
         player.teleport(destination);
         lastTravel.computeIfAbsent(player.getUniqueId(), key -> new EnumMap<>(TravelKind.class))
                 .put(kind, System.currentTimeMillis());
@@ -158,7 +188,8 @@ public final class TeleportService {
         if (cost.signum() > 0) {
             charge(player, kind, cost);
         }
-        lang.send(player, "travel.arrived");
+        lang.send(player, "travel.arrived",
+                LangManager.placeholder("destination", named));
     }
 
     /**
@@ -226,6 +257,17 @@ public final class TeleportService {
         return warmups.containsKey(player);
     }
 
+    /**
+     * Cancels every warmup in flight. Called on disable.
+     *
+     * <p>A warmup outliving the plugin would fire against a scheduler that no longer has a
+     * service behind it, so it is cancelled rather than left to be interrupted.
+     */
+    public void stopAll() {
+        warmups.values().forEach(warmup -> warmup.task().cancel());
+        warmups.clear();
+    }
+
     /** Drops a player's warmup and cooldowns. Called on quit. */
     public void forget(UUID player) {
         Warmup warmup = warmups.remove(player);
@@ -254,15 +296,14 @@ public final class TeleportService {
     // ==================================================================================
 
     public BigDecimal cost(TravelKind kind) {
-        return BigDecimal.valueOf(configs.get(ConfigFile.WORLD)
-                .getDouble(kind.configPath() + ".cost", 0));
+        return BigDecimal.valueOf(configs.get(kind.configFile()).getDouble(kind.costKey(), 0));
     }
 
     public long cooldownSeconds(TravelKind kind) {
-        return configs.get(ConfigFile.WORLD).getLong(kind.configPath() + ".cooldown", 60);
+        return configs.get(kind.configFile()).getLong(kind.cooldownKey(), 60);
     }
 
     public long warmupSeconds(TravelKind kind) {
-        return configs.get(ConfigFile.WORLD).getLong(kind.configPath() + ".warmup", 5);
+        return configs.get(kind.configFile()).getLong(kind.warmupKey(), 5);
     }
 }

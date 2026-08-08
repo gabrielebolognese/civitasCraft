@@ -81,8 +81,11 @@ public final class OutpostsMenu extends CityMenu {
                         "world", chunk.map(Claim::world).orElse("?"),
                         "x", chunk.map(claim -> String.valueOf(claim.chunkX() * 16)).orElse("?"),
                         "z", chunk.map(claim -> String.valueOf(claim.chunkZ() * 16)).orElse("?")))
+                // SPEC 39.5's fare is 100 * D(d), so it is per outpost. Before the SPEC 39
+                // rework this button read a flat figure from config, which meant an outpost a
+                // million blocks out advertised 100 and charged 891.
                 .lore(text("gui.outposts.tp-cost", "amount",
-                        money(services.outpostTeleport().teleportCost())))
+                        money(services.outpostTeleport().fareFor(city(), outpost))))
                 .lore(text("gui.outposts.tp-hint"));
 
         return builder

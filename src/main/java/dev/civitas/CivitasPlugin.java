@@ -65,7 +65,7 @@ import dev.civitas.core.war.WarBlockRecorder;
 import dev.civitas.core.war.WarZones;
 import dev.civitas.core.outpost.OutpostRegistry;
 import dev.civitas.core.outpost.OutpostService;
-import dev.civitas.core.outpost.OutpostTeleport;
+import dev.civitas.core.outpost.OutpostTravel;
 import dev.civitas.core.defense.DefenseBehaviour;
 import dev.civitas.core.defense.DefenseCatalogue;
 import dev.civitas.core.defense.DefenseRegistry;
@@ -160,7 +160,8 @@ public final class CivitasPlugin extends JavaPlugin {
     private MenuManager menus;
     private SpawnService spawns;
     private IncomeSystems income;
-    private OutpostTeleport outposts;
+    private OutpostTravel outposts;
+    private dev.civitas.core.travel.TeleportService travel;
     private VaultView vaults;
 
     private final AtomicReference<CivitasServices> services = new AtomicReference<>();
@@ -240,10 +241,11 @@ public final class CivitasPlugin extends JavaPlugin {
             vaults.saveAndCloseAll();
             vaults = null;
         }
-        if (outposts != null) {
-            outposts.stopAll();
-            outposts = null;
+        if (travel != null) {
+            travel.stopAll();
+            travel = null;
         }
+        outposts = null;
         if (rollbackEngine != null) {
             // SPEC 11.8.5: a checkpoint that never reached disk is work the next boot
             // repeats. Waiting costs a moment here; not waiting costs it on every restart.
@@ -552,11 +554,17 @@ public final class CivitasPlugin extends JavaPlugin {
         OutpostRegistry outpostRegistry = new OutpostRegistry(loadedDaos.outposts());
         outpostRegistry.loadAll().thenAccept(loaded ->
                 getLogger().info(() -> "Loaded " + loaded + " outposts."));
+        // SPEC 32.7's travel. One TeleportService for every destination in its table: the
+        // warmup-and-cooldown rule had been written three times before the SPEC 39 rework
+        // folded the outpost copy into this one.
+        dev.civitas.core.travel.TeleportService teleportService =
+                new dev.civitas.core.travel.TeleportService(this, configs, economyService, lang,
+                        getLogger());
         OutpostService outpostService = new OutpostService(manager, loadedDaos, cityRegistry,
                 claimRegistry, claimService, outpostRegistry, treasuryService, configs, scheduler);
-        OutpostTeleport outpostTeleport = new OutpostTeleport(this, outpostService,
-                economyService, configs, lang);
+        OutpostTravel outpostTeleport = new OutpostTravel(outpostService, teleportService);
         this.outposts = outpostTeleport;
+        this.travel = teleportService;
         upkeepTask.useOutposts(outpostService);
         outpostService.useUpgrades(upgradeService);
 
@@ -745,11 +753,6 @@ public final class CivitasPlugin extends JavaPlugin {
         // SPEC 33.1's table puts PvP off inside a mining claim, which M4a left as a seam.
         pvpPolicy.useMiningClaims(miningRegistry::isClaimed);
 
-        // SPEC 32.7's travel. One TeleportService for the three new destinations, because
-        // the warmup-and-cooldown rule had already been written twice before this.
-        dev.civitas.core.travel.TeleportService teleportService =
-                new dev.civitas.core.travel.TeleportService(this, configs, economyService, lang,
-                        getLogger());
         dev.civitas.core.travel.RandomTeleport randomTeleport =
                 new dev.civitas.core.travel.RandomTeleport(this, configs, claimRegistry);
         randomTeleport.useAdminProtection(adminProtection::isProtected);
@@ -826,7 +829,7 @@ public final class CivitasPlugin extends JavaPlugin {
         getServer().getPluginManager().registerEvents(
                 new CityHallListener(services::get, cityHall, lang), this);
         getServer().getPluginManager().registerEvents(
-                new TeleportWarmupListener(spawnService, outpostTeleport, teleportService), this);
+                new TeleportWarmupListener(spawnService, teleportService), this);
         getServer().getPluginManager().registerEvents(new VaultListener(vaultView), this);
         getServer().getPluginManager().registerEvents(new dev.civitas.listener
                 .AdminInspectListener(inspectMode, lang,

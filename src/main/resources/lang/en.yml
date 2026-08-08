@@ -746,11 +746,7 @@ outpost:
   cost-members: "<gray>  Divided by your members: <white>/<divisor></white>"
   cost-total: "<gold>  Total: <white><amount></white>"
   converted: "<gold>Your city has grown out to <white><name></white>. It is now an ordinary claim, and the outpost slot is free again."
-  tp-warmup: "<gray>Travelling to <white><name></white> in <white><seconds></white> seconds. Stand still."
-  tp-arrived: "<green>Welcome to <white><name></white>."
-  tp-cooldown: "<red>You may travel to an outpost again in <white><seconds></white> seconds."
   tp-at-war: "<red>Outpost travel is disabled while your city is at war."
-  tp-unpaid: "<red>The teleport could not be paid for, so you have not moved."
   list-header: "<gold>Outposts <gray>(<white><count></white>/<white><max></white>)"
   list-empty: "<gray>Your city has no outposts."
   list-entry: "<gray>- <white><name></white> <dark_gray>(<world> <x>, <z>)"
@@ -1390,8 +1386,8 @@ combat:
 
 # SPEC 32.7's travel. Every refusal says why, and the cooldown one says how long.
 travel:
-  warmup: "<gray>Travelling in <white><seconds></white> seconds. <dark_gray>Stand still.</dark_gray>"
-  arrived: "<green>Arrived."
+  warmup: "<gray>Travelling to <white><destination></white> in <white><seconds></white> seconds. <dark_gray>Stand still.</dark_gray>"
+  arrived: "<green>Welcome to <white><destination></white>."
   cancelled-moved: "<red>Teleport cancelled: you moved."
   cancelled-damage: "<red>Teleport cancelled: you took damage."
   already-warming: "<red>You are already travelling."
@@ -1403,6 +1399,8 @@ travel:
   kind-rtp: "the wilds"
   kind-rtp-resource: "the resource worlds"
   kind-warp: "warps"
+  kind-mine-tp: "your mining claim"
+  kind-outpost-tp: "your outpost"
   rtp-searching: "<gray>Looking for somewhere to put you..."
   rtp-failed: "<red>Could not find anywhere safe after <white><attempts></white> tries. <gray>Nothing was charged. Try again in a moment."
   rtp-arrived: "<green>Dropped you <white><distance></white> blocks from origin."

@@ -29,7 +29,7 @@ import dev.civitas.core.income.QuestService;
 import dev.civitas.core.progression.LeaderboardService;
 import dev.civitas.core.progression.StatsService;
 import dev.civitas.core.outpost.OutpostService;
-import dev.civitas.core.outpost.OutpostTeleport;
+import dev.civitas.core.outpost.OutpostTravel;
 import dev.civitas.core.defense.DefenseService;
 import dev.civitas.core.contest.ContestService;
 import dev.civitas.core.diplomacy.DiplomacyService;
@@ -118,7 +118,7 @@ public record CivitasServices(
         dev.civitas.storage.dao.DaoRegistry daos,
         WarScoreboard warScoreboard,
         OutpostService outposts,
-        OutpostTeleport outpostTeleport,
+        OutpostTravel outpostTeleport,
         UpgradeService upgrades,
         DefenseService defense,
         DiplomacyService diplomacy,

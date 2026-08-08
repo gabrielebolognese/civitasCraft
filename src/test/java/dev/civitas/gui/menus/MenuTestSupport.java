@@ -17,7 +17,7 @@ import dev.civitas.core.income.QuestPool;
 import dev.civitas.core.income.QuestService;
 import dev.civitas.core.outpost.OutpostRegistry;
 import dev.civitas.core.outpost.OutpostService;
-import dev.civitas.core.outpost.OutpostTeleport;
+import dev.civitas.core.outpost.OutpostTravel;
 import dev.civitas.core.defense.DefenseBehaviour;
 import dev.civitas.core.defense.DefenseCatalogue;
 import dev.civitas.core.defense.DefenseRegistry;
@@ -99,8 +99,10 @@ final class MenuTestSupport implements AutoCloseable {
                 cities.claimRegistry, cities.claims, outpostRegistry, cities.treasury,
                 cities.configs, Scheduler.direct());
         outposts.useUpgrades(upgradeService);
-        OutpostTeleport outpostTeleport = new OutpostTeleport(plugin, outposts, cities.economy,
-                cities.configs, lang);
+        dev.civitas.core.travel.TeleportService teleportService =
+                new dev.civitas.core.travel.TeleportService(null, cities.configs,
+                        cities.economy, lang, CityTestSupport.quietLogger());
+        OutpostTravel outpostTeleport = new OutpostTravel(outposts, teleportService);
 
         DefenseCatalogue defenseCatalogue = new DefenseCatalogue(cities.configs, quiet());
         defenseCatalogue.load();
@@ -155,8 +157,7 @@ final class MenuTestSupport implements AutoCloseable {
                         cities.configs,
                         new dev.civitas.msg.TogglePreferences(cities.daos.playerToggles(),
                                 CityTestSupport.quietLogger())),
-                new dev.civitas.core.travel.TeleportService(null, cities.configs,
-                        cities.economy, lang, CityTestSupport.quietLogger()),
+                teleportService,
                 new dev.civitas.core.travel.RandomTeleport(null, cities.configs,
                         cities.claimRegistry),
                 new dev.civitas.core.travel.WarpService(cities.daos.warps(),

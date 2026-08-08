@@ -3,7 +3,6 @@ package dev.civitas.listener;
 import java.util.Objects;
 
 import dev.civitas.core.city.SpawnService;
-import dev.civitas.core.outpost.OutpostTeleport;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
@@ -22,13 +21,11 @@ import org.bukkit.event.player.PlayerQuitEvent;
 public final class TeleportWarmupListener implements Listener {
 
     private final SpawnService spawns;
-    private final OutpostTeleport outposts;
     private final dev.civitas.core.travel.TeleportService travel;
 
-    public TeleportWarmupListener(SpawnService spawns, OutpostTeleport outposts,
+    public TeleportWarmupListener(SpawnService spawns,
                                   dev.civitas.core.travel.TeleportService travel) {
         this.spawns = Objects.requireNonNull(spawns, "spawns");
-        this.outposts = Objects.requireNonNull(outposts, "outposts");
         this.travel = Objects.requireNonNull(travel, "travel");
     }
 
@@ -38,12 +35,8 @@ public final class TeleportWarmupListener implements Listener {
                 && spawns.hasMovedAway(event.getPlayer(), event.getTo())) {
             spawns.cancel(event.getPlayer(), "city.spawn.cancelled-move");
         }
-        if (outposts.isWarmingUp(event.getPlayer())
-                && outposts.hasMovedAway(event.getPlayer(), event.getTo())) {
-            outposts.cancel(event.getPlayer(), "city.spawn.cancelled-move");
-        }
-        // SPEC 32.7's three new destinations, which share one mechanism rather than each
-        // carrying its own copy of this rule.
+        // Every destination in SPEC 32.7 except the city spawn, sharing one mechanism
+        // rather than each carrying its own copy of this rule.
         if (travel.isWarmingUp(event.getPlayer().getUniqueId())
                 && travel.hasMovedAway(event.getPlayer(), event.getTo())) {
             travel.cancel(event.getPlayer(), "travel.cancelled-moved");
@@ -56,14 +49,12 @@ public final class TeleportWarmupListener implements Listener {
             return;
         }
         spawns.cancel(player, "city.spawn.cancelled-damage");
-        outposts.cancel(player, "city.spawn.cancelled-damage");
         travel.cancel(player, "travel.cancelled-damage");
     }
 
     @EventHandler(priority = EventPriority.MONITOR)
     public void onQuit(PlayerQuitEvent event) {
         spawns.forget(event.getPlayer().getUniqueId());
-        outposts.forget(event.getPlayer().getUniqueId());
         travel.forget(event.getPlayer().getUniqueId());
     }
 }

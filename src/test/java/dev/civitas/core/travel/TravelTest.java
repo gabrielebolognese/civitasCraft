@@ -245,6 +245,33 @@ class TravelTest {
         }
 
         @Test
+        @DisplayName("SPEC 39.5's outpost numbers resolve, from cities.yml and its own key names")
+        void outpostReadsItsOwnBlock() {
+            // The one destination whose numbers are not in world.yml under travel.*, and the
+            // one place the fold could silently read nothing and fall back to a default that
+            // happens to look plausible. 8 and 180 are SPEC 7.2's figures, kept by SPEC 39.15.
+            assertEquals(8, teleports.warmupSeconds(TravelKind.OUTPOST_TP));
+            assertEquals(180, teleports.cooldownSeconds(TravelKind.OUTPOST_TP));
+            assertEquals(0, teleports.cost(TravelKind.OUTPOST_TP)
+                    .compareTo(new BigDecimal("100")),
+                    "the base the SPEC 39.5 distance multiplier applies to");
+        }
+
+        @Test
+        @DisplayName("every destination resolves a real key, none falls through to a default")
+        void noDestinationFallsThrough() {
+            // A missing key returns the caller's default, which is indistinguishable from a
+            // configured value of the same number. Asserting against the file itself is what
+            // separates "configured" from "happens to match the fallback".
+            for (TravelKind kind : TravelKind.values()) {
+                assertTrue(support.configs.get(kind.configFile()).contains(kind.cooldownKey()),
+                        kind + " has no cooldown key at " + kind.cooldownKey());
+                assertTrue(support.configs.get(kind.configFile()).contains(kind.warmupKey()),
+                        kind + " has no warmup key at " + kind.warmupKey());
+            }
+        }
+
+        @Test
         @DisplayName("cooldowns are per destination, not one shared clock")
         void cooldownsAreIndependent() {
             // SPEC 32.7 gives them different numbers on purpose: /spawn gets a player out of

@@ -2149,3 +2149,64 @@ Format:
   already existed — one concept, two names, caught by the lang sweep before it shipped. The path in
   question is only reachable if a claim points at an outpost row that is gone, which is corruption
   rather than a state the game produces, so it now reuses `outpost.no-chunk`. *Date:* 2026-08-08
+
+- **[M10]** SPEC 39.5 changes the *shape* of upkeep, not only its number, and the signature had
+  to change with it. Part I 7.2 charged every outpost a flat 2,000 a day, so `UpkeepCalculator`
+  could take a count and multiply. SPEC 39.5 charges `1200 * D(d) * chunks`, so two outposts of
+  one city rarely cost the same. *Implemented default:* the calculator takes a **figure**, summed
+  by the outpost service, which is the only thing that can price them. Taking a count would have
+  meant that class quietly averaging them, and the average of two outposts at a thousand and a
+  million blocks is a number neither of them costs. SPEC 16.2's `outposts.upkeep-per-day` retires
+  with it, under SPEC 39.15's own "replaces the `outposts` block in Part I 16.2" — the same
+  linear-supersession rule the border and the PvP contradictions were settled by, and
+  `ConfigDefaultsTest` now asserts the key is **absent** rather than merely not asserting it,
+  because a key a superseded section mandated is exactly the kind that gets restored by accident.
+  *Date:* 2026-08-08
+
+- **[M10]** SPEC 39.5 says a delinquent city releases outposts "furthest first" but not whether
+  a four-chunk outpost goes whole or a chunk at a time, and the day's release budget
+  (`upkeep.delinquent-unclaim-per-day`, 3) is counted in chunks. *Implemented default:* a whole
+  outpost, counting once against the budget. Releasing three of four chunks would leave the city
+  paying a distance-scaled bill on a fragment nobody can use and no warp worth taking, which is
+  the worst of both outcomes; and an outpost is a place rather than a pile of tiles, which is the
+  premise of the whole SPEC 39 rework. *Date:* 2026-08-08
+
+- **[M10]** **The teleport fold changed a deliberate behaviour, and it is a behaviour change
+  rather than a refactor.** `OutpostTeleport` charged the fare *first* and travelled only if the
+  charge succeeded ("Charged nothing, so travelled nowhere"); `TeleportService` travels first and
+  charges after, logging a miss. Both were documented on purpose, and folding forced a choice.
+  *Implemented default:* charge-after, for every destination. Its reasoning applies to outposts
+  unchanged — "teleporting a player and then teleporting them back because their balance moved
+  during the warmup is a worse outcome for the player than a fare the server occasionally fails
+  to collect" — and the affordability check before the warmup keeps the window to eight seconds.
+  `outpost.tp-unpaid` becomes unreachable and is removed. The cost is real and worth stating: a
+  player whose balance drops mid-warmup now arrives without paying, where before they stayed put.
+  *Date:* 2026-08-08
+
+- **[M10]** The fold's first pass would have **undone a fix that took two milestones to notice**.
+  M23 corrected `outpost.tp-warmup` and `outpost.tp-arrived`, which had shown players a literal
+  `<name>` since M10; the generic `travel.warmup` and `travel.arrived` name no destination at all,
+  so folding onto them would have replaced "Travelling to North" with "Travelling in 8 seconds".
+  `LangKeyUsageTest`'s orphan half is what caught it — the three outpost messages went dead, and
+  the reason they went dead was the regression. *Implemented default:* the generic messages gained
+  a `<destination>` placeholder and `begin` gained an optional label, so an outpost passes its own
+  name and every other destination passes its kind. Five destinations that previously said
+  "Arrived." now say where. Worth recording as a lesson about what that test actually catches: it
+  reads as a tidiness check and it is not — dead text is usually the *symptom* of a feature that
+  lost a wire, twice now after M3c's silent mining-claim release. *Date:* 2026-08-08
+
+- **[M10]** The fold turned up a live defect it was not looking for. The Outposts menu built its
+  travel-cost lore from `outpostTeleport().teleportCost()`, a no-argument read of a flat config
+  value — so every outpost button advertised 100 C while SPEC 39.5 charges `100 * D(d)`, up to
+  891 at a million blocks. Invisible from reading either file alone: the menu was correct against
+  Part I 7.2 and the engine was correct against SPEC 39.5. *Implemented default:* the button asks
+  `fareFor(city, outpost)`, and the folded path cannot regress it, because it has to be handed a
+  fare and there is no longer a no-argument cost to call. *Date:* 2026-08-08
+
+- **[M10]** Three copies of warmup-and-cooldown become one, which is what M3b recorded as the
+  M10 rebuild's job. `SpawnService` is deliberately **not** folded: SPEC 5.6 gives the city spawn
+  its own numbers and its own war behaviour (a 15-second warmup during a war, SPEC 11.6), it
+  works, it is tested, and it is not this milestone's subject. That leaves two mechanisms rather
+  than one — duplication rather than the two-authorities contradiction M4a fixed, so the failure
+  mode is maintenance and not wrong behaviour. **A milestone that touches the city spawn should
+  finish the job.** *Date:* 2026-08-08

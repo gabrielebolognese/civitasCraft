@@ -108,9 +108,6 @@ outposts:
   # continuous road, which is the SPEC 6.1 adjacency rule defeated by other means.
   min-distance-from-own-outposts: 24
   min-distance-from-other-city: 8
-  teleport-cost: 100
-  teleport-warmup-seconds: 8
-  teleport-cooldown-seconds: 180
   delete-refund-percent: 50
   # SPEC 39.2: an outpost is one to four edge-connected chunks.
   max-chunks-per-outpost: 4
@@ -145,9 +142,13 @@ outposts:
     base-per-chunk-per-day: 1200
     scales-with-distance: true
 
+  # SPEC 39.5. The fare scales with distance like everything else about an outpost, so
+  # base-cost is what D(d) multiplies rather than what a player pays.
   teleport:
     base-cost: 100
     scales-with-distance: true
+    warmup-seconds: 8
+    cooldown-seconds: 180
 
 
 # Default ranks created with every new city, SPEC 5.4.
