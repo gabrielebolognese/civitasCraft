@@ -103,7 +103,10 @@ public final class Money {
      * read as a bank balance.
      */
     public static String format(BigDecimal amount, ConfigManager configs) {
-        return floor(amount).toPlainString() + " " + symbol(configs);
+        // SPEC 23.7: "Currency always shows two decimals with thousands separators." Was a
+        // bare toPlainString until M7a, so 12847.22 read as 12847.22 rather than 12,847.22 —
+        // which is the exact figure SPEC 23.1 uses in its worked example of a good message.
+        return dev.civitas.msg.Formats.money(floor(amount)) + " " + symbol(configs);
     }
 
     /** A percentage of an amount, floored, used by every cap and refund in the economy. */

@@ -35,6 +35,17 @@ worlds:
     - world_the_end
     - world_nether       # nether claimable is a design choice, off by default
 
+
+# SPEC 23.4's channel limits. Both exist because a message that cannot be dismissed or that
+# fires on every click stops being a message and becomes an interruption.
+messages:
+  # SPEC 23.4: "Maximum 4 per hour per player, hard-limited in code." A sliding window, so
+  # four at 10:59 and four at 11:01 is still refused.
+  titles-per-window: 4
+  title-window-minutes: 60
+  # SPEC 23.5.4's per-player, per-message cooldown on action bar text.
+  action-bar-cooldown-ms: 3000
+
 # Active language file under lang/. Falls back to 'en' for any missing key.
 language: en
 

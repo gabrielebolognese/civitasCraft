@@ -1743,3 +1743,78 @@ Format:
   each construct their own from the `ConfigManager` they already hold, and only the plugin builds
   the logging variant for the startup audit. Threading it would have meant a tenth argument on two
   constructors that every test and the plugin already call. *Date:* 2026-08-08
+
+- **[M7a]** SPEC 24 assigns M7a the message **machinery** and SPEC 23.5's catalogue to M23a, so
+  this milestone builds what messages will be sent through and converts none of them. The one
+  exception is `Money.format`, which had to change: SPEC 23.7 requires "two decimals with
+  thousands separators" and it was a bare `toPlainString`, so every currency figure in the plugin
+  read `12847.22` where SPEC 23.1's own worked example reads `12,847.22`. That moved output in
+  three existing tests, each updated to state both properties rather than just the new one.
+  *Date:* 2026-08-08
+
+- **[M7a]** SPEC 23.6 lists five categories that look locked and SPEC's table locks **three**:
+  `treasury_withdraw`, `upkeep_critical` and `war`. `actionbar` and `sounds` are presentation and
+  stay mutable. *Implemented default:* exactly the three, asserted by a test that names them, so
+  a later reader cannot quietly add or drop one. The lock is a property of the category rather
+  than a default, and it is enforced **twice** — `set` refuses it and `wants` ignores any stored
+  row to the contrary. Two guards because SPEC 23.5.6 calls the withdrawal broadcast "the primary
+  anti-fraud mechanism in the plugin", and a mechanism with one guard is one bug from being off.
+  There is a test that writes a mute row straight into the table and asserts it does nothing.
+  *Date:* 2026-08-08
+
+- **[M7a]** SPEC 24's row says "per-player toggle store" and puts `/toggle` under SPEC 22.6, which
+  belongs to the command-completeness milestone. *Implemented default:* the command ships here.
+  A preference store no player can drive is inert configuration wearing a different hat, which is
+  the failure the config sweep found nineteen of and which SPEC 22.1 rates High severity in the
+  first place: "Section 23 adds many messages. Without a toggle, chat becomes unusable." Recorded
+  as beyond the row's letter. *Date:* 2026-08-08
+
+- **[M7a]** SPEC 23.3's prefixes could not be nested under the existing `prefix` key. `lang/` has
+  held a top-level `prefix:` **string** since M0, used by `LangManager.send`, and adding
+  `prefix.economy` beside it would make `prefix` both a string and a section — Bukkit reads `.`
+  as a path separator, and that is the bug that rendered fifty GUI labels as
+  `MemorySection[path=...]` to players while every test passed. They live under `prefixes:`
+  instead, and a test asserts no prefix key starts with `prefix.`. The same trap was caught
+  mid-build in `ToggleCategory.messageKey`, which built `toggle.category.<name>` before being
+  changed to `toggle.category-<name>`. *Date:* 2026-08-08
+
+- **[M7a]** SPEC 23.7's abbreviation rule is about the **channel**, not the number: "abbreviate
+  above 1,000,000 in action bars and boss bars only, never in chat, because a player reading a
+  transaction wants the exact figure". So `1,250,000.00` and `1.25M` are the same balance and
+  both are correct. `Channel` carries the flag rather than the formatter guessing, since only the
+  caller knows where the text is going. *Date:* 2026-08-08
+
+- **[M7a]** SPEC 23.4 caps titles at "4 per hour per player, hard-limited in code". Two decisions
+  SPEC does not make. The window **slides** rather than resetting on the hour, because four at
+  10:59 and four at 11:01 is eight in two minutes and that is what the rule exists to stop. And a
+  title past the cap is **downgraded to chat** rather than dropped: the message still has
+  something to say, and losing it entirely is a worse failure than showing it less prominently.
+  *Date:* 2026-08-08
+
+- **[M7a]** Number formatting uses `Locale.ROOT` rather than the active language. Italian writes
+  1.234,50 where English writes 1,234.50, so a server whose players read both files would see the
+  same balance two ways and each would look like a bug to the other. SPEC 23.7 asks for "a single
+  central formatter" and does not say the grouping follows the translation. A currency figure is
+  closer to an account number than to prose: it is formatted one way everywhere and only the
+  words around it are translated. *Date:* 2026-08-08
+
+- **[M7a]** **This milestone wrote mojibake into `it.yml` and nothing in the suite would have
+  caught it.** A Python `unicode_escape` round-trip turned `à` into `Ã`+U+00A0 — valid UTF-8 that
+  loads without complaint, passes key parity, passes placeholder validation, and renders as
+  nonsense to an Italian player. Found by inspecting codepoints after the console printed
+  question marks, which also proved a *false* alarm: the M3a lines the console mangled were
+  correct all along. *Implemented default:* repaired, and `LangKeysTest.noMojibake` now fails the
+  build on U+FFFD or U+00A0 in any language file. Those two characters are the signature — one is
+  what a decoder writes when it gives up, the other is the second half of every Latin-1 mojibake
+  pair and is never typed on purpose. *Date:* 2026-08-08
+
+- **[M7a]** `DiplomacyServiceTest.disbandForgetsEverything` began failing in full runs while
+  passing alone, and the cause is worth recording because the test was always wrong. It asserted
+  that alliance rows were gone immediately after `disband` returned, but `CityService`'s
+  disband hooks run **after** the transaction commits and nothing returns a future for them —
+  M13 made them hooks rather than `CityDisbandEvent` listeners precisely because that event fires
+  before the mutation so it can be cancelled. The assertion was passing on the cleanup usually
+  winning a race, and it lost that race the moment this milestone put more work through the same
+  executor. *Implemented default:* the row assertion polls; the registry assertions above it,
+  which are what a player actually observes, stay immediate because the registry is updated
+  synchronously. Nothing in the product changed. *Date:* 2026-08-08

@@ -455,7 +455,34 @@ class DiplomacyServiceTest {
         assertFalse(registry.areAllied(roma.id(), ostia.id()));
         assertEquals(0, registry.allyCount(ostia.id()));
         assertTrue(registry.trucesOf(roma.id(), System.currentTimeMillis()).isEmpty());
-        assertTrue(await(support.daos.alliances().findByCity(roma.id())).isEmpty());
+        // Polled rather than asserted outright. CityService.onCityDisbanded hooks run AFTER
+        // the transaction commits, on purpose — CityDisbandEvent fires before the mutation so
+        // it can be cancelled, so cleanup cannot ride the same event. Nothing returns a future
+        // for them, so this assertion was passing on the cleanup usually winning the race, and
+        // it lost that race the moment M7a put more work through the same executor.
+        //
+        // The registry assertions above are the ones that matter to a player: the registry is
+        // the read path and it is updated synchronously. This one is about the rows catching
+        // up, which they do.
+        eventually("the alliance rows to be cleaned up",
+                () -> await(support.daos.alliances().findByCity(roma.id())).isEmpty());
+    }
+
+    /** Waits for something an un-awaitable background hook will get to. */
+    private static void eventually(String what, java.util.function.BooleanSupplier condition) {
+        long deadline = System.currentTimeMillis() + 5_000L;
+        while (System.currentTimeMillis() < deadline) {
+            if (condition.getAsBoolean()) {
+                return;
+            }
+            try {
+                Thread.sleep(10L);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                break;
+            }
+        }
+        org.junit.jupiter.api.Assertions.fail("timed out waiting for: " + what);
     }
 
     // ==================================================================================

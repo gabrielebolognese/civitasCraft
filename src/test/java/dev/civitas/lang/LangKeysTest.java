@@ -5,6 +5,8 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.io.File;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.LinkedHashSet;
 import java.util.Set;
 import java.util.TreeSet;
@@ -29,6 +31,49 @@ import org.junit.jupiter.params.provider.ValueSource;
 class LangKeysTest {
 
     private static final File LANG_DIR = new File("src/main/resources/lang");
+
+    /**
+     * No language file contains mojibake.
+     *
+     * <p>Added after M7a wrote {@code CittÃ } into {@code it.yml} — the bytes of {@code à}
+     * decoded as latin-1, which is what a UTF-8 string round-tripped through the wrong codec
+     * looks like. It is valid UTF-8, it loads without complaint, it passes every key-parity and
+     * placeholder check, and it renders as nonsense to an Italian player.
+     *
+     * <p>Two signatures, and neither has any business in a message. U+FFFD is what a decoder
+     * writes when it gives up. U+00A0, a non-breaking space, is the second half of every
+     * accented Latin-1 mojibake pair and is never something anyone types on purpose.
+     */
+    @Test
+    @DisplayName("no language file contains mojibake or a replacement character")
+    void noMojibake() {
+        for (String language : LangManager.BUNDLED_LANGUAGES) {
+            File file = new File(LANG_DIR, language + ".yml");
+            String text;
+            try {
+                text = java.nio.file.Files.readString(file.toPath(),
+                        java.nio.charset.StandardCharsets.UTF_8);
+            } catch (java.io.IOException e) {
+                throw new AssertionError(language + ".yml is not readable as UTF-8", e);
+            }
+
+            List<String> offenders = new ArrayList<>();
+            String[] lines = text.split("\n", -1);
+            for (int i = 0; i < lines.length; i++) {
+                for (char c : lines[i].toCharArray()) {
+                    if (c == '\uFFFD' || c == '\u00A0') {
+                        offenders.add(language + ".yml:" + (i + 1) + " contains U+"
+                                + String.format("%04X", (int) c));
+                        break;
+                    }
+                }
+            }
+            assertTrue(offenders.isEmpty(),
+                    "these lines look like a string that went through the wrong codec: "
+                            + offenders);
+        }
+    }
+
 
     private static FileConfiguration load(String language) {
         File onDisk = new File(LANG_DIR, language + ".yml");

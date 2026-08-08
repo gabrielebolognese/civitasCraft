@@ -69,7 +69,100 @@ public final class LangManager {
         activeLanguage = configs.get(ConfigFile.CONFIG).getString("language", FALLBACK_LANGUAGE);
         fallback = read(FALLBACK_LANGUAGE);
         active = FALLBACK_LANGUAGE.equals(activeLanguage) ? fallback : read(activeLanguage);
+        validatePlaceholders();
     }
+
+    /**
+     * SPEC 23.7's startup placeholder check.
+     *
+     * <p>"Placeholders use {@code {name}} and are validated at startup. A missing or misspelled
+     * placeholder logs a warning with the key name, and the message falls back to English rather
+     * than rendering broken text."
+     *
+     * <p>Two things are checked, and the second is the one that catches real damage. A message
+     * in the active language that names a placeholder English does not is almost always a
+     * translator inventing one, which renders as literal {@code <thing>} to the player. A message
+     * that is missing one English has is worse: the value simply vanishes, so an amount, a name
+     * or a countdown is silently absent and the sentence still reads as a sentence.
+     *
+     * <p>This runs against the <b>shipped</b> pair, so an operator who edits their own copy is
+     * told about it on the next start rather than by a player.
+     */
+    private void validatePlaceholders() {
+        if (active == fallback) {
+            return;
+        }
+        for (String key : fallback.getKeys(true)) {
+            String english = fallback.getString(key);
+            String translated = active.getString(key);
+            if (english == null || translated == null) {
+                // Missing keys are LangKeysTest's business, and the fallback already covers
+                // them at runtime.
+                continue;
+            }
+            java.util.Set<String> expected = placeholderNames(english);
+            java.util.Set<String> found = placeholderNames(translated);
+
+            java.util.Set<String> invented = new java.util.TreeSet<>(found);
+            invented.removeAll(expected);
+            if (!invented.isEmpty()) {
+                resources.logger().log(Level.WARNING,
+                        "{0}.yml key \"{1}\" uses placeholders English does not provide: {2}. "
+                                + "They will render as literal text.",
+                        new Object[] {activeLanguage, key, invented});
+            }
+
+            java.util.Set<String> dropped = new java.util.TreeSet<>(expected);
+            dropped.removeAll(found);
+            if (!dropped.isEmpty()) {
+                resources.logger().log(Level.WARNING,
+                        "{0}.yml key \"{1}\" drops placeholders English shows: {2}. The value "
+                                + "will be missing from the message rather than wrong.",
+                        new Object[] {activeLanguage, key, dropped});
+            }
+        }
+    }
+
+    /**
+     * The placeholder names a message uses.
+     *
+     * <p>SPEC 23.7 writes them as {@code {name}}; this plugin renders through MiniMessage, where
+     * a placeholder is {@code <name>}. Both are accepted, because an operator following SPEC's
+     * own notation should be told their key is fine rather than warned about nothing.
+     *
+     * <p>MiniMessage's own tags are excluded by requiring a lowercase, dash-or-underscore name
+     * that is not one of the palette or format tags — a warning about {@code <red>} would train
+     * an operator to ignore the warnings.
+     */
+    static java.util.Set<String> placeholderNames(String message) {
+        java.util.Set<String> names = new java.util.TreeSet<>();
+        java.util.regex.Matcher matcher = PLACEHOLDER.matcher(message);
+        while (matcher.find()) {
+            String name = matcher.group(1) != null ? matcher.group(1) : matcher.group(2);
+            if (name != null && !KNOWN_TAGS.contains(name)) {
+                names.add(name);
+            }
+        }
+        return names;
+    }
+
+    private static final java.util.regex.Pattern PLACEHOLDER =
+            java.util.regex.Pattern.compile("<([a-z][a-z0-9_-]*)>|\\{([a-z][a-z0-9_-]*)}");
+
+    /**
+     * Tags that are styling rather than substitution.
+     *
+     * <p>The MiniMessage colours and decorations the language files already use, plus the SPEC
+     * 23.2 palette tokens. Anything else inside angle brackets is a value somebody expects to
+     * be filled in.
+     */
+    private static final java.util.Set<String> KNOWN_TAGS = java.util.Set.of(
+            "black", "dark_blue", "dark_green", "dark_aqua", "dark_red", "dark_purple",
+            "gold", "gray", "dark_gray", "blue", "green", "aqua", "red", "light_purple",
+            "yellow", "white", "reset", "bold", "italic", "underlined", "strikethrough",
+            "obfuscated", "newline", "br",
+            "pos", "neg", "money", "subject", "body", "dim", "city", "land", "war", "quest",
+            "ally", "admin", "link");
 
     /** Reloads the language files from disk, honouring a changed {@code language} setting. */
     public void reload() {
@@ -119,6 +212,29 @@ public final class LangManager {
      * <p>Deliberately unparsed: player names, city names and MOTDs are attacker-controlled
      * and must never be interpreted as MiniMessage.
      */
+    /**
+     * A message rendered to plain text, for use as another message's placeholder value.
+     *
+     * <p>Plain rather than a component, so it goes through {@link #placeholder} and is inserted
+     * unparsed. A translated fragment is still text somebody wrote into a yml, and the rule that
+     * nothing substituted is ever re-parsed as MiniMessage has no exceptions.
+     */
+    public String plain(String key) {
+        return net.kyori.adventure.text.serializer.plain.PlainTextComponentSerializer
+                .plainText().serialize(get(key));
+    }
+
+    /**
+     * A placeholder whose value is an already-rendered component.
+     *
+     * <p>For the narrow case where the value carries its own styling and came from
+     * {@link #get} rather than from a player. Never use this for anything a player typed.
+     */
+    public static TagResolver component(String name, net.kyori.adventure.text.Component value) {
+        return net.kyori.adventure.text.minimessage.tag.resolver.Placeholder
+                .component(name, value);
+    }
+
     public static TagResolver placeholder(String name, String value) {
         return Placeholder.unparsed(name, value);
     }

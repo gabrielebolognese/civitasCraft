@@ -176,10 +176,15 @@ class MoneyTest {
     }
 
     @Test
-    @DisplayName("amounts are shown plainly, never in scientific notation")
+    @DisplayName("amounts are plain and grouped, never in scientific notation")
     void formattingIsPlain() {
-        assertEquals("1000000000000.00 C", Money.format(new BigDecimal("1e12"), configs));
-        assertEquals("1500.50 C", Money.format(new BigDecimal("1500.5"), configs));
+        // Two properties, and only the second changed at M7a. A trillion must never render as
+        // 1E+12, which is what BigDecimal.toString does unprompted; and SPEC 23.7 requires
+        // "two decimals with thousands separators", so the grouping arrived with the shared
+        // formatter. The figure in SPEC 23.1's own worked example is "12,847.22".
+        assertEquals("1,000,000,000,000.00 C", Money.format(new BigDecimal("1e12"), configs));
+        assertEquals("1,500.50 C", Money.format(new BigDecimal("1500.5"), configs));
+        assertEquals("12,847.22 C", Money.format(new BigDecimal("12847.22"), configs));
 
         configs.get(ConfigFile.ECONOMY).set("currency-symbol", "¤");
         assertEquals("10.00 ¤", Money.format(new BigDecimal("10"), configs));

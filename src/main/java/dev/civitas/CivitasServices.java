@@ -84,6 +84,8 @@ public record CivitasServices(
         UpkeepTask upkeepTask,
         MarketService market,
         MarketItemFilter marketFilter,
+        dev.civitas.msg.TogglePreferences toggles,
+        dev.civitas.msg.Messenger messenger,
         PlayerShopService shops,
         QuestService quests,
         ChallengeService challenges,

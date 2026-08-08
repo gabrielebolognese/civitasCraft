@@ -29,6 +29,12 @@ import org.bukkit.event.player.PlayerQuitEvent;
 public final class PlayerAccountListener implements Listener {
 
     private final PlayerAccountService accounts;
+    /**
+     * SPEC 23.6's notification preferences. Loaded on join and dropped on quit, because the
+     * router consults them before every message and cannot afford a database read there.
+     */
+    private dev.civitas.msg.TogglePreferences toggles;
+    private dev.civitas.msg.Messenger messenger;
     private final PlayerLoginDao logins;
     private final LoginFingerprint fingerprints;
     private final Logger logger;
@@ -41,12 +47,22 @@ public final class PlayerAccountListener implements Listener {
         this.logger = Objects.requireNonNull(logger, "logger");
     }
 
+    /** Hands the listener the messaging state that follows a player's session. */
+    public void useMessaging(dev.civitas.msg.TogglePreferences preferences,
+                             dev.civitas.msg.Messenger router) {
+        this.toggles = Objects.requireNonNull(preferences, "preferences");
+        this.messenger = Objects.requireNonNull(router, "router");
+    }
+
     @EventHandler(priority = EventPriority.MONITOR)
     public void onJoin(PlayerJoinEvent event) {
         Player player = event.getPlayer();
         long now = System.currentTimeMillis();
         Optional<String> fingerprint = fingerprints.hash(addressOf(player));
 
+        if (toggles != null) {
+            toggles.load(player.getUniqueId());
+        }
         accounts.onJoin(player.getUniqueId(), player.getName(), now)
                 .thenCompose(ignored -> fingerprint
                         .map(hash -> logins.upsert(player.getUniqueId(), hash, now))
@@ -60,6 +76,13 @@ public final class PlayerAccountListener implements Listener {
 
     @EventHandler(priority = EventPriority.MONITOR)
     public void onQuit(PlayerQuitEvent event) {
+        if (toggles != null) {
+            toggles.forget(event.getPlayer().getUniqueId());
+        }
+        if (messenger != null) {
+            // Throttle and title history go with the session, so a rejoin starts clean.
+            messenger.forget(event.getPlayer().getUniqueId());
+        }
         accounts.onQuit(event.getPlayer().getUniqueId(), System.currentTimeMillis())
                 .exceptionally(error -> {
                     logger.log(Level.SEVERE, "Could not save the account for "

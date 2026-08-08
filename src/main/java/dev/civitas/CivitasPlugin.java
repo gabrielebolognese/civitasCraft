@@ -187,6 +187,8 @@ public final class CivitasPlugin extends JavaPlugin {
         WorthCommand worthCommand = new WorthCommand(services::get, lang);
         dev.civitas.command.player.QuotaCommand quotaCommand =
                 new dev.civitas.command.player.QuotaCommand(services::get, lang, scheduler);
+        dev.civitas.command.player.ToggleCommand toggleCommand =
+                new dev.civitas.command.player.ToggleCommand(services::get, lang, scheduler);
         QuestsCommand questsCommand = new QuestsCommand(services::get, lang, scheduler);
         AllyCommand allyCommand = new AllyCommand(services::get, lang, scheduler, getLogger());
         AllianceChatCommand allianceChat = new AllianceChatCommand(services::get, lang);
@@ -202,7 +204,7 @@ public final class CivitasPlugin extends JavaPlugin {
         new CommandRegistry(this, lang).registerAll(
                 List.of(cityCommand.build(), moneyCommand.build(), payCommand.build(),
                         shopCommand.build(), sellCommand.build(), worthCommand.build(),
-                        quotaCommand.build(),
+                        quotaCommand.build(), toggleCommand.build(),
                         questsCommand.buildQuests(), questsCommand.buildChallenges(),
                         allyCommand.buildAlly(), allyCommand.buildTruce(),
                         allianceChat.build(), leaderboardCommand.build(),
@@ -684,12 +686,20 @@ public final class CivitasPlugin extends JavaPlugin {
         claimRegistry.useTimings(timings);                            // SPEC 17.7 case 81
         menuManager.useTimings(timings);                              // SPEC 17.7 case 86
 
+        // SPEC 23.6's notification preferences and SPEC 23.4's channel router. The router
+        // consults the preferences on every send, and the four SPEC 23.6 locks are enforced
+        // inside the preferences so no channel can bypass them.
+        dev.civitas.msg.TogglePreferences togglePreferences =
+                new dev.civitas.msg.TogglePreferences(loadedDaos.playerToggles(), getLogger());
+        dev.civitas.msg.Messenger messenger =
+                new dev.civitas.msg.Messenger(lang, configs, togglePreferences);
+
         services.set(new CivitasServices(cityRegistry, cityService, rankService, claimRegistry,
                 claimService, claimMap, borderRenderer, protection, protectionGuard,
                 blockClassifier, economyService, treasuryService, bountyService,
                 ledgerRollback,
                 upkeepCalculator,
-                upkeepTask, marketService, marketFilter, shopService, questService,
+                upkeepTask, marketService, marketFilter, togglePreferences, messenger, shopService, questService,
                 challengeService, leaderboardService, statsService, contestService,
                 eventService, warWiring.service(), warWiring.allies(), warWiring.peace(),
                 warWiring.capturePoints(), warWiring.rollback(), warWiring.trigger(),
@@ -716,9 +726,10 @@ public final class CivitasPlugin extends JavaPlugin {
                 menuManager, layoutLoader,
                 amountInput, spawnService, cityHall, accounts, lookup, scheduler));
 
-        getServer().getPluginManager().registerEvents(
-                new PlayerAccountListener(accounts, loadedDaos.playerLogins(), fingerprints,
-                        getLogger()), this);
+        PlayerAccountListener accountListener = new PlayerAccountListener(accounts,
+                loadedDaos.playerLogins(), fingerprints, getLogger());
+        accountListener.useMessaging(togglePreferences, messenger);
+        getServer().getPluginManager().registerEvents(accountListener, this);
         getServer().getPluginManager().registerEvents(
                 new CityChatListener(cityRegistry, configs, lang), this);
         getServer().getPluginManager().registerEvents(

@@ -18,3 +18,4 @@ V14__admin_upkeep.sql
 V15__inactivity.sql
 V16__sell_quota.sql
 V17__daily_activity.sql
+V18__player_toggles.sql

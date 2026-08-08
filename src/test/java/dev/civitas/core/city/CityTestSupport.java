@@ -50,6 +50,9 @@ import dev.civitas.util.Scheduler;
 public final class CityTestSupport implements AutoCloseable {
 
     public final ConfigManager configs;
+    /** Lazily built, because most tests never render a message. */
+    private dev.civitas.lang.LangManager lang;
+    private final Path root;
     public final DatabaseManager db;
     public final DaoRegistry daos;
     public final CityRegistry registry;
@@ -77,6 +80,7 @@ public final class CityTestSupport implements AutoCloseable {
     public final EventService serverEvents;
 
     private CityTestSupport(Path directory, EventBus events) {
+        this.root = directory;
         this.configs = new ConfigManager(
                 PluginResources.ofClasspath(directory.resolve("plugin").toFile(), quietLogger()));
         configs.loadAll();
@@ -157,6 +161,18 @@ public final class CityTestSupport implements AutoCloseable {
     }
 
     /** A core chunk and a spawn inside it. */
+    /** The language files, for a test that needs to render rather than only to act. */
+    public dev.civitas.lang.LangManager lang() {
+        if (lang == null) {
+            lang = new dev.civitas.lang.LangManager(
+                    dev.civitas.config.PluginResources.ofClasspath(
+                            root.resolve("plugin").toFile(), quietLogger()),
+                    configs);
+            lang.load();
+        }
+        return lang;
+    }
+
     public static Placement placement(int chunkX, int chunkZ) {
         return new Placement("world", chunkX, chunkZ,
                 chunkX * 16 + 8.5, 64.0, chunkZ * 16 + 8.5, 0f, 0f);

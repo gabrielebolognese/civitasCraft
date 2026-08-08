@@ -106,6 +106,9 @@ class SchemaTest {
         // V17, SPEC 21.4 F12's "30 minutes of active playtime that day". A baseline rather
         // than an accrual, so the SPEC 4.2.1 filter stays the only writer of active playtime.
         schema.put("player_daily_activity", List.of("uuid", "day_start", "baseline_ms"));
+        // V18, SPEC 23.6's notification preferences. One row per category a player has
+        // CHANGED, so the table stays proportional to the players who care.
+        schema.put("player_toggles", List.of("uuid", "category", "enabled"));
         // V5, SPEC 13.2: weekly challenges, which SPEC 3 lists no table for. Keyed by city
         // and week because progress is pooled across every member.
         schema.put("city_challenges", List.of("id", "city_id", "challenge_id", "progress",

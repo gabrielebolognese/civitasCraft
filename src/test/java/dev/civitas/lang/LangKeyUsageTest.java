@@ -211,6 +211,14 @@ class LangKeyUsageTest {
     private static boolean isBuiltAtRuntime(String key) {
         return key.startsWith("quest.")
                 || key.startsWith("challenge.")
+                // A prefix's full and compact forms are built from Prefix.messageKey and
+                // .compactMessageKey. Note "prefixes." with an s: the M0 "prefix" key is a
+                // string, and nesting under it would make Bukkit read it as a section.
+                || key.startsWith("prefixes.")
+                // A notification category's description is built from
+                // ToggleCategory.messageKey. The rest of the toggle.* keys are literals in
+                // ToggleCommand and stay covered by the scanner.
+                || key.startsWith("toggle.category-")
                 // An upgrade's description key is built from its enum, UpgradeType.messageKey.
                 || key.startsWith("upgrade.")
                 // A unit's description key is built from its catalogue entry,

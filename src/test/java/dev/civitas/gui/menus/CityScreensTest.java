@@ -187,7 +187,8 @@ class CityScreensTest {
 
             MainMenu menu = openMain(mayorPlayer);
 
-            assertTrue(lore(menu.inventory().getItem(14)).contains("5000"),
+            // Grouped since M7a, per SPEC 23.7's "two decimals with thousands separators".
+            assertTrue(lore(menu.inventory().getItem(14)).contains("5,000.00"),
                     "got: " + lore(menu.inventory().getItem(14)));
         }
 
