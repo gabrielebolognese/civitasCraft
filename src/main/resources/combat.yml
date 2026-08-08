@@ -1,0 +1,50 @@
+# PvP and death, SPEC 33.
+#
+#
+# THE ONE SETTING THAT DECIDES WHAT THIS SERVER FEELS LIKE
+#
+# SPEC contradicts itself on peacetime PvP, and it is not a small disagreement.
+#
+#   SPEC 33.1, 33.3 and 33.10 enable it: the wilderness is PvP with keepInventory on,
+#   "for skirmishing, bounty hunting, and the tension of travel".
+#
+#   SPEC 37 and SPEC 38's milestone row disable it: "Peacetime PvP disabled globally."
+#
+# This ships DISABLED, which is the conservative reading, for three reasons. Part I's
+# pillar 1.4 says "outside of declared wars, the world is fully protected", and SPEC 1
+# makes the pillars decide ambiguous calls. Nobody can be killed unexpectedly. And turning
+# it on later adds something, where turning it off later takes something away from players
+# who have got used to it.
+#
+# Set peacetime: true to get SPEC 33's design instead. Nothing else needs to change.
+#
+# Recorded in OPEN_QUESTIONS.md as a decision for the developer.
+
+pvp:
+  # Whether players may fight each other while no war involves them.
+  peacetime: false
+
+  # Places where PvP is off whatever else is true, SPEC 37.
+  #   SPAWN            the built hub, so a new player cannot be killed while reading a sign
+  #   ADMIN_PROTECTED  any chunk an admin marked with /ca claim protect
+  #   MINING_CLAIM     a personal mining claim, SPEC 32.6
+  # Remove an entry to stop treating it as a sanctuary.
+  exclusion-zones:
+    - SPAWN
+    - ADMIN_PROTECTED
+    - MINING_CLAIM
+
+  # How far the spawn sanctuary reaches, in chunks from the main world's spawn chunk.
+  spawn-radius-chunks: 8
+
+  # SPEC 33.5: PvP is disabled in the resource worlds at all times, INCLUDING during wars.
+  # "Their entire purpose is to be the place where the economy's mining income happens, and
+  # that requires being able to mine without watching for ambushes. Enabling war PvP there
+  # would make the primary income source unavailable to whichever side is losing a war,
+  # which compounds a defeat into an economic collapse."
+  resource-worlds: false
+
+  # SPEC 37: a player cannot be attacked, and cannot attack, for this long after arriving.
+  # Both directions, per SPEC 33.9 case 123: "Immunity is not a one-way shield."
+  join-grace-seconds: 10
+  respawn-grace-seconds: 10

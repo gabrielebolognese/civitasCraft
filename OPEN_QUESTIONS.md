@@ -1818,3 +1818,70 @@ Format:
   executor. *Implemented default:* the row assertion polls; the registry assertions above it,
   which are what a player actually observes, stay immediate because the registry is updated
   synchronously. Nothing in the product changed. *Date:* 2026-08-08
+
+- **[M4a]** **SPEC contradicts itself on whether peacetime PvP exists at all, and this is the
+  largest open question in the project.** SPEC 33.1's table, SPEC 33.3's prose and SPEC 33.10's
+  `combat.yml` all enable it — the wilderness is PvP with keepInventory on, "for skirmishing,
+  bounty hunting, and the tension of travel". SPEC 37's `combat.yml` and SPEC 38's own M4a row
+  disable it: "Peacetime PvP disabled globally." Both are in Part IV. *Implemented default:*
+  **disabled**, per CLAUDE.md's instruction to take the most conservative option. Three reasons:
+  Part I's pillar 1.4 says "outside of declared wars, the world is fully protected" and SPEC 1
+  makes the pillars decide ambiguous calls; nobody is killed unexpectedly; and enabling it later
+  adds something where disabling it later takes something away from players who have grown used
+  to it. It is **one config key**, `pvp.peacetime`, with a test asserting the flip works, so the
+  other reading costs an edit rather than a rewrite. **This needs a developer decision**: it is
+  the difference between a wilderness that is dangerous and one that is not. *Date:* 2026-08-08
+
+- **[M4a]** Evidence that SPEC 37 is the stale side of that contradiction, recorded because it is
+  the same finding as M3a's and a third instance would make it a rule. SPEC 37 also ships the
+  `border:` block that SPEC 32.3 rejects outright, which M3a already established. And its
+  `combat-tag.seconds: 15` contradicts SPEC 33.8, which spends a paragraph arguing specifically
+  for 30 and 120 — "120 seconds, not 300". Section 37 reads as a configuration appendix that fell
+  out of sync with the design sections it serves. That is an argument, not a proof, which is why
+  the decision above went to the conservative option rather than to the section I find more
+  convincing. *Date:* 2026-08-08
+
+- **[M4a]** SPEC 33.3 makes bounties claimable in peacetime, which Part I's SPEC 4.7 restricts to
+  "during an active war". With peacetime PvP off, that question does not arise: there is no
+  peacetime kill to claim on. Part I's rule stands unchanged. If the developer enables peacetime
+  PvP, the bounty rule has to be revisited at the same time, and SPEC 21.4 F7's self-claim and
+  IP-linked blocks from M9a apply either way. *Date:* 2026-08-08
+
+- **[M4a]** Ordering inside the policy is a decision SPEC does not state: **zones are checked
+  before wars**. SPEC 32.7 makes spawn peaceful "under all circumstances including active wars"
+  and SPEC 33.5 says the same of the resource worlds, so a sanctuary a war could override would
+  not be a sanctuary. Grace periods come before both, because they are about the players rather
+  than the place. There is a test that injects an always-true war check and asserts an
+  admin-protected chunk still refuses. *Date:* 2026-08-08
+
+- **[M4a]** The war and mining-claim seams are **injected**, not overridable methods. The first
+  draft made them protected and the test subclassed the policy, which does not work on a final
+  class and would have been the wrong shape anyway: the war milestone needs to hand in a real
+  check at wiring time, not define a subclass. Each is one setter — `useWarCheck`,
+  `useMiningClaims` — and everything else in the class already behaves correctly once a war can
+  say yes, because each other rule is evaluated before the war is asked. *Date:* 2026-08-08
+
+- **[M4a]** `ProtectionService.checkPvp` is **superseded and now unreachable**. It only ever
+  covered claims, with vanilla covering the rest of the map, and SPEC 33 replaces Part I 5.5 and
+  11.6 "in full". `EntityProtectionListener` takes the policy as a **required** constructor
+  argument rather than an optional one — it was optional for about ten minutes until a check
+  found nothing constructed the listener without it, and an optional authority is two rules that
+  will eventually disagree. The old method survives only because `ProtectionAction.PVP` is still
+  in the action enum and removing an enum constant the guard's message routing knows about
+  belongs with the war half. Marked in the javadoc so it is not mistaken for live code.
+  *Date:* 2026-08-08
+
+- **[M4a]** SPEC 37 lists `SPAWN` as an exclusion zone and nothing in the plugin knows where
+  spawn is: SPEC 32.7 describes a built hub inside an admin-protected region, which is content
+  rather than code. *Implemented default:* a configurable radius in chunks around the **main
+  world's spawn point**, default 8, injected as a supplier so the policy stays free of Bukkit
+  types. An operator who protects their hub with `/ca claim protect` gets the same result through
+  `ADMIN_PROTECTED`, so the two overlap deliberately — the radius is the one that works on a
+  server whose admin has not thought about it. *Date:* 2026-08-08
+
+- **[M4a]** The config sweep covered `combat.yml` from the moment it existed, with no edit to any
+  test. That is the M3a fix working: `ConfigKeyUsageTest` derives its file list from
+  `ConfigFile.values()` rather than from a hardcoded literal, so the file that would previously
+  have shipped outside the integrity net was inside it on the first build. Recorded because it is
+  the first evidence that the structural fix was worth more than the milestone it came from.
+  *Date:* 2026-08-08

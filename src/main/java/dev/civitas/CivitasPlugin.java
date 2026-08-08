@@ -146,6 +146,7 @@ public final class CivitasPlugin extends JavaPlugin {
 
     private ConfigManager configs;
     private dev.civitas.core.abuse.PlacedBlockCache placedBlocks;
+    private dev.civitas.core.combat.PvpPolicy pvpPolicy;
     private LangManager lang;
     private StatsService stats;
     private EventBossBar eventBar;
@@ -686,6 +687,22 @@ public final class CivitasPlugin extends JavaPlugin {
         claimRegistry.useTimings(timings);                            // SPEC 17.7 case 81
         menuManager.useTimings(timings);                              // SPEC 17.7 case 86
 
+        // SPEC 33's PvP policy. One authority: ProtectionService answered this for claims
+        // and vanilla answered it everywhere else, which is two rules and a gap between them.
+        pvpPolicy = new dev.civitas.core.combat.PvpPolicy(
+                configs, new dev.civitas.core.world.WorldRegistry(configs, getLogger()));
+        pvpPolicy.useAdminProtection(adminProtection::isProtected);
+        pvpPolicy.useSpawnChunk(() -> {
+            org.bukkit.World main = getServer().getWorld(
+                    configs.get(ConfigFile.WORLD).getString("worlds.main", "world"));
+            if (main == null) {
+                return java.util.Optional.empty();
+            }
+            org.bukkit.Location spawn = main.getSpawnLocation();
+            return java.util.Optional.of(new Object[] {
+                    main.getName(), spawn.getBlockX() >> 4, spawn.getBlockZ() >> 4});
+        });
+
         // SPEC 23.6's notification preferences and SPEC 23.4's channel router. The router
         // consults the preferences on every send, and the four SPEC 23.6 locks are enforced
         // inside the preferences so no channel can bypass them.
@@ -806,7 +823,10 @@ public final class CivitasPlugin extends JavaPlugin {
         manager.registerEvents(new BlockProtectionListener(guard), this);
         manager.registerEvents(new ContainerProtectionListener(guard, blocks), this);
         manager.registerEvents(new InteractionProtectionListener(guard, blocks), this);
-        manager.registerEvents(new EntityProtectionListener(guard), this);
+        manager.registerEvents(new EntityProtectionListener(guard, pvpPolicy), this);
+        // SPEC 37's join and respawn grace, both directions.
+        manager.registerEvents(
+                new dev.civitas.listener.PvpListener(pvpPolicy, lang), this);
         manager.registerEvents(new ExplosionProtectionListener(protection), this);
         manager.registerEvents(new FireAndFluidListener(protection, guard), this);
         manager.registerEvents(new PistonProtectionListener(protection), this);

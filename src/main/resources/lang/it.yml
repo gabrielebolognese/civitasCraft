@@ -1349,3 +1349,12 @@ toggle:
   category-sounds: "Suoni del plugin"
   category-compact: "Messaggi compatti su una riga"
 
+# I rifiuti PvP di SPEC 33. Ognuno dice PERCHE', come richiede SPEC 23.1 regola 5.
+combat:
+  pvp-denied-peacetime: "<red>Il PvP e' disattivato al di fuori delle guerre dichiarate."
+  pvp-denied-spawn: "<red>Il PvP e' disattivato allo spawn."
+  pvp-denied-admin: "<red>Il PvP e' disattivato in quest'area protetta dagli amministratori."
+  pvp-denied-mining-claim: "<red>Il PvP e' disattivato dentro una concessione mineraria."
+  pvp-denied-resource: "<red>Il PvP e' disattivato nei mondi delle risorse, cosi' scavare non e' mai un'imboscata."
+  pvp-denied-your-grace: "<red>Non puoi ancora attaccare. <gray>Chi e' appena arrivato e' protetto per qualche secondo, in entrambe le direzioni."
+  pvp-denied-their-grace: "<red>E' appena arrivato. <gray>Concedigli qualche secondo."

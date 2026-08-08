@@ -157,8 +157,15 @@ public final class ProtectionService {
     private dev.civitas.core.diplomacy.DiplomacyRegistry diplomacy;
 
     /**
-     * SPEC 5.5: "PvP inside claims: disabled outside of war. Enabled only inside the claims
-     * of cities that are party to an active war."
+     * SPEC 5.5: "PvP inside claims: disabled outside of war."
+     *
+     * <p><b>Superseded by {@code PvpPolicy}.</b> SPEC 33 "replaces the earlier PvP rules in
+     * Part I 5.5 and 11.6 in full", and every damage event now asks the policy instead — this
+     * only ever covered claims, and vanilla covered the rest of the map, which is the gap SPEC
+     * 33 closes. Nothing in the plugin reaches this now; it survives because
+     * {@code ProtectionAction.PVP} is still part of the action enum, and removing an enum
+     * constant that the guard's message routing knows about belongs with the war half rather
+     * than here. Recorded in {@code OPEN_QUESTIONS.md}.
      */
     private ProtectionDecision checkPvp(City city, String world, int chunkX, int chunkZ) {
         if (isAtWar(city, world, chunkX, chunkZ)) {

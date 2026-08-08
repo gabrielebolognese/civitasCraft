@@ -1351,3 +1351,13 @@ toggle:
   category-sounds: "Plugin sounds"
   category-compact: "Compact one-line messages"
 
+# SPEC 33's PvP refusals. Each says WHY, per SPEC 23.1 rule 5: "Failure messages state the
+# reason and the remedy."
+combat:
+  pvp-denied-peacetime: "<red>PvP is off outside of declared wars."
+  pvp-denied-spawn: "<red>PvP is off at spawn."
+  pvp-denied-admin: "<red>PvP is off in this admin-protected area."
+  pvp-denied-mining-claim: "<red>PvP is off inside a mining claim."
+  pvp-denied-resource: "<red>PvP is off in the resource worlds, so mining is never an ambush."
+  pvp-denied-your-grace: "<red>You cannot attack yet. <gray>Newly arrived players are protected for a few seconds, both ways."
+  pvp-denied-their-grace: "<red>They have only just arrived. <gray>Give them a few seconds."

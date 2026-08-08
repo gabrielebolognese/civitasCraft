@@ -29,8 +29,21 @@ public final class EntityProtectionListener implements Listener {
 
     private final ProtectionGuard guard;
 
-    public EntityProtectionListener(ProtectionGuard guard) {
+    /**
+     * SPEC 33's PvP policy, the single authority on player-versus-player damage.
+     *
+     * <p>Required, not optional. An optional one would mean two rules — the policy when it is
+     * present and {@code ProtectionService}'s claim rule when it is not — and two rules that
+     * answer the same question are two rules that will come to disagree. It was optional for
+     * about ten minutes during M4a, until a check found that nothing constructed this listener
+     * without it.
+     */
+    private final dev.civitas.core.combat.PvpPolicy pvp;
+
+    public EntityProtectionListener(ProtectionGuard guard,
+                                    dev.civitas.core.combat.PvpPolicy pvp) {
         this.guard = Objects.requireNonNull(guard, "guard");
+        this.pvp = Objects.requireNonNull(pvp, "pvp");
     }
 
     @EventHandler(priority = EventPriority.LOW, ignoreCancelled = true)
@@ -41,8 +54,15 @@ public final class EntityProtectionListener implements Listener {
         }
         Entity victim = event.getEntity();
 
-        if (victim instanceof Player) {
-            if (!guard.allows(attacker.get(), victim.getLocation(), ProtectionAction.PVP)) {
+        if (victim instanceof Player hurt) {
+            // SPEC 33 replaces Part I 5.5 and 11.6 in full, so the policy decides everywhere
+            // rather than the claim rule deciding inside claims and vanilla deciding outside.
+            // Judged at the VICTIM's location, per SPEC 33.9 case 117, which also settles case
+            // 118's splash potion thrown from wilderness into a claim.
+            var chunk = hurt.getLocation().getChunk();
+            if (pvp.check(attacker.get().getUniqueId(), hurt.getUniqueId(),
+                    hurt.getWorld().getName(), chunk.getX(), chunk.getZ(),
+                    System.currentTimeMillis()).denied()) {
                 event.setCancelled(true);
             }
             return;
