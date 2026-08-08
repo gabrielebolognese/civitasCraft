@@ -273,22 +273,29 @@ public final class OutpostService {
         if (isCityAtWar(city)) {
             return completed(Result.failure("CITY_AT_WAR", "outpost.at-war"));
         }
-        Optional<Claim> chunk = claimOf(outpost);
-        if (chunk.isEmpty()) {
+        // SPEC 39.2: an outpost is up to four chunks, so deleting releases all of them and
+        // refunds half of each. Part I could take the single chunk because there was only one.
+        java.util.List<Claim> held = chunksOf(outpost);
+        if (held.isEmpty()) {
             return completed(Result.failure("OUTPOST_HAS_NO_CHUNK", "outpost.no-chunk"));
         }
 
-        Claim claim = chunk.get();
-        BigDecimal refund = Money.percentOf(claim.costPaid(), refundPercent());
+        BigDecimal refund = held.stream()
+                .map(claim -> Money.percentOf(claim.costPaid(), refundPercent()))
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
 
         return db.transaction(connection -> {
-            daos.claims().deleteAt(connection, claim.world(), claim.chunkX(), claim.chunkZ());
+            for (Claim claim : held) {
+                daos.claims().deleteAt(connection, claim.world(), claim.chunkX(),
+                        claim.chunkZ());
+            }
             daos.outposts().delete(connection, outpost.id());
 
             if (refund.signum() > 0) {
                 Result<BigDecimal> paid = treasury.adjust(connection, city, refund,
                         TransactionType.CHUNK_UNCLAIM_REFUND, actor,
-                        "{\"outpost\":\"" + outpost.name() + "\"}");
+                        "{\"outpost\":\"" + outpost.name() + "\",\"chunks\":"
+                                + held.size() + "}");
                 if (paid instanceof Result.Failure<BigDecimal> failure) {
                     return Result.<Outpost>propagate(failure);
                 }
@@ -298,7 +305,286 @@ public final class OutpostService {
             if (result instanceof Result.Success<Outpost>) {
                 scheduler.runOnMain(() -> {
                     outposts.remove(outpost.id());
+                    held.forEach(claims::remove);
+                });
+            }
+            return result;
+        });
+    }
+
+    // ==================================================================================
+    // SPEC 39.7, merging
+    // ==================================================================================
+
+    /**
+     * Merges any of a city's outposts that have come to touch, SPEC 39.7.
+     *
+     * <p>"They merge into one outpost, keeping the older one's name and warp. One slot frees."
+     * Older by id, which is creation order, so the name a city has been using for longest is the
+     * one that survives.
+     *
+     * <p>Run after a claim lands rather than before it, because a bridging chunk has to exist
+     * for two outposts to be adjacent. The case that must be refused rather than performed —
+     * a merge exceeding four chunks — is caught earlier by {@code checkExpandable}, so anything
+     * reaching here is a merge that may go ahead.
+     *
+     * @return the outposts that were absorbed and no longer exist
+     */
+    public CompletableFuture<java.util.List<Outpost>> mergeAdjacentOutposts(City city) {
+        java.util.List<Outpost> all = new java.util.ArrayList<>(outposts.of(city.id()));
+        all.sort(java.util.Comparator.comparingInt(Outpost::id));
+
+        java.util.List<Outpost> absorbed = new java.util.ArrayList<>();
+        java.util.List<Claim> moved = new java.util.ArrayList<>();
+
+        for (int i = 0; i < all.size(); i++) {
+            Outpost keeper = all.get(i);
+            if (absorbed.contains(keeper)) {
+                continue;
+            }
+            for (int j = i + 1; j < all.size(); j++) {
+                Outpost other = all.get(j);
+                if (absorbed.contains(other) || !touching(keeper, other)) {
+                    continue;
+                }
+                absorbed.add(other);
+                moved.addAll(chunksOf(other));
+            }
+        }
+        if (absorbed.isEmpty()) {
+            return CompletableFuture.completedFuture(java.util.List.of());
+        }
+
+        java.util.Map<Long, Integer> reassign = new java.util.HashMap<>();
+        for (int i = 0; i < all.size(); i++) {
+            Outpost keeper = all.get(i);
+            if (absorbed.contains(keeper)) {
+                continue;
+            }
+            for (Outpost gone : absorbed) {
+                if (touching(keeper, gone)) {
+                    chunksOf(gone).forEach(claim -> reassign.put(claim.id(), keeper.id()));
+                }
+            }
+        }
+
+        return db.transaction(connection -> {
+            for (Claim claim : moved) {
+                Integer keeperId = reassign.get(claim.id());
+                if (keeperId != null) {
+                    daos.claims().updateType(connection, claim.id(), ClaimType.OUTPOST.name(),
+                            keeperId);
+                }
+            }
+            for (Outpost gone : absorbed) {
+                daos.outposts().delete(connection, gone.id());
+            }
+            return Result.success(absorbed);
+        }).thenApply(result -> {
+            if (result instanceof Result.Success<java.util.List<Outpost>>) {
+                scheduler.runOnMain(() -> {
+                    // Rebuilt rather than mutated: Claim.convertTo is package-private, and
+                    // convertAdjacent above already re-puts a fresh Claim for the same reason.
+                    moved.forEach(claim -> {
+                        Integer keeperId = reassign.get(claim.id());
+                        if (keeperId != null) {
+                            claims.put(new Claim(claim.id(), claim.cityId(), claim.world(),
+                                    claim.chunkX(), claim.chunkZ(), claim.claimedAt(),
+                                    claim.claimedBy(), claim.costPaid(), ClaimType.OUTPOST,
+                                    keeperId));
+                        }
+                    });
+                    absorbed.forEach(gone -> outposts.remove(gone.id()));
+                });
+                return absorbed;
+            }
+            return java.util.List.<Outpost>of();
+        });
+    }
+
+    /** Whether any chunk of one outpost shares an edge with any chunk of another. */
+    private boolean touching(Outpost first, Outpost second) {
+        java.util.List<OutpostGeometry.Chunk> theirs = shapeOf(second);
+        return shapeOf(first).stream()
+                .anyMatch(chunk -> theirs.stream().anyMatch(chunk::touches));
+    }
+
+    // ==================================================================================
+    // SPEC 39.2, growing an outpost
+    // ==================================================================================
+
+    /**
+     * Adds one chunk to an existing outpost, SPEC 39.2.
+     *
+     * <p>The chunk must border that outpost and must not take it past four. SPEC 39.3 prices it
+     * at {@code F(k)} for whichever chunk it is, so the second is cheaper than the founding one
+     * and the fourth is dearer — "establishing a new remote holding is a project, while adding a
+     * chunk to one that already exists is not".
+     */
+    public CompletableFuture<Result<Claim>> expand(UUID actor, City city, Outpost outpost,
+                                                   String world, int chunkX, int chunkZ) {
+        Result<Void> allowed = checkExpandable(actor, city, outpost, world, chunkX, chunkZ);
+        if (allowed instanceof Result.Failure<Void> failure) {
+            return completed(Result.propagate(failure));
+        }
+
+        int chunkNumber = chunkCount(outpost) + 1;
+        BigDecimal cost = expansionCost(city, outpost, chunkNumber);
+
+        return db.transaction(connection -> claimService.writeClaim(connection, actor, city,
+                        world, chunkX, chunkZ, cost, ClaimType.OUTPOST, outpost.id()))
+                .thenApply(result -> {
+                    if (result instanceof Result.Success<Claim>(Claim written)) {
+                        scheduler.runOnMain(() -> claims.put(written));
+                    }
+                    return result;
+                });
+    }
+
+    /** Whether {@code outpost} may take this chunk, and why not. */
+    public Result<Void> checkExpandable(UUID actor, City city, Outpost outpost, String world,
+                                        int chunkX, int chunkZ) {
+        if (!city.hasPermission(actor, CityPermission.OUTPOST_MANAGE)) {
+            return Result.failure("NO_CITY_PERMISSION", "city.no-permission",
+                    Map.of("permission", CityPermission.OUTPOST_MANAGE.name()));
+        }
+        if (city.isFrozen()) {
+            return Result.failure("CITY_FROZEN", "city.frozen");
+        }
+        if (city.isDelinquent()) {
+            return Result.failure("CITY_DELINQUENT", "claim.delinquent");
+        }
+        if (isCityAtWar(city)) {
+            return Result.failure("CITY_AT_WAR", "outpost.at-war");
+        }
+        if (claims.at(world, chunkX, chunkZ).isPresent()) {
+            return Result.failure("CHUNK_CLAIMED", "claim.chunk-claimed");
+        }
+
+        java.util.List<Claim> held = chunksOf(outpost);
+        if (held.isEmpty()) {
+            return Result.failure("OUTPOST_HAS_NO_CHUNK", "outpost.no-chunk");
+        }
+        if (!held.get(0).world().equals(world)) {
+            return Result.failure("WRONG_WORLD", "outpost.wrong-world");
+        }
+        if (held.size() >= maxChunksPerOutpost()) {
+            return Result.failure("OUTPOST_FULL", "outpost.full",
+                    Map.of("max", String.valueOf(maxChunksPerOutpost())));
+        }
+
+        OutpostGeometry.Chunk candidate = new OutpostGeometry.Chunk(chunkX, chunkZ);
+        if (!OutpostGeometry.extendsOutpost(shapeOf(outpost), candidate)) {
+            return Result.failure("NOT_ADJACENT", "outpost.not-adjacent");
+        }
+
+        // SPEC 39.7. A chunk that bridges two of the city's own outposts merges them, and the
+        // merge is REFUSED when the result would exceed four — "the merge is blocked and the
+        // claim that would trigger it is rejected", rather than merged and truncated.
+        Result<Void> merge = checkMerge(city, candidate, world);
+        if (merge instanceof Result.Failure<Void> failure) {
+            return Result.propagate(failure);
+        }
+        return Result.ok();
+    }
+
+    /**
+     * SPEC 39.7's size check on a bridging claim.
+     *
+     * <p>Only the blocked case refuses here. The two merges that <b>can</b> happen are performed
+     * after the claim lands, by {@link #convertAdjacent} for the city case and
+     * {@link #mergeAdjacentOutposts} for the other.
+     */
+    private Result<Void> checkMerge(City city, OutpostGeometry.Chunk candidate, String world) {
+        java.util.List<java.util.List<OutpostGeometry.Chunk>> shapes = outposts.of(city.id())
+                .stream()
+                .filter(other -> chunksOf(other).stream()
+                        .anyMatch(claim -> claim.world().equals(world)))
+                .map(this::shapeOf)
+                .toList();
+
+        java.util.List<OutpostGeometry.Chunk> body = claims.claimsOf(city.id()).stream()
+                .filter(claim -> claim.type() != ClaimType.OUTPOST)
+                .filter(claim -> claim.world().equals(world))
+                .map(claim -> new OutpostGeometry.Chunk(claim.chunkX(), claim.chunkZ()))
+                .toList();
+
+        if (OutpostGeometry.judge(candidate, body, shapes, maxChunksPerOutpost())
+                == OutpostGeometry.Merge.BLOCKED_TOO_LARGE) {
+            return Result.failure("MERGE_TOO_LARGE", "outpost.merge-too-large",
+                    Map.of("max", String.valueOf(maxChunksPerOutpost())));
+        }
+        return Result.ok();
+    }
+
+    /**
+     * Releases one chunk of an outpost, SPEC 39.11.
+     *
+     * <p>Refused when it would split the outpost in two, SPEC 39.14 case 133 — the same
+     * contiguity rule SPEC 6.1 applies to a city body, applied inside an outpost. Releasing the
+     * last chunk deletes the outpost, because SPEC 39.7 says an outpost reduced to zero chunks
+     * has its record removed and its slot freed.
+     */
+    public CompletableFuture<Result<Claim>> unclaimChunk(UUID actor, City city, String world,
+                                                          int chunkX, int chunkZ) {
+        if (!city.hasPermission(actor, CityPermission.OUTPOST_MANAGE)) {
+            return completed(Result.failure("NO_CITY_PERMISSION", "city.no-permission",
+                    Map.of("permission", CityPermission.OUTPOST_MANAGE.name())));
+        }
+        if (city.isFrozen()) {
+            return completed(Result.failure("CITY_FROZEN", "city.frozen"));
+        }
+        if (isCityAtWar(city)) {
+            return completed(Result.failure("CITY_AT_WAR", "outpost.at-war"));
+        }
+
+        Optional<Claim> found = claims.at(world, chunkX, chunkZ)
+                .filter(claim -> claim.cityId() == city.id())
+                .filter(claim -> claim.type() == ClaimType.OUTPOST);
+        if (found.isEmpty()) {
+            return completed(Result.failure("NOT_AN_OUTPOST_CHUNK", "outpost.not-outpost-chunk"));
+        }
+
+        Claim claim = found.get();
+        Optional<Outpost> owner = outposts.byId(
+                claim.outpostId() == null ? -1 : claim.outpostId());
+        if (owner.isEmpty()) {
+            // Reachable only if a claim points at an outpost row that is gone, which is
+            // corruption rather than a state the game produces.
+            return completed(Result.failure("OUTPOST_UNKNOWN", "outpost.no-chunk"));
+        }
+
+        Outpost outpost = owner.get();
+        java.util.List<OutpostGeometry.Chunk> shape = shapeOf(outpost);
+        OutpostGeometry.Chunk going = new OutpostGeometry.Chunk(chunkX, chunkZ);
+        if (!OutpostGeometry.survivesRemoval(shape, going)) {
+            return completed(Result.failure("WOULD_SPLIT", "outpost.would-split"));
+        }
+
+        boolean last = shape.size() <= 1;
+        BigDecimal refund = Money.percentOf(claim.costPaid(), refundPercent());
+
+        return db.transaction(connection -> {
+            daos.claims().deleteAt(connection, world, chunkX, chunkZ);
+            if (last) {
+                daos.outposts().delete(connection, outpost.id());
+            }
+            if (refund.signum() > 0) {
+                Result<BigDecimal> paid = treasury.adjust(connection, city, refund,
+                        TransactionType.CHUNK_UNCLAIM_REFUND, actor,
+                        "{\"outpost\":\"" + outpost.name() + "\"}");
+                if (paid instanceof Result.Failure<BigDecimal> failure) {
+                    return Result.<Claim>propagate(failure);
+                }
+            }
+            return Result.success(claim);
+        }).thenApply(result -> {
+            if (result instanceof Result.Success<Claim>) {
+                scheduler.runOnMain(() -> {
                     claims.remove(claim);
+                    if (last) {
+                        outposts.remove(outpost.id());
+                    }
                 });
             }
             return result;

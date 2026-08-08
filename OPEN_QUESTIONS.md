@@ -2128,3 +2128,24 @@ Format:
   multi-chunk outpost that is. Founding chunk is the stable answer: the alternative means a city's
   daily bill shifts when it adds a chunk on the far side, for reasons no player could predict.
   *Date:* 2026-08-08
+
+- **[M10, in progress]** SPEC 39.7's outpost-to-outpost merge is **unreachable on a default
+  server**, and that is a consequence of SPEC's own numbers rather than a bug. SPEC 39.6 requires
+  24 chunks between a city's outposts at founding, and SPEC 39.6 caps each at four chunks — so two
+  outposts can grow to at most eight chunks across a 24-chunk gap and can never touch. The merge
+  becomes reachable only if an operator lowers `min-distance-from-own-outposts`. *Implemented
+  default:* the rule is built and tested with the spacing turned down, rather than left untested
+  on the grounds that it cannot fire — SPEC 39.7 describes it as a real case, an operator may well
+  lower the spacing, and a rule nobody has exercised is a rule nobody knows works. Recorded because
+  the first draft of that test quietly asserted nothing, having placed two outposts that could
+  never reach each other. *Date:* 2026-08-08
+
+- **[M10, in progress]** `Claim.convertTo` is package-private, so the merge **rebuilds** the cached
+  claim rather than mutating it — which is what `convertAdjacent` already does two hundred lines
+  above for the same reason. Worth recording only because the natural instinct is to widen the
+  accessor, and the existing code had already chosen not to. *Date:* 2026-08-08
+
+- **[M10, in progress]** I invented `outpost.unknown-name` for a refusal when `outpost.unknown`
+  already existed — one concept, two names, caught by the lang sweep before it shipped. The path in
+  question is only reachable if a claim points at an outpost row that is gone, which is corruption
+  rather than a state the game produces, so it now reuses `outpost.no-chunk`. *Date:* 2026-08-08

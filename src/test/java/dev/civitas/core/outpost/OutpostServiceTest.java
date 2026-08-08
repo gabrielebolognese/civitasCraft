@@ -505,4 +505,253 @@ class OutpostServiceTest {
         assertEquals(0, registry.countOf(city.id()));
         assertFalse(registry.total() > 0);
     }
+
+    // ==================================================================================
+    // SPEC 39.2, an outpost is one to four chunks
+    // ==================================================================================
+
+    @Nested
+    @DisplayName("growing an outpost, SPEC 39.2")
+    class Expanding {
+
+        private Outpost outpost;
+
+        @BeforeEach
+        void setUp() {
+            outpost = given("North", 40, 0);
+        }
+
+        private Result<Claim> expand(int chunkX, int chunkZ) {
+            return await(outposts.expand(mayor, city, outpost, WORLD, chunkX, chunkZ));
+        }
+
+        @Test
+        @DisplayName("a bordering chunk joins the outpost")
+        void bordersJoin() {
+            Result<Claim> added = expand(41, 0);
+
+            assertTrue(added.isSuccess(), reasonOf(added));
+            assertEquals(2, outposts.chunkCount(outpost));
+            assertEquals(1, registry.countOf(city.id()),
+                    "it is one outpost of two chunks, not two outposts");
+        }
+
+        @Test
+        @DisplayName("a chunk that only touches a corner does not")
+        void cornersDoNot() {
+            // SPEC 6.1's edge rule, which SPEC 39.6 inherits: an outpost is a place, not
+            // scattered tiles.
+            assertEquals("NOT_ADJACENT", reasonOf(expand(41, 1)));
+        }
+
+        @Test
+        @DisplayName("a chunk nowhere near it does not")
+        void distantDoesNot() {
+            assertEquals("NOT_ADJACENT", reasonOf(expand(80, 0)));
+        }
+
+        @Test
+        @DisplayName("four chunks is the maximum, SPEC 39.6")
+        void fourIsTheCap() {
+            assertTrue(expand(41, 0).isSuccess());
+            assertTrue(expand(42, 0).isSuccess());
+            assertTrue(expand(43, 0).isSuccess());
+
+            assertEquals("OUTPOST_FULL", reasonOf(expand(44, 0)));
+            assertEquals(4, outposts.chunkCount(outpost));
+        }
+
+        @Test
+        @DisplayName("SPEC 39.3 prices each chunk by its number, and the second is cheapest")
+        void pricingByChunkNumber() {
+            // F(1) = 1.50, F(2) = 1.25, F(3) = 1.50, F(4) = 1.75. The dip at the second looks
+            // like a mistake and is not: founding a remote holding is a project, adding to one
+            // is not, and the escalation only catches up at the third.
+            BigDecimal second = outposts.expansionCost(city, outpost, 2);
+            BigDecimal third = outposts.expansionCost(city, outpost, 3);
+            BigDecimal fourth = outposts.expansionCost(city, outpost, 4);
+
+            assertTrue(second.compareTo(third) < 0, "the second should be cheaper than the third");
+            assertTrue(third.compareTo(fourth) < 0, "and the third than the fourth");
+        }
+
+        @Test
+        @DisplayName("the treasury pays for each chunk")
+        void treasuryPays() {
+            BigDecimal before = await(support.daos.cities().findById(city.id()))
+                    .orElseThrow().treasury();
+            BigDecimal cost = outposts.expansionCost(city, outpost, 2);
+
+            assertTrue(expand(41, 0).isSuccess());
+
+            assertEquals(0, before.subtract(cost).compareTo(
+                    await(support.daos.cities().findById(city.id())).orElseThrow().treasury()));
+        }
+
+        @Test
+        @DisplayName("a chunk somebody already owns is refused")
+        void alreadyClaimed() {
+            assertTrue(expand(41, 0).isSuccess());
+            assertEquals("CHUNK_CLAIMED", reasonOf(expand(41, 0)));
+        }
+    }
+
+    // ==================================================================================
+    // SPEC 39.11, releasing one chunk
+    // ==================================================================================
+
+    @Nested
+    @DisplayName("releasing one chunk")
+    class Unclaiming {
+
+        private Outpost outpost;
+
+        @BeforeEach
+        void setUp() {
+            outpost = given("North", 40, 0);
+            assertTrue(await(outposts.expand(mayor, city, outpost, WORLD, 41, 0)).isSuccess());
+            assertTrue(await(outposts.expand(mayor, city, outpost, WORLD, 42, 0)).isSuccess());
+        }
+
+        private Result<Claim> release(int chunkX, int chunkZ) {
+            return await(outposts.unclaimChunk(mayor, city, WORLD, chunkX, chunkZ));
+        }
+
+        @Test
+        @DisplayName("an end chunk goes, and the outpost keeps the rest")
+        void endChunkGoes() {
+            assertTrue(release(42, 0).isSuccess());
+
+            assertEquals(2, outposts.chunkCount(outpost));
+            assertEquals(1, registry.countOf(city.id()));
+        }
+
+        @Test
+        @DisplayName("SPEC 39.14 case 133: a middle chunk that would split it is refused")
+        void splittingIsRefused() {
+            assertEquals("WOULD_SPLIT", reasonOf(release(41, 0)));
+            assertEquals(3, outposts.chunkCount(outpost), "and nothing was released");
+        }
+
+        @Test
+        @DisplayName("releasing the last chunk removes the outpost and frees its slot")
+        void lastChunkDeletesTheOutpost() {
+            assertTrue(release(42, 0).isSuccess());
+            assertTrue(release(41, 0).isSuccess());
+            assertTrue(release(40, 0).isSuccess());
+
+            assertEquals(0, registry.countOf(city.id()));
+        }
+
+        @Test
+        @DisplayName("half of what that chunk cost comes back to the treasury")
+        void refundsHalfOfThatChunk() {
+            BigDecimal before = await(support.daos.cities().findById(city.id()))
+                    .orElseThrow().treasury();
+
+            Result<Claim> released = release(42, 0);
+            assertTrue(released.isSuccess(), reasonOf(released));
+
+            BigDecimal expected = dev.civitas.core.economy.Money.percentOf(
+                    released.orElseThrow().costPaid(), outposts.refundPercent());
+            assertEquals(0, before.add(expected).compareTo(
+                    await(support.daos.cities().findById(city.id())).orElseThrow().treasury()));
+        }
+
+        @Test
+        @DisplayName("a chunk that is not yours, or not an outpost, is refused")
+        void notYours() {
+            assertEquals("NOT_AN_OUTPOST_CHUNK", reasonOf(release(500, 500)));
+            assertEquals("NOT_AN_OUTPOST_CHUNK", reasonOf(release(0, 0)),
+                    "the core chunk is city land, not an outpost chunk");
+        }
+
+        @Test
+        @DisplayName("deleting the whole outpost refunds every chunk, not one")
+        void deleteRefundsEverything() {
+            // Part I could take the single chunk because there was only ever one.
+            BigDecimal before = await(support.daos.cities().findById(city.id()))
+                    .orElseThrow().treasury();
+            BigDecimal expected = outposts.chunksOf(outpost).stream()
+                    .map(claim -> dev.civitas.core.economy.Money.percentOf(claim.costPaid(),
+                            outposts.refundPercent()))
+                    .reduce(BigDecimal.ZERO, BigDecimal::add);
+
+            assertTrue(await(outposts.delete(mayor, city, outpost)).isSuccess());
+
+            assertEquals(0, before.add(expected).compareTo(
+                    await(support.daos.cities().findById(city.id())).orElseThrow().treasury()));
+            assertEquals(0, registry.countOf(city.id()));
+        }
+    }
+
+    // ==================================================================================
+    // SPEC 39.7, merging two of a city's own outposts
+    // ==================================================================================
+
+    @Nested
+    @DisplayName("merging outposts, SPEC 39.7")
+    class MergingOutposts {
+
+        @BeforeEach
+        void allowThemNearEachOther() {
+            // SPEC 39.6's 24-chunk founding rule means two four-chunk outposts can never grow
+            // into each other on a default server — the shapes cannot span the gap. The merge
+            // is still reachable on a server that lowers the spacing, and SPEC 39.7 describes
+            // it as a real case, so the rule is exercised with the spacing turned down rather
+            // than left untested.
+            support.configs.get(dev.civitas.config.ConfigFile.CITIES)
+                    .set("outposts.min-distance-from-own-outposts", 2);
+        }
+
+        @Test
+        @DisplayName("a chunk bridging two outposts merges them into one")
+        void bridgingMerges() {
+            Outpost first = given("First", 40, 0);
+            Outpost second = given("Second", 43, 0);
+            assertTrue(await(outposts.expand(mayor, city, first, WORLD, 41, 0)).isSuccess());
+
+            // 42 touches 41 (First) and 43 (Second): one plus two plus one is four, allowed.
+            assertTrue(await(outposts.expand(mayor, city, first, WORLD, 42, 0)).isSuccess());
+            java.util.List<Outpost> absorbed = await(outposts.mergeAdjacentOutposts(city));
+
+            assertEquals(1, absorbed.size(), "one outpost should have been absorbed");
+            assertEquals(1, registry.countOf(city.id()), "leaving a single outpost");
+            assertEquals("First", registry.of(city.id()).get(0).name(),
+                    "SPEC 39.7 keeps the older one's name");
+            assertEquals(4, outposts.chunkCount(registry.of(city.id()).get(0)),
+                    "and all four chunks");
+        }
+
+        @Test
+        @DisplayName("SPEC 39.7: a bridge that would exceed four chunks is refused outright")
+        void blockedWhenTooLarge() {
+            // "The merge is blocked and the claim that would trigger it is rejected with a
+            // clear message" — not merged and truncated, and not merged into an oversized one.
+            Outpost first = given("First", 40, 0);
+            Outpost second = given("Second", 44, 0);
+            assertTrue(await(outposts.expand(mayor, city, first, WORLD, 41, 0)).isSuccess());
+            assertTrue(await(outposts.expand(mayor, city, first, WORLD, 42, 0)).isSuccess());
+
+            // 43 touches 42 (First, three chunks) and 44 (Second, one): one plus three plus
+            // one is five.
+            Result<Claim> bridge = await(outposts.expand(mayor, city, first, WORLD, 43, 0));
+
+            assertEquals("MERGE_TOO_LARGE", reasonOf(bridge));
+            assertEquals(2, registry.countOf(city.id()), "both outposts are untouched");
+            assertEquals(3, outposts.chunkCount(first));
+            assertEquals(1, outposts.chunkCount(second));
+        }
+
+        @Test
+        @DisplayName("outposts that do not touch are left alone")
+        void separateStaySeparate() {
+            given("First", 40, 0);
+            given("Second", 60, 0);
+
+            assertTrue(await(outposts.mergeAdjacentOutposts(city)).isEmpty());
+            assertEquals(2, registry.countOf(city.id()));
+        }
+    }
+
 }
