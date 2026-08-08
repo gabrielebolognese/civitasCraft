@@ -174,28 +174,112 @@ market:
   # SPEC 11.9's winner bonus lives in war.yml under rewards, which is where the war
   # module reads it. It was mirrored here and the mirror was read by nothing.
 
-  # SPEC 4.4 starting table. Items absent from this list are not traded by the
-  # server market. See the exclusion rule in SPEC 4.4 before adding anything.
-  items:
-    WHEAT:           { base-price: 3,    target-stock: 20000, elasticity: 0.40 }
-    CARROT:          { base-price: 3,    target-stock: 20000, elasticity: 0.40 }
-    POTATO:          { base-price: 3,    target-stock: 20000, elasticity: 0.40 }
-    PUMPKIN:         { base-price: 5,    target-stock: 12000, elasticity: 0.45 }
-    MELON_SLICE:     { base-price: 2,    target-stock: 30000, elasticity: 0.40 }
-    SUGAR_CANE:      { base-price: 4,    target-stock: 15000, elasticity: 0.45 }
-    COCOA_BEANS:     { base-price: 6,    target-stock: 8000,  elasticity: 0.50 }
-    BAMBOO:          { base-price: 1,    target-stock: 40000, elasticity: 0.35 }
-    IRON_INGOT:      { base-price: 45,   target-stock: 6000,  elasticity: 0.55 }
-    GOLD_INGOT:      { base-price: 70,   target-stock: 4000,  elasticity: 0.55 }
+  # ------------------------------------------------------------------------------------
+  # WHAT THE SERVER BUYS FROM PLAYERS, SPEC 21.9
+  # ------------------------------------------------------------------------------------
+  # This is the money faucet, and it is the only one. SPEC 21.6: "every item the server
+  # buys is a potential money faucet. Every item the server sells is a money sink and
+  # carries no exploit risk at all."
+  #
+  # Four checks run over this list at startup and the market REFUSES TO OPEN if any fails
+  # (SPEC 21.10.1). None of them can be switched off, and SPEC 21.10.4 is explicit about
+  # why: "An admin cannot add emeralds to the buy list, even by editing the yml, even by
+  # editing the database."
+  #
+  #   1. Nothing here may be on the hard blacklist  (SPEC 21.8, in code)
+  #   2. Nothing here may come out of a villager trade
+  #   3. No two entries may share a crafting equivalence class  (SPEC 21.3)
+  #   4. Every entry needs its "# automatable:" comment, below
+  #
+  # The automatable comment is REQUIRED and is a forcing function, not a setting: SPEC
+  # 21.1 says "automation is the enemy of a priced economy", so adding an item means
+  # answering the question that decides whether it belongs here at all. It goes on the
+  # line ABOVE its entry, which is the only position Bukkit both reads back and keeps
+  # when the plugin writes new keys into this file.
+  #   no    a player must be present and playing to obtain it
+  #   semi  a farm can produce it, and the daily quota is what bounds it
+  # An item a machine produces with no player present belongs on neither list.
+  buy:
+    # automatable: no
     DIAMOND:         { base-price: 400,  target-stock: 1500,  elasticity: 0.60 }
-    EMERALD:         { base-price: 250,  target-stock: 2000,  elasticity: 0.60 }
-    NETHERITE_SCRAP: { base-price: 3500, target-stock: 200,   elasticity: 0.70 }
+    # automatable: no
+    ANCIENT_DEBRIS:  { base-price: 2500, target-stock: 150,   elasticity: 0.70 }
+    # automatable: no
+    QUARTZ:          { base-price: 12,   target-stock: 8000,  elasticity: 0.50 }
+    # automatable: no
+    ECHO_SHARD:      { base-price: 800,  target-stock: 200,   elasticity: 0.70 }
+    # automatable: no
+    HEART_OF_THE_SEA: { base-price: 1200, target-stock: 100,  elasticity: 0.75 }
+    # automatable: no
+    TORCHFLOWER:     { base-price: 300,  target-stock: 300,   elasticity: 0.65 }
+    # automatable: no
+    PITCHER_POD:     { base-price: 300,  target-stock: 300,   elasticity: 0.65 }
+    # automatable: no
+    TRIAL_KEY:       { base-price: 600,  target-stock: 300,   elasticity: 0.70 }
+    # automatable: semi
+    WHEAT:           { base-price: 3,    target-stock: 20000, elasticity: 0.40 }
+    # automatable: semi
+    CARROT:          { base-price: 3,    target-stock: 20000, elasticity: 0.40 }
+    # automatable: semi
+    POTATO:          { base-price: 3,    target-stock: 20000, elasticity: 0.40 }
+    # automatable: semi
+    BEETROOT:        { base-price: 4,    target-stock: 15000, elasticity: 0.40 }
+    # automatable: semi
     OAK_LOG:         { base-price: 4,    target-stock: 25000, elasticity: 0.40 }
-    STONE:           { base-price: 1,    target-stock: 50000, elasticity: 0.30 }
-    BEEF:            { base-price: 8,    target-stock: 10000, elasticity: 0.45 }
-    LEATHER:         { base-price: 12,   target-stock: 6000,  elasticity: 0.50 }
-    HONEY_BOTTLE:    { base-price: 25,   target-stock: 3000,  elasticity: 0.55 }
-    NETHER_WART:     { base-price: 8,    target-stock: 8000,  elasticity: 0.50 }
+  # ------------------------------------------------------------------------------------
+  # WHAT THE SERVER SELLS TO PLAYERS, SPEC 21.6
+  # ------------------------------------------------------------------------------------
+  # The builder's shop, and the plugin's largest money sink. None of the checks above
+  # apply here, because selling creates no money: "A builder buying 20,000 quartz blocks
+  # removes a large amount of money from circulation in one transaction, which is exactly
+  # what a sink should do."
+  #
+  # A key is either a single material or one of the GROUP names below, which expand to
+  # every material they cover. SPEC 21.6 describes this catalogue as a paragraph rather
+  # than a table, and hand-listing several hundred materials would stop covering it the
+  # day Mojang adds a wood type. Prices follow SPEC's "1.5x to 4x the value of their raw
+  # inputs"; a group is priced as a whole, so every stair costs the same whatever it is
+  # made of. Name a material directly to price it on its own.
+  #
+  # Groups: stairs, slabs, walls, fences, wool, carpet, banners, candles, terracotta,
+  #   planks, doors, trapdoors, concrete, concrete-powder, glazed-terracotta,
+  #   stained-glass, glass-panes, dyes, stone-variants, deepslate-variants,
+  #   quartz-variants, prismarine, purpur, copper, mud-and-mangrove, amethyst,
+  #   nether-building, sandstone
+  sell:
+    stone-variants:     { base-price: 4,   target-stock: 200000, elasticity: 0.15 }
+    deepslate-variants: { base-price: 5,   target-stock: 150000, elasticity: 0.15 }
+    sandstone:          { base-price: 5,   target-stock: 120000, elasticity: 0.15 }
+    nether-building:    { base-price: 8,   target-stock: 80000,  elasticity: 0.20 }
+    quartz-variants:    { base-price: 20,  target-stock: 60000,  elasticity: 0.25 }
+    prismarine:         { base-price: 18,  target-stock: 40000,  elasticity: 0.25 }
+    purpur:             { base-price: 14,  target-stock: 40000,  elasticity: 0.25 }
+    copper:             { base-price: 30,  target-stock: 30000,  elasticity: 0.30 }
+    amethyst:           { base-price: 40,  target-stock: 20000,  elasticity: 0.30 }
+    mud-and-mangrove:   { base-price: 6,   target-stock: 60000,  elasticity: 0.20 }
+    planks:             { base-price: 5,   target-stock: 150000, elasticity: 0.15 }
+    stairs:             { base-price: 6,   target-stock: 100000, elasticity: 0.20 }
+    slabs:              { base-price: 4,   target-stock: 100000, elasticity: 0.20 }
+    walls:              { base-price: 6,   target-stock: 80000,  elasticity: 0.20 }
+    fences:             { base-price: 6,   target-stock: 80000,  elasticity: 0.20 }
+    doors:              { base-price: 10,  target-stock: 40000,  elasticity: 0.25 }
+    trapdoors:          { base-price: 10,  target-stock: 40000,  elasticity: 0.25 }
+    wool:               { base-price: 12,  target-stock: 60000,  elasticity: 0.20 }
+    carpet:             { base-price: 8,   target-stock: 60000,  elasticity: 0.20 }
+    banners:            { base-price: 40,  target-stock: 10000,  elasticity: 0.30 }
+    candles:            { base-price: 25,  target-stock: 20000,  elasticity: 0.30 }
+    terracotta:         { base-price: 10,  target-stock: 80000,  elasticity: 0.20 }
+    glazed-terracotta:  { base-price: 24,  target-stock: 30000,  elasticity: 0.25 }
+    concrete:           { base-price: 10,  target-stock: 80000,  elasticity: 0.20 }
+    concrete-powder:    { base-price: 8,   target-stock: 80000,  elasticity: 0.20 }
+    stained-glass:      { base-price: 12,  target-stock: 60000,  elasticity: 0.20 }
+    glass-panes:        { base-price: 6,   target-stock: 60000,  elasticity: 0.20 }
+    dyes:               { base-price: 14,  target-stock: 40000,  elasticity: 0.25 }
+    GLASS:              { base-price: 8,   target-stock: 100000, elasticity: 0.20 }
+    GLOWSTONE:          { base-price: 30,  target-stock: 20000,  elasticity: 0.30 }
+    SEA_LANTERN:        { base-price: 45,  target-stock: 10000,  elasticity: 0.30 }
+    BOOKSHELF:          { base-price: 35,  target-stock: 20000,  elasticity: 0.25 }
+
 
 player-shops:
   enabled: true

@@ -80,6 +80,88 @@ public final class MarketSafetyCheck {
         }
     }
 
+    /**
+     * SPEC 21.10.1's first assertion: nothing in the buy list is hard-blacklisted.
+     *
+     * <p>SPEC 21.8 puts this list in code precisely so that this check cannot be talked out
+     * of: "config cannot override, because a well-meaning admin editing a yml is exactly how
+     * a server dies." The failure message names the item rather than the rule, because the
+     * operator's next action is to delete a line.
+     */
+    public void checkHardBlacklist(List<String> buyList) {
+        run = true;
+        if (!HardBlacklist.tagsResolved()) {
+            // The named materials are still enforced, but SPEC 21.8's category entries — all
+            // meat, all fish, carpet, rails, ice — are not. A partially enforced blacklist is
+            // more dangerous than an absent one, because it looks complete.
+            failures.add(new Failure("hard blacklist",
+                    "the tag-backed categories of SPEC 21.8 could not be read from the "
+                            + "server, so \"all meat\", \"all fish\", \"carpet\", "
+                            + "\"rails\" and \"ice of all kinds\" are NOT being enforced. "
+                            + "The market will not open on a partially enforced blacklist."));
+        }
+        for (String material : buyList) {
+            if (HardBlacklist.forbids(material)) {
+                failures.add(new Failure("hard blacklist",
+                        material + " may never be bought by the server (SPEC 21.8). It is "
+                                + "either automatable without a player present, a mob drop, or "
+                                + "one of the two metals SPEC says \"would have ended the "
+                                + "server's economy within a week of launch\". Remove it from "
+                                + "market.buy; the server may still sell it."));
+            }
+        }
+    }
+
+    /**
+     * SPEC 21.10.1's second assertion: nothing in the buy list comes out of a villager.
+     *
+     * <p>A villager converts emeralds into goods at a fixed rate and restocks forever with no
+     * player present. If the server buys one of those goods the loop closes, and unlike SPEC
+     * 21.3's crafting arbitrage it needs no favourable price swing — the rate is fixed, so it
+     * either pays or it does not, and if it pays it pays forever.
+     */
+    public void checkVillagerDisjointness(List<String> buyList) {
+        run = true;
+        for (String material : buyList) {
+            if (VillagerTrades.sells(material)) {
+                failures.add(new Failure("villager trade",
+                        material + " is obtainable from a villager trade (SPEC 21.10.1). A "
+                                + "trading hall would turn emeralds into it and the market "
+                                + "would turn it back into money, forever."));
+            }
+        }
+    }
+
+    /**
+     * SPEC 21.10.1's fourth assertion: every buy entry declares whether it can be automated.
+     *
+     * <p>"Every buy-list entry has the required {@code # automatable: no|semi} comment parsed
+     * from config." A forcing function rather than a value anything reads: SPEC 21.1's second
+     * governing principle is that "automation is the enemy of a priced economy", and requiring
+     * the answer in writing makes an operator adding an item confront the question that
+     * actually matters about it.
+     *
+     * @param declared material to the value of its comment, absent where there was none
+     */
+    public void checkAutomatableDeclared(List<String> buyList,
+                                         java.util.Map<String, String> declared) {
+        run = true;
+        for (String material : buyList) {
+            String value = declared.get(material);
+            if (value == null) {
+                failures.add(new Failure("automatable comment",
+                        material + " has no \"# automatable: no|semi\" comment (SPEC "
+                                + "21.10.1). Every buy entry must say whether a machine can "
+                                + "produce it without a player present."));
+            } else if (!value.equals("no") && !value.equals("semi")) {
+                failures.add(new Failure("automatable comment",
+                        material + " declares \"automatable: " + value + "\", which is not "
+                                + "\"no\" or \"semi\". An item that is fully automatable "
+                                + "must not be in the buy list at all (SPEC 21.1)."));
+            }
+        }
+    }
+
     /** Records a failure found by an assertion another milestone owns. */
     public void fail(String assertionName, String detail) {
         run = true;

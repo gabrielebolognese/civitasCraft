@@ -5,7 +5,7 @@
 
 ## Current session focus
 
-**Next milestone:** #2 in the queue below, **M6b, Market hardening**.
+**Next milestone:** #3 in the queue below, **M6c, Daily sell quota**.
 
 **Part I (M0 to M23) is complete.** SPEC has since grown from 20 sections to 41, adding four
 more Parts and **34 further milestones**, none of which were in this file until now. They are
@@ -94,7 +94,7 @@ something it needs.
 | # | M | Milestone | SPEC | Depends on | Status | Notes |
 |---|---|---|---|---|---|---|
 | 1 | 6a | Crafting equivalence graph | 24 | M6 | DONE | `RecipeGraph` (directed, transitive reachability), `CraftingEdges` (SPEC 21.10.2's smelting and stonecutter tables **plus SPEC 21.3's 22 pairs as a floor**, because MockBukkit ships no vanilla recipes and the property would otherwise be unverifiable), `BukkitRecipeSource`, and `MarketSafetyCheck` as a latch above config (SPEC 21.10.4). **The relation is not transitive and not undirected** — raw iron and iron ore share a smelting output and are safely listable, so the check is pairwise. The shipped buy list passes, and the test now locks it. 1726 tests. |
-| 2 | 6b | Market hardening | 24 | 6a | TODO | Hard blacklist (SPEC 21.8) as code, not config. Villager-disjointness startup assertion. Revised buy list (21.9), sell-only builder catalogue (21.6). |
+| 2 | 6b | Market hardening | 24 | 6a | DONE | `HardBlacklist` (SPEC 21.8, code-level, categories from Bukkit tags so a food or fish added by Mojang is covered without an edit), `VillagerTrades` (21.10.1's disjointness assertion), and `SellGroups` — SPEC 21.6's catalogue is prose, not a table, so `economy.yml` prices ~30 **groups** that expand to 400+ materials. The buy list went from 19 items to **13**: SPEC 21.9 lists 14 and **Nautilus shell contradicts two other rules in the same section**, so it is not shipped. `MarketItem.serverBuys` splits the two directions, and `sell` refuses a sell-only item with its own reason — SPEC 21.6: "every item the server buys is a potential money faucet. Every item the server *sells* is a money sink and carries no exploit risk at all." **SPEC 21.11's inline `# automatable:` comment does not survive a config write**; moved above the entry. 1748 tests. |
 | 3 | 6c | Daily sell quota | 24 | 6b | TODO | Per-player quota tracker, soft cap multiplier, `/quota`, persistence, concurrency-safe, resets at 00:00. |
 | 4 | 9a | Anti-abuse layer | 24 | M9 | TODO | Placed-block cache (21.10.5), strengthened stipend check (F11), new-account income gate (F12), 72-hour withdrawal hold (F16), contribution-proportional disband split (F6), bounty self-claim block (F7), war leaderboard score threshold (F4). |
 | 5 | 3a | World setup | 41 | M3 | TODO | Multi-world config, per-world claim rules, world whitelist enforcement in **every** protection listener. **No border management** — this is where SPEC 41 differs from SPEC 38's 3a. SPEC wanted this before M4; it is now a retrofit, so it goes as early as the queue allows. |

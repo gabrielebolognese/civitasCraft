@@ -69,13 +69,7 @@ public final class MarketRegistry {
                 stored.put(row.material().toUpperCase(Locale.ROOT), row.currentStock());
             }
 
-            List<CompletableFuture<?>> writes = new ArrayList<>();
-            for (MarketItem item : parsed.values()) {
-                writes.add(stockDao.upsertDefinition(item.material(), item.targetStock(),
-                        item.basePrice()));
-            }
-
-            return CompletableFuture.allOf(writes.toArray(CompletableFuture[]::new))
+            return stockDao.upsertDefinitions(parsed.values())
                     .thenApply(ignored -> {
                         items.clear();
                         items.putAll(parsed);
@@ -89,36 +83,77 @@ public final class MarketRegistry {
         });
     }
 
+    /**
+     * Reads {@code market.buy} and {@code market.sell}, SPEC 21.6 and 21.9.
+     *
+     * <p>Two sections rather than one list, because the two sides of the market have nothing
+     * in common but a price. What the server <b>buys</b> is the money faucet and is guarded by
+     * four startup assertions it cannot be configured out of; what the server <b>sells</b> is
+     * a sink and carries no exploit risk at all. Merging them into one catalogue is how Part I
+     * ended up buying iron.
+     *
+     * <p>A buy entry always overwrites a sell entry of the same material, so an item on both
+     * lists is traded both ways at the buy entry's price rather than silently taking whichever
+     * section happened to load last.
+     */
     private Map<String, MarketItem> parseCatalogue() {
         Map<String, MarketItem> parsed = new ConcurrentHashMap<>();
-        ConfigurationSection section =
-                configs.get(ConfigFile.ECONOMY).getConfigurationSection("market.items");
-        if (section == null) {
-            return parsed;
-        }
-
         double defaultElasticity = configs.get(ConfigFile.ECONOMY)
                 .getDouble("market.default-elasticity", 0.45);
 
+        parseSection("market.sell", false, defaultElasticity, parsed);
+        parseSection("market.buy", true, defaultElasticity, parsed);
+        return parsed;
+    }
+
+    private void parseSection(String path, boolean serverBuys, double defaultElasticity,
+                              Map<String, MarketItem> into) {
+        ConfigurationSection section =
+                configs.get(ConfigFile.ECONOMY).getConfigurationSection(path);
+        if (section == null) {
+            return;
+        }
         for (String key : section.getKeys(false)) {
             ConfigurationSection entry = section.getConfigurationSection(key);
             if (entry == null) {
-                logger.warning(() -> "Market item " + key + " is not a section; ignoring it.");
+                logger.warning(() -> path + "." + key + " is not a section; ignoring it.");
                 continue;
             }
-            String material = key.toUpperCase(Locale.ROOT);
-            try {
-                parsed.put(material, new MarketItem(material,
-                        BigDecimal.valueOf(entry.getDouble("base-price")),
-                        entry.getInt("target-stock"),
-                        entry.getDouble("elasticity", defaultElasticity)));
-            } catch (IllegalArgumentException e) {
-                // One bad line should cost that item, not the whole market.
-                logger.warning(() -> "Market item " + key + " is misconfigured and will not "
-                        + "be traded: " + e.getMessage());
+            BigDecimal basePrice = BigDecimal.valueOf(entry.getDouble("base-price"));
+            int targetStock = entry.getInt("target-stock");
+            double elasticity = entry.getDouble("elasticity", defaultElasticity);
+
+            // A sell key may name a whole group, SPEC 21.6. The buy list never does: its
+            // entries are individually chosen and individually justified.
+            java.util.Collection<String> materials = !serverBuys && SellGroups.isGroup(key)
+                    ? SellGroups.expand(key)
+                    : java.util.List.of(key.toUpperCase(Locale.ROOT));
+
+            for (String material : materials) {
+                try {
+                    into.put(material, new MarketItem(material, basePrice, targetStock,
+                            elasticity, serverBuys));
+                } catch (IllegalArgumentException e) {
+                    // One bad line should cost that item, not the whole market.
+                    logger.warning(() -> path + "." + key + " is misconfigured and will not "
+                            + "be traded: " + e.getMessage());
+                }
             }
         }
-        return parsed;
+    }
+
+    /**
+     * The materials the server buys, which is what SPEC 21.10.1's assertions run over.
+     *
+     * <p>Sorted, so a startup failure names its pairs in the same order every time and two
+     * runs of the same broken config produce the same log.
+     */
+    public java.util.List<String> buyList() {
+        return catalogue().stream()
+                .filter(MarketItem::serverBuys)
+                .map(MarketItem::material)
+                .sorted()
+                .toList();
     }
 
     // ==================================================================================

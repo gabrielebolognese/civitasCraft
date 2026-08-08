@@ -3,6 +3,7 @@ package dev.civitas.core.market;
 import static dev.civitas.core.city.CityTestSupport.await;
 import static dev.civitas.core.city.CityTestSupport.reasonOf;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.math.BigDecimal;
@@ -72,8 +73,18 @@ class MarketServiceTest {
         @Test
         @DisplayName("every SPEC 4.4 item is loaded, seeded at its target stock")
         void loadedFromConfig() {
-            assertEquals(19, market.registry().catalogue().size(),
-                    "the SPEC 4.4 table has 19 rows");
+            // SPEC 21.6 and 21.9 replaced SPEC 4.4's single nineteen-row table with two
+            // lists that do different jobs: a narrow buy list, which is the only money
+            // faucet, and a large builder's catalogue the server only sells.
+            assertTrue(market.registry().buyList().size() <= 15,
+                    "the buy list is the money faucet and SPEC 21.9 keeps it small");
+
+            // How far the sell catalogue expands is asserted in MarketHardeningTest instead.
+            // SPEC 21.6's groups resolve through Bukkit's tags, so counting them needs a
+            // running server, and this class deliberately has none: everything it covers is
+            // pricing and ledger arithmetic that a server would only slow down.
+            assertTrue(market.registry().item("GLASS").isPresent(),
+                    "a sell entry naming a material outright needs no group to resolve");
             assertEquals(20_000, stock("WHEAT"), "a new item opens at equilibrium");
             assertEquals(0, new BigDecimal("3")
                     .compareTo(market.registry().item("WHEAT").orElseThrow().basePrice()));
@@ -82,11 +93,18 @@ class MarketServiceTest {
         @Test
         @DisplayName("SPEC 4.4: an item absent from the table is not traded at all")
         void unlistedIsNotTraded() {
-            // Cobblestone is on SPEC 4.4's exclusion list precisely because a generator
-            // makes it for free. There is no code path that buys it, because there is no row.
-            assertTrue(market.registry().item("COBBLESTONE").isEmpty());
+            // Two refusals that read alike and are not. NOT_TRADED is an item the market has
+            // never heard of. NOT_BOUGHT is an item the server sells to builders and will
+            // never buy back, which is the shape SPEC 21.6 gives most of the catalogue: "every
+            // item the server buys is a potential money faucet. Every item the server sells is
+            // a money sink and carries no exploit risk at all."
+            assertTrue(market.registry().item("GLASS").isPresent(),
+                    "the server sells glass to builders");
+            assertFalse(market.registry().item("GLASS").orElseThrow().serverBuys());
             assertEquals("NOT_TRADED",
-                    reasonOf(await(market.sell(farmer, "COBBLESTONE", 64))));
+                    reasonOf(await(market.sell(farmer, "NOT_A_REAL_MATERIAL", 64))));
+            assertEquals("NOT_BOUGHT",
+                    reasonOf(await(market.sell(farmer, "GLASS", 64))));
             assertEquals("NOT_TRADED", reasonOf(await(market.buy(farmer, "GUNPOWDER", 1))));
         }
 
@@ -156,11 +174,11 @@ class MarketServiceTest {
         @Test
         @DisplayName("the hundredth seller earns less than the first, SPEC 4.4")
         void laterSellersEarnLess() {
-            BigDecimal first = await(market.sell(farmer, "PUMPKIN", 64)).orElseThrow().net();
+            BigDecimal first = await(market.sell(farmer, "WHEAT", 64)).orElseThrow().net();
             for (int i = 0; i < 100; i++) {
-                await(market.sell(farmer, "PUMPKIN", 64));
+                await(market.sell(farmer, "WHEAT", 64));
             }
-            BigDecimal hundredth = await(market.sell(farmer, "PUMPKIN", 64)).orElseThrow().net();
+            BigDecimal hundredth = await(market.sell(farmer, "WHEAT", 64)).orElseThrow().net();
 
             assertTrue(hundredth.compareTo(first) < 0,
                     "first got " + first + ", hundredth got " + hundredth);
@@ -207,11 +225,11 @@ class MarketServiceTest {
         @Test
         @DisplayName("a purchase beyond the wallet is refused and moves no stock")
         void cannotAfford() {
-            int before = stock("NETHERITE_SCRAP");
+            int before = stock("ANCIENT_DEBRIS");
 
             assertEquals("INSUFFICIENT_FUNDS",
-                    reasonOf(await(market.buy(farmer, "NETHERITE_SCRAP", 100))));
-            assertEquals(before, stock("NETHERITE_SCRAP"));
+                    reasonOf(await(market.buy(farmer, "ANCIENT_DEBRIS", 100))));
+            assertEquals(before, stock("ANCIENT_DEBRIS"));
             assertEquals(0, new BigDecimal("10000.00").compareTo(wallet()));
         }
 
@@ -221,14 +239,14 @@ class MarketServiceTest {
             await(support.economy.give(farmer, new BigDecimal("100000000"),
                     TransactionType.ADMIN_GIVE, null, null));
 
-            await(market.registry().setStock("NETHER_WART", 0));
-            assertTrue(await(market.buy(farmer, "NETHER_WART", 500)).isSuccess(),
+            await(market.registry().setStock("QUARTZ", 0));
+            assertTrue(await(market.buy(farmer, "QUARTZ", 500)).isSuccess(),
                     "buying past zero is allowed");
 
-            assertTrue(stock("NETHER_WART") < 0, "stock goes negative internally");
+            assertTrue(stock("QUARTZ") < 0, "stock goes negative internally");
             assertEquals(0, support.pricing.clampMax()
-                            .multiply(market.registry().item("NETHER_WART").orElseThrow().basePrice())
-                            .compareTo(market.quote("NETHER_WART").orElseThrow().sellPrice()),
+                            .multiply(market.registry().item("QUARTZ").orElseThrow().basePrice())
+                            .compareTo(market.quote("QUARTZ").orElseThrow().sellPrice()),
                     "and the price holds at the clamp rather than running away");
         }
     }
@@ -242,8 +260,8 @@ class MarketServiceTest {
     void arbitrageLosesRealMoney() {
         BigDecimal before = wallet();
 
-        await(market.buy(farmer, "IRON_INGOT", 50));
-        await(market.sell(farmer, "IRON_INGOT", 50));
+        await(market.buy(farmer, "DIAMOND", 5));
+        await(market.sell(farmer, "DIAMOND", 5));
 
         assertTrue(wallet().compareTo(before) < 0,
                 "started with " + before + ", ended with " + wallet());

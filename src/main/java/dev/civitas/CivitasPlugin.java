@@ -1599,15 +1599,65 @@ public final class CivitasPlugin extends JavaPlugin {
         getLogger().info(() -> "Crafting equivalence graph: " + graph.size() + " materials, "
                 + fromServer + " edges from the server's own recipes.");
 
+        // SPEC 21.10.1's four assertions, over what the server BUYS. The sell catalogue is
+        // not checked and does not need to be: SPEC 21.6, "every item the server sells is a
+        // money sink and carries no exploit risk at all".
+        java.util.List<String> buyList = marketRegistry.buyList();
         dev.civitas.core.market.MarketSafetyCheck check =
                 new dev.civitas.core.market.MarketSafetyCheck();
-        check.checkEquivalenceClasses(
-                marketRegistry.catalogue().stream()
-                        .map(dev.civitas.core.market.MarketItem::material)
-                        .toList(),
-                graph);
+        check.checkHardBlacklist(buyList);                       // 1, SPEC 21.8
+        check.checkVillagerDisjointness(buyList);                // 2
+        check.checkEquivalenceClasses(buyList, graph);           // 3, SPEC 21.3
+        check.checkAutomatableDeclared(buyList, automatableComments());   // 4
         check.report(getLogger());
         return check;
+    }
+
+    /**
+     * Reads the {@code # automatable: no|semi} comment beside each buy entry, SPEC 21.10.1.
+     *
+     * <p>A YAML comment rather than a key, which is what SPEC asks for and is the right shape:
+     * nothing in the plugin uses the value, so a key would imply it changed something. What it
+     * does is force an operator adding an item to answer the question SPEC 21.1 says decides
+     * whether the item belongs on the list at all.
+     *
+     * <p>Read from the operator's own file rather than the packaged copy, so a comment they
+     * deleted is a comment that is gone.
+     */
+    private java.util.Map<String, String> automatableComments() {
+        java.util.Map<String, String> declared = new java.util.LinkedHashMap<>();
+        org.bukkit.configuration.ConfigurationSection buy =
+                configs.get(ConfigFile.ECONOMY).getConfigurationSection("market.buy");
+        if (buy == null) {
+            return declared;
+        }
+        for (String key : buy.getKeys(false)) {
+            for (String comment : commentsOn(buy, key)) {
+                String trimmed = comment == null ? "" : comment.trim();
+                if (trimmed.toLowerCase(java.util.Locale.ROOT).startsWith("automatable:")) {
+                    declared.put(key.toUpperCase(java.util.Locale.ROOT),
+                            trimmed.substring("automatable:".length()).trim()
+                                    .toLowerCase(java.util.Locale.ROOT));
+                }
+            }
+        }
+        return declared;
+    }
+
+    /**
+     * The comments attached to one buy entry.
+     *
+     * <p>Above the key first, then trailing. Bukkit only reads a trailing comment when the
+     * value is a scalar, and these entries are flow-style maps — so SPEC 21.11's example
+     * placement is unreadable, and is also dropped when the file is saved. Both are tried so
+     * an operator who writes a block-style entry with a trailing comment still works.
+     */
+    private static java.util.List<String> commentsOn(
+            org.bukkit.configuration.ConfigurationSection section, String key) {
+        java.util.List<String> comments =
+                new java.util.ArrayList<>(section.getComments(key));
+        comments.addAll(section.getInlineComments(key));
+        return comments;
     }
 
     private void warnAboutUnhonouredSettings() {

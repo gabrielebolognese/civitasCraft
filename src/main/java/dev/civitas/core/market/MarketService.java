@@ -151,6 +151,13 @@ public final class MarketService {
             return completed(Result.failure("NOT_TRADED", "market.not-traded",
                     Map.of("item", String.valueOf(material))));
         }
+        // SPEC 21.6: the server sells hundreds of building blocks and buys fourteen things.
+        // An item in the sell catalogue is not a thing a player can sell back, or every
+        // decorative block in the game would be a money faucet with a builder's price on it.
+        if (!found.get().serverBuys()) {
+            return completed(Result.failure("NOT_BOUGHT", "market.not-bought",
+                    Map.of("item", found.get().material())));
+        }
 
         MarketItem item = found.get();
         int stock = registry.stockOf(item.material());

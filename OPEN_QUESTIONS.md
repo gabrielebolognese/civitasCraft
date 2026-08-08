@@ -1475,3 +1475,76 @@ Format:
   `MarketSafetyCheckTest.shippedListIsSafe` runs the assertion against `economy.yml` itself, so
   a future edit that adds the other side of a recipe is a build failure rather than an economy
   failure. SPEC 21.3's flaw is invisible from reading a price table. *Date:* 2026-08-07
+
+- **[M6b]** SPEC 21.9's buy list has fourteen rows and **one of them contradicts two other rules
+  in the same Part.** Nautilus shell is priced at 200 with the note "Only via AFK fishing, so
+  quota-bounded, review at launch" — but SPEC 21.8's hard blacklist, which SPEC 21.10.4 says
+  config cannot override, forbids "all fishing loot and all fish", and SPEC 21.4's A11 forbids
+  it again by name. *Implemented default:* not shipped. The blacklist is the rule SPEC states
+  most forcefully and the one it makes unoverridable, so a row that a code-level check would
+  reject at startup cannot be the intended reading. **The buy list is 13 entries, not 14**, and
+  SPEC's own "review at launch" is the sentence that says this was undecided. *Date:* 2026-08-08
+
+- **[M6b]** SPEC 21.11 requires every buy entry to carry an `# automatable: no|semi` comment and
+  makes its absence a startup failure — SPEC 21.10.1: "Every buy-list entry has the required
+  `# automatable: no|semi` comment parsed from config". **The placement SPEC shows does not
+  work.** Its example puts the comment at the end of the line, after a flow-style `{ … }` map,
+  and Bukkit's YAML reads neither trailing comments on flow mappings nor preserves them across
+  `save()` — so `ConfigManager`, which rewrites the operator's file whenever it adds a key, would
+  silently delete every one of them and close the market on the next restart for a reason nobody
+  could trace. Probed both readers before deciding. *Implemented default:* the comment goes on
+  the line **above** the entry, where `getComments` reads it and `save()` keeps it. Both
+  positions are accepted on read, so an operator who copies SPEC's layout is not punished for it.
+  *Date:* 2026-08-08
+
+- **[M6b]** SPEC 21.6 describes the sell catalogue in prose — "all stone and deepslate variants,
+  all wood types and processed wood… and every decorative block added in 1.20 and 1.21" — with
+  no table and one pricing rule, "1.5x to 4x the value of their raw inputs". That is several
+  hundred materials and no prices. *Implemented default:* `economy.yml` prices about thirty
+  **groups**, and `SellGroups` resolves each to its materials from Bukkit's own tags where one
+  exists and an explicit list where none does. The consequence worth knowing: **a group is
+  priced as a whole**, so every stair costs the same whatever it is made of. For a sink that is
+  the right trade — the price is what removing money from circulation is worth, not what the
+  variant cost to make — and an operator wanting one material priced differently can still name
+  it outright alongside the groups, which four entries already do. *Date:* 2026-08-08
+
+- **[M6b]** SPEC 21.8's blacklist and SPEC 21.6's catalogue **overlap deliberately, and it reads
+  like a bug.** Wool, carpet, cobblestone, stone and flowers are on the list of things the server
+  may never buy *and* in the catalogue of things it sells. Both are correct: SPEC 21.6 says
+  "every item the server buys is a potential money faucet. Every item the server *sells* is a
+  money sink and carries no exploit risk at all." *Implemented default:* the blacklist is checked
+  on the buy side only, `MarketItem.serverBuys` carries the distinction per item, and selling a
+  sell-only item is refused with `NOT_BOUGHT` rather than `NOT_TRADED` — an item the server sells
+  to builders and will never buy back is a different thing from one it has never heard of, and a
+  player who cannot tell them apart concludes the market is broken. Asserted explicitly, because
+  a future reader will otherwise "fix" the overlap. *Date:* 2026-08-08
+
+- **[M6b]** SPEC 21.10.1 requires the market to refuse to enable on a failed assertion, which
+  means the checks must run before a server is guaranteed — and `org.bukkit.Tag`, which the
+  blacklist's category entries read, resolves through the running server. **A class whose static
+  initialiser throws is poisoned for the life of the JVM**: one touch without a server makes
+  every later tag lookup fail even after one exists, and `try/catch` does not undo it. That one
+  fact was behind every cross-test failure in this milestone, including several in the defense
+  suite that have nothing to do with the market. *Implemented default:* every path that would
+  mention `Tag` checks `Bukkit.getServer()` first and returns empty, the tag source is an
+  injectable interface so the blacklist can be tested with no server at all, and
+  `HardBlacklist.tagsResolved` **fails closed** — if the categories could not be read the market
+  does not open, because a list that looks complete and is missing "all mob drops" is worse than
+  no list. *Date:* 2026-08-08
+
+- **[M6b]** `MarketSafetyCheck` had to grow from one assertion to four while staying a latch
+  rather than an exception, and the ordering matters: the villager-disjointness and equivalence
+  checks both iterate the buy list, so a buy list that failed to parse would report a clean
+  bill of health. *Implemented default:* each check records its own failures and the market
+  consults the aggregate, so four independent problems are all reported in one startup rather
+  than one per restart. `passed()` still answers **false before anything has been checked**, for
+  the reason recorded at M6a: a check that never ran because of a wiring mistake must not open
+  the market silently. *Date:* 2026-08-08
+
+- **[M6b]** The sell catalogue took the market registry from 19 items to over 400, and
+  `MarketRegistry.loadAll` was firing **one async transaction per item** — invisible at 19 and
+  a few hundred round trips per market open at 400. It took the test suite from three minutes
+  to eleven and was first misdiagnosed as Gradle caching. *Implemented default:*
+  `MarketStockDao.upsertDefinitions` writes the whole catalogue in one transaction. Recorded
+  because the defect was latent from M6 and only a change of scale made it visible.
+  *Date:* 2026-08-08

@@ -264,6 +264,7 @@ chat:
 
 market:
   disabled: "<red>Il mercato del server e chiuso."
+  not-bought: "<red>Il server non compra <white><item></white>. Lo vende, ma solo i giocatori te lo comprano."
   not-traded: "<red>Il server non commercia <white><item></white>."
   empty-hand: "<red>Tieni in mano l'oggetto da valutare o vendere."
   not-enough: "<red>Hai chiesto di vendere <white><amount></white> ma ne hai <white><held></white>."

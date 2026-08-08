@@ -264,6 +264,7 @@ chat:
 
 market:
   disabled: "<red>The server market is closed."
+  not-bought: "<red>The server does not buy <white><item></white>. It sells it, but only players buy it from you."
   not-traded: "<red>The server does not trade <white><item></white>."
   empty-hand: "<red>Hold the item you want to price or sell."
   not-enough: "<red>You asked to sell <white><amount></white> but are holding <white><held></white>."

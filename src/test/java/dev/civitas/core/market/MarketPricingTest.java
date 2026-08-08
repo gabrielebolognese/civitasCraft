@@ -27,9 +27,9 @@ import org.junit.jupiter.api.io.TempDir;
 class MarketPricingTest {
 
     private static final MarketItem WHEAT =
-            new MarketItem("WHEAT", new BigDecimal("3"), 20_000, 0.40);
+            new MarketItem("WHEAT", new BigDecimal("3"), 20_000, 0.40, true);
     private static final MarketItem DIAMOND =
-            new MarketItem("DIAMOND", new BigDecimal("400"), 1_500, 0.60);
+            new MarketItem("DIAMOND", new BigDecimal("400"), 1_500, 0.60, true);
 
     @TempDir
     Path directory;
@@ -311,9 +311,9 @@ class MarketPricingTest {
     @Test
     @DisplayName("a misconfigured item is refused at construction, not priced as nonsense")
     void badDefinitionsThrow() {
-        assertTrue(assertThrows(() -> new MarketItem("X", new BigDecimal("1"), 0, 0.4)));
-        assertTrue(assertThrows(() -> new MarketItem("X", BigDecimal.ZERO, 100, 0.4)));
-        assertTrue(assertThrows(() -> new MarketItem("X", new BigDecimal("1"), 100, 0)));
+        assertTrue(assertThrows(() -> new MarketItem("X", new BigDecimal("1"), 0, 0.4, true)));
+        assertTrue(assertThrows(() -> new MarketItem("X", BigDecimal.ZERO, 100, 0.4, true)));
+        assertTrue(assertThrows(() -> new MarketItem("X", new BigDecimal("1"), 100, 0, true)));
     }
 
     private static boolean assertThrows(Runnable action) {

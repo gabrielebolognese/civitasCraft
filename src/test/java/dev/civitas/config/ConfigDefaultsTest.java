@@ -1,6 +1,7 @@
 package dev.civitas.config;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -9,6 +10,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Stream;
 
+import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.configuration.file.FileConfiguration;
 import org.bukkit.configuration.file.YamlConfiguration;
 import org.junit.jupiter.api.DisplayName;
@@ -266,37 +268,68 @@ class ConfigDefaultsTest {
     }
 
     @Test
-    @DisplayName("the SPEC 4.4 market table is present with its documented prices")
-    void marketItemTable() {
+    @DisplayName("the SPEC 21.9 buy list is present with its documented prices")
+    void marketBuyList() {
+        // SPEC 21.9 replaces SPEC 4.4's nineteen-row table, and this test replaces the one
+        // that pinned it. SPEC 21.2 measured Part I's table against real farm throughput and
+        // found it unusable; SPEC 21.8's note on the two entries that mattered most: "iron and
+        // gold, which Part I priced at 45 and 70. Those two entries alone would have ended the
+        // server's economy within a week of launch."
         FileConfiguration config = load(ConfigFile.ECONOMY);
 
         record Item(String material, int basePrice, int targetStock, double elasticity) { }
         List<Item> expected = List.of(
+                new Item("DIAMOND", 400, 1500, 0.60),
+                new Item("ANCIENT_DEBRIS", 2500, 150, 0.70),
+                new Item("QUARTZ", 12, 8000, 0.50),
+                new Item("ECHO_SHARD", 800, 200, 0.70),
+                new Item("HEART_OF_THE_SEA", 1200, 100, 0.75),
+                new Item("TORCHFLOWER", 300, 300, 0.65),
+                new Item("PITCHER_POD", 300, 300, 0.65),
+                new Item("TRIAL_KEY", 600, 300, 0.70),
                 new Item("WHEAT", 3, 20000, 0.40),
                 new Item("CARROT", 3, 20000, 0.40),
                 new Item("POTATO", 3, 20000, 0.40),
-                new Item("PUMPKIN", 5, 12000, 0.45),
-                new Item("MELON_SLICE", 2, 30000, 0.40),
-                new Item("SUGAR_CANE", 4, 15000, 0.45),
-                new Item("COCOA_BEANS", 6, 8000, 0.50),
-                new Item("BAMBOO", 1, 40000, 0.35),
-                new Item("IRON_INGOT", 45, 6000, 0.55),
-                new Item("GOLD_INGOT", 70, 4000, 0.55),
-                new Item("DIAMOND", 400, 1500, 0.60),
-                new Item("EMERALD", 250, 2000, 0.60),
-                new Item("NETHERITE_SCRAP", 3500, 200, 0.70),
-                new Item("OAK_LOG", 4, 25000, 0.40),
-                new Item("STONE", 1, 50000, 0.30),
-                new Item("BEEF", 8, 10000, 0.45),
-                new Item("LEATHER", 12, 6000, 0.50),
-                new Item("HONEY_BOTTLE", 25, 3000, 0.55),
-                new Item("NETHER_WART", 8, 8000, 0.50));
+                new Item("BEETROOT", 4, 15000, 0.40),
+                new Item("OAK_LOG", 4, 25000, 0.40));
 
         for (Item item : expected) {
-            String path = "market.items." + item.material();
+            String path = "market.buy." + item.material();
             assertEquals(item.basePrice(), config.getInt(path + ".base-price"), path + " base price");
             assertEquals(item.targetStock(), config.getInt(path + ".target-stock"), path + " target stock");
             assertEquals(item.elasticity(), config.getDouble(path + ".elasticity"), 1e-9, path + " elasticity");
+        }
+    }
+
+    @Test
+    @DisplayName("SPEC 4.4's dangerous entries are gone from the buy list")
+    void partOneEntriesRemoved() {
+        // Asserted as absence rather than left implied. Every one of these is on SPEC 21.8's
+        // hard blacklist, and the market refuses to open if any comes back — but a test that
+        // says so names the change, where a startup failure only reports it.
+        FileConfiguration config = load(ConfigFile.ECONOMY);
+
+        for (String removed : List.of("IRON_INGOT", "GOLD_INGOT", "EMERALD", "BEEF", "LEATHER",
+                "SUGAR_CANE", "BAMBOO", "PUMPKIN", "MELON_SLICE", "STONE", "COCOA_BEANS",
+                "HONEY_BOTTLE", "NETHER_WART", "NETHERITE_SCRAP")) {
+            assertFalse(config.contains("market.buy." + removed),
+                    removed + " is back in the buy list; SPEC 21.8 forbids the server buying it");
+        }
+        assertFalse(config.contains("market.items"),
+                "market.items was replaced by market.buy and market.sell");
+    }
+
+    @Test
+    @DisplayName("the SPEC 21.6 builder catalogue is present")
+    void marketSellCatalogue() {
+        FileConfiguration config = load(ConfigFile.ECONOMY);
+        ConfigurationSection sell = config.getConfigurationSection("market.sell");
+
+        assertTrue(sell != null, "economy.yml has no market.sell");
+        assertTrue(sell.getKeys(false).size() >= 25,
+                "SPEC 21.6 describes a large builder's catalogue, not a handful of entries");
+        for (String group : List.of("stairs", "slabs", "wool", "concrete", "stone-variants")) {
+            assertTrue(sell.contains(group + ".base-price"), group + " is unpriced");
         }
     }
 
