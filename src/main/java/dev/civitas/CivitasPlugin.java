@@ -184,6 +184,8 @@ public final class CivitasPlugin extends JavaPlugin {
         ShopCommand shopCommand = new ShopCommand(services::get, lang, scheduler, getLogger());
         SellCommand sellCommand = new SellCommand(services::get, lang, scheduler, getLogger());
         WorthCommand worthCommand = new WorthCommand(services::get, lang);
+        dev.civitas.command.player.QuotaCommand quotaCommand =
+                new dev.civitas.command.player.QuotaCommand(services::get, lang, scheduler);
         QuestsCommand questsCommand = new QuestsCommand(services::get, lang, scheduler);
         AllyCommand allyCommand = new AllyCommand(services::get, lang, scheduler, getLogger());
         AllianceChatCommand allianceChat = new AllianceChatCommand(services::get, lang);
@@ -199,6 +201,7 @@ public final class CivitasPlugin extends JavaPlugin {
         new CommandRegistry(this, lang).registerAll(
                 List.of(cityCommand.build(), moneyCommand.build(), payCommand.build(),
                         shopCommand.build(), sellCommand.build(), worthCommand.build(),
+                        quotaCommand.build(),
                         questsCommand.buildQuests(), questsCommand.buildChallenges(),
                         allyCommand.buildAlly(), allyCommand.buildTruce(),
                         allianceChat.build(), leaderboardCommand.build(),
@@ -515,6 +518,12 @@ public final class CivitasPlugin extends JavaPlugin {
         // server's economy will be broken within an hour".
         marketService.useSafetyCheck(checkMarketSafety(marketRegistry));
         marketService.useUpgrades(cityRegistry, upgradeService);
+
+        // SPEC 21.5's daily sell quota. Handed to the market after the safety check so a
+        // market that refused to open never charges anyone a quota it will not honour.
+        dev.civitas.core.market.SellQuota sellQuota = new dev.civitas.core.market.SellQuota(
+                configs, loadedDaos.sellQuota(), java.time.ZoneId.systemDefault());
+        marketService.useQuota(sellQuota);
 
         // SPEC 7, outposts.
         OutpostRegistry outpostRegistry = new OutpostRegistry(loadedDaos.outposts());

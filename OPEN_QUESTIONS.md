@@ -1548,3 +1548,59 @@ Format:
   `MarketStockDao.upsertDefinitions` writes the whole catalogue in one transaction. Recorded
   because the defect was latent from M6 and only a change of scale made it visible.
   *Date:* 2026-08-08
+
+- **[M6c]** SPEC 21.5 does not say what happens to a sale that **straddles** the quota boundary:
+  a player with 24,000 of 25,000 spent who sells 5,000 worth. Reducing the whole sale is one
+  reading; splitting it at the line and reducing only the overflow is the other. *Implemented
+  default:* split. Under the other reading a player who divides a stack into four gets
+  meaningfully more money than one who sells it whole, which turns the quota into a puzzle about
+  batch sizes rather than a cap on value — and rewards exactly the fiddly behaviour SPEC 21.5's
+  "soft caps generate shrugs" is trying to avoid. Splitting is the only reading under which
+  selling in one go and selling in pieces pay the same, and there is a test that asserts that
+  property directly rather than asserting the arithmetic. *Date:* 2026-08-08
+
+- **[M6c]** The counter records **value sold at full rate**, not coins paid. Past the cap a sale
+  consumes no further quota. The alternative — counting the gross of every sale — would have a
+  player past the cap burning five coins of counter for every one they were paid, so `/quota`
+  would show a number racing away from a limit it had already hit and meaning nothing. What is
+  lost is that `/quota` cannot say "you have sold 60,000 today, 25,000 of it at full rate";
+  it says 25,000 of 25,000, which is the number that governs what the next sale pays.
+  *Date:* 2026-08-08
+
+- **[M6c]** SPEC 21.5 says "the newcomer 1.5x multiplier applies **within** the quota, not to the
+  quota itself", which presupposes the SPEC 4.2 newcomer bonus applies to market sales. **It does
+  not.** `IncomeMultipliers` is wired to the playtime stipend, the daily login and quests, and
+  has never reached `MarketService` — so the interaction SPEC describes cannot occur. *Implemented
+  default:* recorded, not fixed. Adding an income multiplier to the market changes the money
+  supply, which is a decision for a milestone that owns income rather than a side effect of
+  building the cap that bounds it. The ordering in `MarketService.sell` is already the one SPEC's
+  sentence asks for — every multiplier is inside the figure the quota counts — so whichever
+  milestone adds it gets "within the quota, not to the quota" for free. **This needs a developer
+  decision**: it is the difference between a newcomer's first fortnight of market income being
+  1.0x or 1.5x. *Date:* 2026-08-08
+
+- **[M6c]** SPEC 21.10.3 requires the counter to be "exact under concurrency… the same
+  synchronised service method as balance mutation", and the test that asserts it **is weaker than
+  it looks**. Verified by removing the per-player lock entirely: the test stayed green, because
+  SQLite serialises writers and hands the read-modify-write its atomicity for free. The lock is
+  load-bearing only on MySQL, whose default REPEATABLE READ lets two transactions read the same
+  row before either writes, and MySQL is not run in the ordinary build. *Implemented default:*
+  the lock is kept, the test asserts the end-to-end invariant, and its comment states plainly
+  what it does not prove. Two further limits worth naming: the lock is a JVM lock, so two servers
+  sharing one MySQL would not be protected — and `EconomyService` has had exactly the same
+  property since M5, so this is the established pattern rather than a new weakness in it.
+  *Date:* 2026-08-08
+
+- **[M6c]** A quota of zero disables the mechanism rather than starving the market. Read
+  literally, `daily-sell-quota: 0` means every sale on the server is instantly past the cap and
+  pays a fifth, which an operator who typed a zero would experience as the market silently
+  breaking. *Implemented default:* `enabled()` requires a positive quota, so zero reads as off.
+  The deliberate way to switch it off is `market.quota-enabled: false`; zero is treated as a
+  misconfiguration and given the harmless meaning. *Date:* 2026-08-08
+
+- **[M6c]** SPEC 22.3's `/quota` and SPEC 23.5.1's quota messages both need a duration ("resets
+  in 4h 12m"), and SPEC 23.7 requires exactly one central duration formatter — which it assigns
+  to the message framework in M7a, queue position 6. *Implemented default:* a package-private
+  method on `QuotaCommand`, used by the two call sites that need it. Building the shared
+  formatter now would be building part of M7a early and would then be replaced by it, since
+  every other message in the plugin has to use the same one. *Date:* 2026-08-08

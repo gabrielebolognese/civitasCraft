@@ -167,7 +167,61 @@ public final class SellCommand {
                             Replies.p("tax", format(receipt.tax())),
                             Replies.p("net", format(receipt.net())),
                             Replies.p("balance", format(receipt.balance())));
+                    reportQuota(player, receipt);
                 }));
+    }
+
+    /**
+     * SPEC 21.5's three quota messages, in the order a player meets them.
+     *
+     * <p>Each fires once at the moment it becomes true rather than on every sale, because the
+     * quota is a fact about the day and repeating it on every stack is how a soft cap starts
+     * to read as nagging.
+     */
+    private void reportQuota(Player player, MarketService.Receipt receipt) {
+        var market = services.get().market();
+        var quota = market.quota();
+        if (quota.isEmpty() || !quota.get().enabled()) {
+            return;
+        }
+        var charge = receipt.quota();
+        String reset = QuotaCommand.remaining(
+                quota.get().nextReset(System.currentTimeMillis()) - System.currentTimeMillis());
+
+        if (charge.crossed()) {
+            // The sale that ran the quota out. Said once, with the way around it.
+            lang.send(player, "market.quota-hit",
+                    Replies.p("multiplier",
+                            quota.get().overQuotaMultiplier().stripTrailingZeros()
+                                    .toPlainString()),
+                    Replies.p("reset", reset));
+            return;
+        }
+        if (charge.over()) {
+            lang.send(player, "market.quota-over",
+                    Replies.p("listed", format(receipt.listed())),
+                    Replies.p("gross", format(receipt.gross())));
+            return;
+        }
+        // SPEC 23.5.1's 80% warning, on the sale that crosses it and not after.
+        java.math.BigDecimal threshold = quota.get().dailyQuota()
+                .multiply(java.math.BigDecimal.valueOf(warnAtPercent()))
+                .divide(java.math.BigDecimal.valueOf(100), java.math.RoundingMode.FLOOR);
+        java.math.BigDecimal before = charge.used().subtract(receipt.gross());
+        if (charge.used().compareTo(threshold) >= 0 && before.compareTo(threshold) < 0) {
+            lang.send(player, "market.quota-warn",
+                    Replies.p("percent", String.valueOf(
+                            charge.used().multiply(java.math.BigDecimal.valueOf(100))
+                                    .divide(quota.get().dailyQuota(),
+                                            0, java.math.RoundingMode.FLOOR).intValue())),
+                    Replies.p("remaining", format(charge.remaining())),
+                    Replies.p("reset", reset));
+        }
+    }
+
+    private int warnAtPercent() {
+        return services.get().economy().configs().get(dev.civitas.config.ConfigFile.ECONOMY)
+                .getInt("market.quota-warn-percent", 80);
     }
 
     /** Puts back what a failed sale had already taken. Overflow drops at the player's feet. */

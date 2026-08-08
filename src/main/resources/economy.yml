@@ -154,6 +154,24 @@ sinks:
 
 market:
   enabled: true
+
+  # SPEC 21.5, the daily sell quota. This is the one number that bounds how much money the
+  # server can create in a day, whatever exploit anyone finds, so change it knowing that
+  # SPEC 21.5's money-creation table is computed from it.
+  #
+  # It is a SOFT cap. Past the quota a player may still sell, at over-quota-multiplier of
+  # the value: "hard blocks feel like punishment and generate support tickets. Soft caps
+  # feel like diminishing returns and generate shrugs."
+  #
+  # Player-to-player shops are deliberately exempt, so a player with a huge farm sells to
+  # other players rather than to the void. That moves money instead of creating it.
+  quota-enabled: true
+  daily-sell-quota: 25000
+  over-quota-multiplier: 0.2
+  # 0 is midnight server time, which is when the daily quests reset too.
+  quota-reset-hour: 0
+  # SPEC 23.5.1 warns the player once, on the sale that crosses this share of the quota.
+  quota-warn-percent: 80
   # price = base_price * clamp((target_stock / (current_stock + 1)) ^ elasticity, min, max)
   default-elasticity: 0.45
   clamp-min: 0.25

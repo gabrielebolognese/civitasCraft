@@ -99,6 +99,26 @@ public final class MarketService {
         this.safety = java.util.Objects.requireNonNull(check, "check");
     }
 
+    /**
+     * SPEC 21.5's daily sell quota.
+     *
+     * <p>Null means no quota, which is what every test written before M6c constructs and what
+     * {@code MarketService} does on a server that has switched it off. Injected rather than
+     * taken in the constructor for the same reason as the safety check: the quota needs a DAO
+     * and the market is built before storage is open.
+     */
+    private SellQuota quota;
+
+    /** Hands the market its quota. Called once, on storage ready. */
+    public void useQuota(SellQuota sellQuota) {
+        this.quota = java.util.Objects.requireNonNull(sellQuota, "sellQuota");
+    }
+
+    /** The quota, or empty on a server without one. */
+    public Optional<SellQuota> quota() {
+        return Optional.ofNullable(quota);
+    }
+
     /** Why the market is shut, for {@code /shop} and the tests. Empty when it is open. */
     public java.util.List<MarketSafetyCheck.Failure> safetyFailures() {
         return safety == null ? java.util.List.of() : safety.failures();
@@ -161,23 +181,35 @@ public final class MarketService {
 
         MarketItem item = found.get();
         int stock = registry.stockOf(item.material());
-        BigDecimal gross = pricing.grossSellValue(item, stock, amount)
-                .multiply(sellBonusMultiplier(seller));
-        gross = Money.floor(gross);
+        BigDecimal listed = Money.floor(pricing.grossSellValue(item, stock, amount)
+                .multiply(sellBonusMultiplier(seller)));
 
-        int accessLevel = marketAccessLevel(seller);
-        BigDecimal tax = pricing.taxOn(gross, accessLevel);
-        BigDecimal net = gross.subtract(tax);
-
-        if (net.signum() <= 0) {
-            // The curve has bottomed out and the tax eats what is left. Refusing is kinder
-            // than taking the items for nothing.
+        if (listed.signum() <= 0) {
             return completed(Result.failure("WORTHLESS", "market.worthless",
                     Map.of("item", item.material())));
         }
 
-        BigDecimal finalGross = gross;
+        int accessLevel = marketAccessLevel(seller);
         return db.transaction(connection -> {
+            // SPEC 21.5's quota is charged inside the same transaction as the money it
+            // bounds. Charging it outside would let a crash between the two pay a player and
+            // forget it happened, which is the one failure mode a cap on money creation
+            // cannot tolerate.
+            SellQuota.Charge charge = quota == null
+                    ? SellQuota.Charge.unlimited(listed)
+                    : quota.chargeSync(connection, seller, listed, System.currentTimeMillis());
+
+            BigDecimal gross = charge.payable();
+            BigDecimal tax = pricing.taxOn(gross, accessLevel);
+            BigDecimal net = gross.subtract(tax);
+
+            if (net.signum() <= 0) {
+                // The curve has bottomed out, or the quota has cut the sale to less than its
+                // own tax. Refusing is kinder than taking the items for nothing.
+                return Result.<Receipt>failure("WORTHLESS", "market.worthless",
+                        Map.of("item", item.material()));
+            }
+
             Result<BigDecimal> paid = economy.deposit(connection, seller, net,
                     TransactionType.MARKET_SELL, null, metadata(item.material(), amount));
             if (paid instanceof Result.Failure<BigDecimal> failure) {
@@ -189,8 +221,8 @@ public final class MarketService {
                         TransactionType.MARKET_TAX.name(), seller, null, null,
                         tax.negate(), paid.orElseThrow(), metadata(item.material(), amount)));
             }
-            return Result.success(new Receipt(item, amount, finalGross, tax, net,
-                    paid.orElseThrow()));
+            return Result.success(new Receipt(item, amount, gross, tax, net,
+                    paid.orElseThrow(), listed, charge));
         }).thenCompose(result -> {
             if (result instanceof Result.Failure<Receipt>) {
                 return completed(result);
@@ -337,8 +369,23 @@ public final class MarketService {
      * @param tax     the SPEC 4.3 sale tax, deleted from circulation; zero on a purchase
      * @param net     what actually reached or left the wallet
      * @param balance the wallet afterwards
+     * @param listed  what the sale was worth at full price, before the SPEC 21.5 quota cut it
+     * @param quota   what the quota did, or an unlimited charge on a purchase
      */
     public record Receipt(MarketItem item, int amount, BigDecimal gross, BigDecimal tax,
-                          BigDecimal net, BigDecimal balance) {
+                          BigDecimal net, BigDecimal balance, BigDecimal listed,
+                          SellQuota.Charge quota) {
+
+        /** A purchase, or a sale on a server with the quota switched off. */
+        public Receipt(MarketItem item, int amount, BigDecimal gross, BigDecimal tax,
+                       BigDecimal net, BigDecimal balance) {
+            this(item, amount, gross, tax, net, balance, gross,
+                    SellQuota.Charge.unlimited(gross));
+        }
+
+        /** Whether SPEC 21.5's over-quota multiplier took a bite out of this sale. */
+        public boolean quotaReduced() {
+            return quota.wasReduced();
+        }
     }
 }

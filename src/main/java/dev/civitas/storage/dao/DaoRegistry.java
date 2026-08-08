@@ -43,6 +43,7 @@ public final class DaoRegistry {
     private final AllianceDao alliances;
     private final TruceDao truces;
     private final MarketStockDao marketStock;
+    private final SellQuotaDao sellQuota;
     private final PlayerShopDao playerShops;
     private final PlayerQuestDao playerQuests;
     private final CityChallengeDao cityChallenges;
@@ -85,6 +86,7 @@ public final class DaoRegistry {
         this.alliances = new AllianceDao(db);
         this.truces = new TruceDao(db);
         this.marketStock = new MarketStockDao(db);
+        this.sellQuota = new SellQuotaDao(db);
         this.playerShops = new PlayerShopDao(db);
         this.playerQuests = new PlayerQuestDao(db);
         this.cityChallenges = new CityChallengeDao(db);
@@ -214,6 +216,11 @@ public final class DaoRegistry {
         return marketStock;
     }
 
+    /** {@code player_sell_quota}, the SPEC 21.5 daily sell quota. */
+    public SellQuotaDao sellQuota() {
+        return sellQuota;
+    }
+
     public PlayerShopDao playerShops() {
         return playerShops;
     }
@@ -260,7 +267,7 @@ public final class DaoRegistry {
                 ledger, economySnapshots, wars, warBlockLog, warContainerLog, warParticipants, warKills,
                 warEntitySnapshots, bounties, protectedChunks, reports,
                 upkeepMultipliers, alliances,
-                truces, marketStock, playerShops, playerQuests, cityChallenges, contests, contestEntries, contestVotes,
+                truces, marketStock, sellQuota, playerShops, playerQuests, cityChallenges, contests, contestEntries, contestVotes,
                 cityUpgrades, cityVault, defenseUnits, auditLog);
     }
 }

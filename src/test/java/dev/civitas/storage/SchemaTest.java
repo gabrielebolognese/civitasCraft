@@ -100,6 +100,9 @@ class SchemaTest {
                 "created_at"));
         schema.put("player_quests", List.of("id", "uuid", "quest_id", "progress", "assigned_at",
                 "completed_at", "target", "reward"));
+        // V16, SPEC 21.5's daily sell quota. One row per player rather than one per player
+        // per day: yesterday's figure is of no interest once the day has turned.
+        schema.put("player_sell_quota", List.of("uuid", "period_start", "used"));
         // V5, SPEC 13.2: weekly challenges, which SPEC 3 lists no table for. Keyed by city
         // and week because progress is pooled across every member.
         schema.put("city_challenges", List.of("id", "city_id", "challenge_id", "progress",

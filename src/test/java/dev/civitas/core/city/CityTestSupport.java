@@ -66,6 +66,7 @@ public final class CityTestSupport implements AutoCloseable {
     public final MarketPricing pricing;
     public final MarketRegistry marketRegistry;
     public final MarketService market;
+    public final dev.civitas.core.market.SellQuota sellQuota;
     public final MarketItemFilter marketFilter;
     public final PlayerShopService shops;
     public final Funds funds;
@@ -108,6 +109,11 @@ public final class CityTestSupport implements AutoCloseable {
         await(marketRegistry.loadAll());
         this.market = new MarketService(db, daos.ledger(), marketRegistry, pricing, economy,
                 configs);
+        // Wired by default, because production wires it. A harness that leaves the SPEC 21.5
+        // quota out would exercise a sell path no server ever runs.
+        this.sellQuota = new dev.civitas.core.market.SellQuota(configs, daos.sellQuota(),
+                java.time.ZoneId.systemDefault());
+        this.market.useQuota(sellQuota);
         this.marketFilter = new MarketItemFilter(configs);
         this.shops = new PlayerShopService(daos.playerShops(), economy);
         this.diplomacyRegistry = new DiplomacyRegistry(daos.alliances(), daos.truces());
