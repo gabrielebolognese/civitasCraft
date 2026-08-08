@@ -2068,3 +2068,41 @@ Format:
   which shows up across thirteen players as more than one distinct draw; and asking twice on one
   day is **stable**, or a player could refresh until they liked their quests. The name and the body
   also disagreed, which is how the flakiness survived review. *Date:* 2026-08-08
+
+- **[M10, in progress]** SPEC 39.3's `n` is genuinely ambiguous and the difference is money. It is
+  "the city's TOTAL chunk count including all outpost chunks, exactly as Part I 6.2 computes it",
+  and Part I 6.2 indexes the chunk **being** claimed — the ninth chunk has index 9. Those readings
+  differ by one chunk and by about **6%**. *Implemented default:* the count **before** the
+  purchase, settled against SPEC 39.4's published tables rather than by argument — a twenty-chunk
+  city founding at 1,000 blocks pays 31,721 in that table, which is `400 × 20^1.25 × 1.25 × 1.5`,
+  where the other reading gives 33,712. `OutpostCostEngineTest` asserts **every cell of both
+  tables**, the D(d) table, and SPEC 39.5's upkeep and teleport table, because a formula that is
+  nearly right passes any test written from the formula. *Date:* 2026-08-08
+
+- **[M10, in progress]** **SPEC 39's multi-chunk outposts need no migration**, which was not
+  obvious and is worth recording before somebody writes one. Part I's `outposts` table stores only
+  the warp point; the chunk lives in `claims`, linked by `claims.outpost_id`. Several claims
+  sharing one `outpost_id` *is* a multi-chunk outpost, so the Part I schema happens to support the
+  design that replaces it — because the link was a foreign key rather than coordinates on the
+  outpost row. *Date:* 2026-08-08
+
+- **[M10, in progress]** **I committed the defect I have spent four milestones removing from other
+  people's work.** Replacing `cities.yml`'s outpost block with SPEC 39.15's in full — before
+  writing the service that reads placement distances, defence caps and the release order — shipped
+  a dozen config keys nothing read, and broke `ConfigKeyUsageTest` and `ConfigDefaultsTest`
+  together. It also would have silently repriced every outpost, because removing SPEC 16.2's keys
+  left the Part I code that still reads them falling back to hardcoded defaults. *Implemented
+  default:* the block now ships only the keys something reads, SPEC 16.2's keys stay while the code
+  reading them does, and the engine reads the existing `delete-refund-percent` rather than
+  shipping SPEC 39.15's `unclaim-refund-percent` beside it as a twin. The rest of SPEC 39.15 lands
+  with the service that consumes it. **The lesson is ordering: config follows code, never leads
+  it.** *Date:* 2026-08-08
+
+- **[M10, in progress]** SPEC 39.7's merge has **three** outcomes and they are easy to conflate,
+  so `OutpostGeometry.Merge` names them: absorbed into the city body (the outpost merges whole,
+  slot frees, nothing refunded, and the four-chunk cap does **not** apply because the result is
+  city land), two outposts merging, and the same bridge **blocked** because the result would exceed
+  four chunks. SPEC is explicit that the third rejects the claim rather than merging and
+  truncating. A fourth case, SPEC 39.14 case 132, comes from the other direction — a city growing
+  into its own outpost — and is a separate check because the bridging claim is a city claim.
+  *Date:* 2026-08-08

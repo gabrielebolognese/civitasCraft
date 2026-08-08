@@ -127,6 +127,16 @@ class ConfigDefaultsTest {
         assertEquals(100, config.getInt("outposts.teleport-cost"));
         assertEquals(8, config.getInt("outposts.teleport-warmup-seconds"));
         assertEquals(180, config.getInt("outposts.teleport-cooldown-seconds"));
+
+        // SPEC 39.3 and 39.5, the rework that replaces the flat pricing above. These are the
+        // numbers SPEC 39.4's published tables are computed from, so a change here changes
+        // every cell of them and OutpostCostEngineTest fails loudly rather than drifting.
+        assertEquals(0.25, config.getDouble("outposts.cost.distance-constant"), 1e-9);
+        assertEquals(1000, config.getInt("outposts.cost.distance-reference-blocks"));
+        assertEquals(1.50, config.getDouble("outposts.cost.founding-surcharge"), 1e-9);
+        assertEquals(0.25, config.getDouble("outposts.cost.expansion-escalation"), 1e-9);
+        assertEquals(1200, config.getInt("outposts.upkeep.base-per-chunk-per-day"));
+        assertEquals(100, config.getInt("outposts.teleport.base-cost"));
     }
 
     @Test

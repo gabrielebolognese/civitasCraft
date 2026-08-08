@@ -93,6 +93,13 @@ inactivity:
   # The restore window itself is admin.restore-window-days below: it governs
   # /ca city delete just as much as this, and both readers already look there.
 
+# Outposts, SPEC 39.15. This block replaces Part I 16.2's, which priced a single chunk at a
+# flat 25,000 C — a design SPEC 39's header retires in full.
+#
+# SPEC 39.1 explains why: M3a removed the world border, so cities may be a million blocks
+# apart, and "a single chunk with a warp pad is no longer a serious answer to the question of
+# how a city projects itself across that distance". Outposts became the ONLY mechanism that
+# makes remote territory reachable, which promoted them from convenience to primary system.
 outposts:
   base-max: 2
   creation-cost-flat: 25000
@@ -104,6 +111,41 @@ outposts:
   teleport-warmup-seconds: 8
   teleport-cooldown-seconds: 180
   delete-refund-percent: 50
+
+  # SPEC 39.3's cost formula, which replaces the flat pricing above. Both are shipped while
+  # the SPEC 39 rework is in progress; the Part I keys go when the code reading them does.
+  #
+  #   cost(n, k, d) = base(n) * D(d) * F(k) / member_divisor
+  #     base(n) = claims.formula-base * n^claims.formula-exponent
+  #     D(d)    = 1 + distance-constant * sqrt(d / distance-reference-blocks)
+  #     F(1)    = founding-surcharge
+  #     F(k>1)  = 1 + expansion-escalation * (k - 1)
+  #
+  # n is the city's chunk count BEFORE this purchase, outposts included. SPEC 39.3 words that
+  # ambiguously; SPEC 39.4's published tables settle it, and the other reading overcharges by
+  # about 6%.
+  #
+  # A square root rather than a line or a logarithm, per SPEC 39.3: linear pricing "forbids the
+  # frontier outright", and logarithmic pricing means "distance stops mattering past about fifty
+  # thousand blocks". This keeps rising forever while each order of magnitude costs less per
+  # block than the last.
+  cost:
+    distance-constant: 0.25
+    distance-reference-blocks: 1000
+    founding-surcharge: 1.50
+    expansion-escalation: 0.25
+    apply-member-divisor: true
+
+  # SPEC 39.5. Distance-scaled, so a remote outpost is a permanent commitment rather than a
+  # one-off purchase: four chunks at a million blocks costs about 42,700 C a day.
+  upkeep:
+    base-per-chunk-per-day: 1200
+    scales-with-distance: true
+
+  teleport:
+    base-cost: 100
+    scales-with-distance: true
+
 
 # Default ranks created with every new city, SPEC 5.4.
 # Permission flag names must match the CityPermission enum.
