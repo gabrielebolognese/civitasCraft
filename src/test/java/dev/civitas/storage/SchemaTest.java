@@ -109,6 +109,10 @@ class SchemaTest {
         // V18, SPEC 23.6's notification preferences. One row per category a player has
         // CHANGED, so the table stays proportional to the players who care.
         schema.put("player_toggles", List.of("uuid", "category", "enabled"));
+        // V19, SPEC 32.7's public warps. expires_at is null for a permanent one; SPEC 40.1's
+        // contest visit warps are the temporary case and write rows here.
+        schema.put("warps", List.of("name", "world", "x", "y", "z", "yaw", "pitch",
+                "created_by", "created_at", "expires_at"));
         // V5, SPEC 13.2: weekly challenges, which SPEC 3 lists no table for. Keyed by city
         // and week because progress is pooled across every member.
         schema.put("city_challenges", List.of("id", "city_id", "challenge_id", "progress",

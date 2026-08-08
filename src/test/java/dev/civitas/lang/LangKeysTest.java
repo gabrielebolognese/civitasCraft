@@ -35,17 +35,24 @@ class LangKeysTest {
     /**
      * No language file contains mojibake.
      *
-     * <p>Added after M7a wrote {@code CittÃ } into {@code it.yml} — the bytes of {@code à}
-     * decoded as latin-1, which is what a UTF-8 string round-tripped through the wrong codec
-     * looks like. It is valid UTF-8, it loads without complaint, it passes every key-parity and
-     * placeholder check, and it renders as nonsense to an Italian player.
+     * <p>Written at M7a after {@code Citt\u00c3 } went into {@code it.yml}, and widened at M3b
+     * after {@code pu\u00c3\u00b2} went in the same way and this test <b>did not catch it</b>. The
+     * first version looked for U+FFFD and U+00A0, which are the two characters that particular
+     * accident happened to produce. That is not the class of defect, it is one instance of it.
      *
-     * <p>Two signatures, and neither has any business in a message. U+FFFD is what a decoder
-     * writes when it gives up. U+00A0, a non-breaking space, is the second half of every
-     * accented Latin-1 mojibake pair and is never something anyone types on purpose.
+     * <h2>The actual signature</h2>
+     *
+     * <p>A UTF-8 two-byte sequence is a lead byte in {@code C2..DF} followed by a continuation
+     * byte in {@code 80..BF}. Read as Latin-1, that becomes a character in U+00C2..U+00DF
+     * followed by one in U+0080..U+00BF — so {@code \u00e0} becomes {@code \u00c3 } and
+     * {@code \u00f2} becomes {@code \u00c3\u00b2}. Looking for the <b>pair</b> catches every
+     * accented character rather than the ones somebody already tripped over.
+     *
+     * <p>No false positives to worry about: real prose in either shipped language never puts a
+     * capital A-with-diacritic immediately before a Latin-1 punctuation or control character.
      */
     @Test
-    @DisplayName("no language file contains mojibake or a replacement character")
+    @DisplayName("no language file contains mojibake")
     void noMojibake() {
         for (String language : LangManager.BUNDLED_LANGUAGES) {
             File file = new File(LANG_DIR, language + ".yml");
@@ -58,13 +65,28 @@ class LangKeysTest {
             }
 
             List<String> offenders = new ArrayList<>();
-            String[] lines = text.split("\n", -1);
+            String[] lines = text.split("\\n", -1);
             for (int i = 0; i < lines.length; i++) {
-                for (char c : lines[i].toCharArray()) {
-                    if (c == '\uFFFD' || c == '\u00A0') {
-                        offenders.add(language + ".yml:" + (i + 1) + " contains U+"
-                                + String.format("%04X", (int) c));
+                String line = lines[i];
+                for (int c = 0; c < line.length(); c++) {
+                    char here = line.charAt(c);
+                    // What a decoder writes when it gives up.
+                    if (here == '\uFFFD') {
+                        offenders.add(language + ".yml:" + (i + 1)
+                                + " contains a replacement character");
                         break;
+                    }
+                    // A UTF-8 lead byte followed by a continuation byte, both read as Latin-1.
+                    if (here >= '\u00C2' && here <= '\u00DF'
+                            && c + 1 < line.length()) {
+                        char next = line.charAt(c + 1);
+                        if (next >= '\u0080' && next <= '\u00BF') {
+                            offenders.add(language + ".yml:" + (i + 1) + " has U+"
+                                    + String.format("%04X", (int) here) + " U+"
+                                    + String.format("%04X", (int) next)
+                                    + ", which is a UTF-8 pair read as Latin-1");
+                            break;
+                        }
                     }
                 }
             }
@@ -73,7 +95,6 @@ class LangKeysTest {
                             + offenders);
         }
     }
-
 
     private static FileConfiguration load(String language) {
         File onDisk = new File(LANG_DIR, language + ".yml");

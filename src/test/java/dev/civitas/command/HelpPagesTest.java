@@ -54,11 +54,15 @@ class HelpPagesTest {
      * guards against drift should not also be the slowest test in the suite.
      * {@code CommandRegistryTest} is what ties this list to what actually registers.
      */
+    /**
+     * The root commands, from {@link HelpPages#ROOT_COMMANDS} rather than a literal here.
+     *
+     * <p>This was a hardcoded list of nineteen names, and both directions of the coverage check
+     * below were measured against it — so a command the list had never heard of could ship
+     * undocumented and pass. {@code /quota} and {@code /toggle} both did.
+     */
     private static Set<String> rootCommands() {
-        return new LinkedHashSet<>(List.of(
-                "city", "money", "pay", "shop", "sell", "worth", "quests", "challenges",
-                "ally", "truce", "ac", "citychat", "leaderboard", "contest", "war",
-                "bounty", "cityadmin", "report", "civitas"));
+        return new LinkedHashSet<>(HelpPages.ROOT_COMMANDS);
     }
 
     // ==================================================================================

@@ -48,3 +48,45 @@ worlds:
   mining-claimable:
     - resource
     - resource_nether
+
+# SPEC 32.7's travel table. Every destination has a cost, a cooldown in seconds and a warmup
+# in seconds, and every warmup is cancelled by movement or by damage.
+travel:
+  # The server hub. Free and short, because it is how a player gets out of trouble.
+  spawn:
+    cost: 0
+    cooldown: 60
+    warmup: 5
+
+  # SPEC 32.4's random teleport, and the single number that gives the world its shape.
+  #
+  # With no border (SPEC 32.3), "structure comes from where the game SENDS people, not from
+  # where it stops them". Inside max-radius is the settled core: every player who ever used
+  # /rtp started there, so cities cluster, borders touch and travel between them is practical.
+  # Beyond it is frontier, reachable only by walking, and a city out there chose to be.
+  #
+  # Widening this scatters the playerbase and quiets the map. Narrowing it crowds them.
+  rtp:
+    cost: 500
+    cooldown: 300
+    warmup: 5
+    max-radius: 15000
+    # Wider for the resource worlds, SPEC 32.4: they exist to be dug into, and spreading
+    # arrivals slows the depletion of the ground near their spawn.
+    resource-max-radius: 25000
+    # Never drop somebody this close to another player, SPEC 32.4.
+    min-player-distance: 200
+    # SPEC 32.4: "If 40 candidate locations fail validation, report honestly and refund."
+    max-attempts: 40
+
+  # Random teleport into a resource world. Free, because mining is meant to be reachable.
+  rtp-resource:
+    cost: 0
+    cooldown: 120
+    warmup: 5
+
+  # Admin-defined public warps, SPEC 32.7. Created with /ca warp set.
+  warp:
+    cost: 0
+    cooldown: 30
+    warmup: 5

@@ -1885,3 +1885,100 @@ Format:
   have shipped outside the integrity net was inside it on the first build. Recorded because it is
   the first evidence that the structural fix was worth more than the milestone it came from.
   *Date:* 2026-08-08
+
+- **[M3b]** SPEC 32.7 defines `/warp <name>` as "admin-defined public warps" and **no section
+  anywhere defines a command that creates one** — not SPEC 9.4's admin tree, not SPEC 22.7's
+  additions to it. *Implemented default:* `/ca warp set|delete|list`, under
+  `civitas.admin.system` rather than a new permission node, because SPEC 10's node list is
+  closed and inventing a permission is a larger liberty than inventing the subcommand. A warp
+  system with no way to make a warp is inert, which is the same reasoning that shipped `/toggle`
+  alongside its preference store in M7a. *Date:* 2026-08-08
+
+- **[M3b]** The `warps` table carries an `expires_at` that nothing in this milestone sets. That is
+  deliberate rather than speculative: SPEC 40.1 requires a contest submission to generate "a
+  temporary public warp… available for the duration of the voting window only", and the
+  alternative is that milestone building a second warp system beside this one. Expiry is judged on
+  **read** rather than trusted to the sweep, so a contest warp stops working the moment voting
+  closes rather than whenever housekeeping next runs. *Date:* 2026-08-08
+
+- **[M3b]** **Warmup-and-cooldown was already written twice before this milestone**, in
+  `SpawnService` for the city spawn and `OutpostTeleport` for outposts, and SPEC 32.7 tabulates
+  six destinations that all share the rule. The three new ones go through one `TeleportService`.
+  The two existing ones were **not** retrofitted: `OutpostTeleport` is superseded by the M10
+  rebuild, and `SpawnService` works, is tested, and changing it would risk M8's behaviour for no
+  new capability. That leaves three copies rather than one, which is duplication rather than the
+  two-authorities contradiction M4a fixed — the failure mode is maintenance, not wrong behaviour.
+  **The M10 rebuild should consolidate all three.** *Date:* 2026-08-08
+
+- **[M3b]** SPEC 32.4 lists "any claim, any claim buffer, **any outpost**" as three separate
+  things to avoid, and an outpost is a claim row with type `OUTPOST`, so the claim rule already
+  covers it. *Implemented default:* one check, with a test that places an outpost claim and
+  asserts it is refused. A separate outpost check would be a second rule that could drift from the
+  first, which is the shape of defect this project has now found four times. *Date:* 2026-08-08
+
+- **[M3b]** `/rtp`'s buffer distance is read from `claims.buffer-chunks`, the same key that
+  governs claiming, rather than a `travel.rtp` figure of its own. If the two could differ, a
+  player could be dropped somewhere and then told it is too close to a city to claim. There is a
+  test asserting they are the same number. *Date:* 2026-08-08
+
+- **[M3b]** The search runs **before** the warmup, not during it. SPEC 32.4 says only that a
+  failure should "report honestly and refund". Searching first means a player is never told
+  "travelling in five seconds" and then that there was nowhere to go — and the refund is a refund
+  by construction, because `TeleportService` charges on arrival and there was never a payment to
+  reverse. The affordability check happens up front, so a player is refused at once rather than
+  made to wait five seconds to learn they are poor. *Date:* 2026-08-08
+
+- **[M3b]** A fare that fails to collect **after** the player has arrived is logged and the
+  journey stands. The alternative is teleporting somebody and then teleporting them back because
+  their balance moved during the warmup, which is a worse outcome for the player than a fare the
+  server occasionally misses. The affordability pre-check makes it a narrow window.
+  *Date:* 2026-08-08
+
+- **[M3b]** `RandomTeleport` and `TeleportService` accept a **null plugin**, and that is not
+  laziness. The plugin is needed only for the scheduler — the async search and the warmup task —
+  while the rules and the configuration readers are pure. Requiring it would mean either a stub
+  server in every rule test or moving the pure half into a fourth class. Each async entry point
+  checks for it explicitly and refuses with a clear reason rather than throwing a
+  `NullPointerException` from inside Bukkit. *Date:* 2026-08-08
+
+- **[M3b]** Two things this milestone genuinely cannot test and does not pretend to. SPEC 32.4's
+  block-level safety check (`isSafe`) needs real terrain: MockBukkit generates none, so "solid
+  ground, breathable, not in lava" is verified by the manual pass and by nothing else — the same
+  limitation M20 recorded for tile states. And the warmup needs a running scheduler, so
+  cancellation on movement and on damage is wired and reviewed but not asserted. Both belong on
+  the launch checklist rather than in a test that mocks the thing it is meant to prove.
+  *Date:* 2026-08-08
+
+- **[M3b]** `/rtp`'s 500 C fare has no ledger type. SPEC 4.6 calls its list exhaustive and it
+  predates Part IV's travel entirely, so there is no `TRAVEL_FEE`. *Implemented default:*
+  `OUTPOST_TELEPORT_FEE`, with `{"travel":"rtp"}` in the metadata, which is the same call M9a made
+  when a burned treasury had to go under `UPKEEP_CHARGE`: use the nearest existing type rather
+  than break SPEC 4.6's stated exhaustiveness, and let the metadata carry the distinction.
+  Recorded because an admin summing `OUTPOST_TELEPORT_FEE` will now see rows that are not outpost
+  teleports, and the metadata is the only thing that separates them. *Date:* 2026-08-08
+
+- **[M3b]** **`/quota` shipped at M6c and `/toggle` at M7a with no `/city help` entry, and
+  `HelpPagesTest` did not catch it.** M23 built that test to assert both directions — no entry
+  names a command that does not exist, and no root command is undocumented — but its list of root
+  commands was a **hardcoded literal of nineteen names**, so a command the list had never heard of
+  was invisible to both halves. Two player-facing commands were undiscoverable in the help for two
+  milestones. *Implemented default:* the list moved into main code as `HelpPages.ROOT_COMMANDS`,
+  the test reads it, and the five commands added since M23 are documented in both languages.
+  Adding a command now means adding it to that list, at which point the test fails until it is
+  documented. **This is the third instance of the same defect** — a test whose scope is a literal
+  that goes stale, after `ConfigKeyUsageTest.SHIPPED` in M3a and `MigrationIndexTest`'s ancestor
+  before it — so it is worth treating as a pattern: a coverage test must derive its universe from
+  the thing it is checking, never restate it. *Date:* 2026-08-08
+
+- **[M3b]** **The mojibake test I wrote at M7a was too narrow, and this milestone's Italian slipped
+  past it.** `può` went into `it.yml` as `puÃ²`, and `noMojibake` did not fire — because I had made
+  it look for U+FFFD and U+00A0, which are the two characters *M7a's* accident happened to produce.
+  `à` mojibakes to `Ã` + NBSP; `ò` mojibakes to `Ã` + `²`. I had tested one instance of the defect
+  and described it as the class. *Implemented default:* the test now looks for the actual
+  signature — a character in U+00C2..U+00DF immediately followed by one in U+0080..U+00BF, which is
+  a UTF-8 two-byte sequence read as Latin-1 — so it catches every accented character rather than
+  the ones somebody has already tripped over. No false positives are possible in either shipped
+  language: real prose never puts a capital A-with-diacritic immediately before a Latin-1
+  punctuation character. Worth recording as a lesson about test design rather than about encoding:
+  **a test written from one failure tends to encode that failure rather than its class.**
+  *Date:* 2026-08-08

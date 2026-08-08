@@ -45,6 +45,23 @@ import net.kyori.adventure.audience.Audience;
 public final class HelpPages {
 
     /** SPEC 9.1, commands that need no city. */
+    /**
+     * Every root command the plugin registers.
+     *
+     * <p>Declared here rather than in the test, because the test's copy was a hardcoded literal
+     * and two commands — {@code /quota} at M6c and {@code /toggle} at M7a — shipped with no help
+     * entry without failing it. A list that has to be edited in a test whenever a command is
+     * added is a list that will not be. Same fix as {@code ConfigKeyUsageTest} deriving its file
+     * list from {@code ConfigFile}.
+     *
+     * <p>Adding a command means adding it here, and {@code HelpPagesTest} then fails until it is
+     * documented — which is the whole point.
+     */
+    public static final java.util.List<String> ROOT_COMMANDS = java.util.List.of(
+            "city", "money", "pay", "shop", "sell", "worth", "quota", "quests", "challenges",
+            "ally", "truce", "ac", "citychat", "leaderboard", "contest", "war", "bounty",
+            "report", "civitas", "toggle", "spawn", "rtp", "warp", "cityadmin");
+
     public static final String GENERAL = "help.category-general";
 
     /** SPEC 9.2, commands for members of a city. */
@@ -110,6 +127,15 @@ public final class HelpPages {
             Entry.of("help.bounty", "civitas.bounty.use", GENERAL, "bounty"),
             Entry.of("help.report", "civitas.use", GENERAL, "report"),
             Entry.of("help.civitas", "civitas.use", GENERAL, "civitas"),
+            // Added at M3b. /quota shipped at M6c and /toggle at M7a with no help entry, and
+            // nothing caught it because rootCommands() in the test was a hardcoded literal
+            // that did not know they existed. Both are player-facing and both were invisible
+            // in /city help.
+            Entry.of("help.quota", "civitas.market.use", GENERAL, "quota"),
+            Entry.of("help.toggle", "civitas.use", GENERAL, "toggle"),
+            Entry.of("help.spawn", "civitas.use", GENERAL, "spawn"),
+            Entry.of("help.rtp", "civitas.use", GENERAL, "rtp"),
+            Entry.of("help.warp", "civitas.use", GENERAL, "warp"),
 
             // ---- SPEC 9.2, city member commands -------------------------------------------
             Entry.of("help.city-spawn", "civitas.use", CITY, "city", "spawn"),

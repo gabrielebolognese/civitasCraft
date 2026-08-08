@@ -46,6 +46,7 @@ public final class DaoRegistry {
     private final SellQuotaDao sellQuota;
     private final DailyActivityDao dailyActivity;
     private final PlayerToggleDao playerToggles;
+    private final WarpDao warps;
     private final PlayerShopDao playerShops;
     private final PlayerQuestDao playerQuests;
     private final CityChallengeDao cityChallenges;
@@ -91,6 +92,7 @@ public final class DaoRegistry {
         this.sellQuota = new SellQuotaDao(db);
         this.dailyActivity = new DailyActivityDao(db);
         this.playerToggles = new PlayerToggleDao(db);
+        this.warps = new WarpDao(db);
         this.playerShops = new PlayerShopDao(db);
         this.playerQuests = new PlayerQuestDao(db);
         this.cityChallenges = new CityChallengeDao(db);
@@ -235,6 +237,11 @@ public final class DaoRegistry {
         return playerToggles;
     }
 
+    /** {@code warps}, SPEC 32.7's public warps. */
+    public WarpDao warps() {
+        return warps;
+    }
+
     public PlayerShopDao playerShops() {
         return playerShops;
     }
@@ -281,7 +288,7 @@ public final class DaoRegistry {
                 ledger, economySnapshots, wars, warBlockLog, warContainerLog, warParticipants, warKills,
                 warEntitySnapshots, bounties, protectedChunks, reports,
                 upkeepMultipliers, alliances,
-                truces, marketStock, sellQuota, dailyActivity, playerToggles, playerShops, playerQuests, cityChallenges, contests, contestEntries, contestVotes,
+                truces, marketStock, sellQuota, dailyActivity, playerToggles, warps, playerShops, playerQuests, cityChallenges, contests, contestEntries, contestVotes,
                 cityUpgrades, cityVault, defenseUnits, auditLog);
     }
 }

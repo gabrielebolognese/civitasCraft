@@ -219,6 +219,10 @@ class LangKeyUsageTest {
                 // ToggleCategory.messageKey. The rest of the toggle.* keys are literals in
                 // ToggleCommand and stay covered by the scanner.
                 || key.startsWith("toggle.category-")
+                // A destination's name is built from TravelKind.messageKey, for the cooldown
+                // message that says which one you are waiting on. Every other travel.* key is
+                // a literal and stays covered.
+                || key.startsWith("travel.kind-")
                 // An upgrade's description key is built from its enum, UpgradeType.messageKey.
                 || key.startsWith("upgrade.")
                 // A unit's description key is built from its catalogue entry,

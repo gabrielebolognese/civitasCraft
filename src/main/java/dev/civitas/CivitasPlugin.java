@@ -190,6 +190,8 @@ public final class CivitasPlugin extends JavaPlugin {
                 new dev.civitas.command.player.QuotaCommand(services::get, lang, scheduler);
         dev.civitas.command.player.ToggleCommand toggleCommand =
                 new dev.civitas.command.player.ToggleCommand(services::get, lang, scheduler);
+        dev.civitas.command.player.TravelCommands travelCommands =
+                new dev.civitas.command.player.TravelCommands(services::get, lang, scheduler);
         QuestsCommand questsCommand = new QuestsCommand(services::get, lang, scheduler);
         AllyCommand allyCommand = new AllyCommand(services::get, lang, scheduler, getLogger());
         AllianceChatCommand allianceChat = new AllianceChatCommand(services::get, lang);
@@ -206,6 +208,8 @@ public final class CivitasPlugin extends JavaPlugin {
                 List.of(cityCommand.build(), moneyCommand.build(), payCommand.build(),
                         shopCommand.build(), sellCommand.build(), worthCommand.build(),
                         quotaCommand.build(), toggleCommand.build(),
+                        travelCommands.buildSpawn(), travelCommands.buildRtp(),
+                        travelCommands.buildWarp(),
                         questsCommand.buildQuests(), questsCommand.buildChallenges(),
                         allyCommand.buildAlly(), allyCommand.buildTruce(),
                         allianceChat.build(), leaderboardCommand.build(),
@@ -703,6 +707,19 @@ public final class CivitasPlugin extends JavaPlugin {
                     main.getName(), spawn.getBlockX() >> 4, spawn.getBlockZ() >> 4});
         });
 
+        // SPEC 32.7's travel. One TeleportService for the three new destinations, because
+        // the warmup-and-cooldown rule had already been written twice before this.
+        dev.civitas.core.travel.TeleportService teleportService =
+                new dev.civitas.core.travel.TeleportService(this, configs, economyService, lang,
+                        getLogger());
+        dev.civitas.core.travel.RandomTeleport randomTeleport =
+                new dev.civitas.core.travel.RandomTeleport(this, configs, claimRegistry);
+        randomTeleport.useAdminProtection(adminProtection::isProtected);
+        dev.civitas.core.travel.WarpService warpService =
+                new dev.civitas.core.travel.WarpService(loadedDaos.warps(), getLogger());
+        warpService.loadAll().thenAccept(count ->
+                getLogger().info(() -> "Loaded " + count + " warps."));
+
         // SPEC 23.6's notification preferences and SPEC 23.4's channel router. The router
         // consults the preferences on every send, and the four SPEC 23.6 locks are enforced
         // inside the preferences so no channel can bypass them.
@@ -716,7 +733,8 @@ public final class CivitasPlugin extends JavaPlugin {
                 blockClassifier, economyService, treasuryService, bountyService,
                 ledgerRollback,
                 upkeepCalculator,
-                upkeepTask, marketService, marketFilter, togglePreferences, messenger, shopService, questService,
+                upkeepTask, marketService, marketFilter, togglePreferences, messenger,
+                teleportService, randomTeleport, warpService, shopService, questService,
                 challengeService, leaderboardService, statsService, contestService,
                 eventService, warWiring.service(), warWiring.allies(), warWiring.peace(),
                 warWiring.capturePoints(), warWiring.rollback(), warWiring.trigger(),
@@ -769,7 +787,7 @@ public final class CivitasPlugin extends JavaPlugin {
         getServer().getPluginManager().registerEvents(
                 new CityHallListener(services::get, cityHall, lang), this);
         getServer().getPluginManager().registerEvents(
-                new TeleportWarmupListener(spawnService, outpostTeleport), this);
+                new TeleportWarmupListener(spawnService, outpostTeleport, teleportService), this);
         getServer().getPluginManager().registerEvents(new VaultListener(vaultView), this);
         getServer().getPluginManager().registerEvents(new dev.civitas.listener
                 .AdminInspectListener(inspectMode, lang,

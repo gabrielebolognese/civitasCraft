@@ -53,7 +53,8 @@ public final class AdminCommand {
                 })
                 .then(new AdminWarCommands(services, lang, scheduler, logger).build())
                 .then(new AdminClaimCommands(services, lang, scheduler, logger).build())
-                .then(new AdminCityCommands(services, lang, scheduler, logger).build());
+                .then(new AdminCityCommands(services, lang, scheduler, logger).build())
+                .then(new AdminWarpCommands(services, lang, scheduler).build());
         AdminEconomyCommands economy = new AdminEconomyCommands(services, lang, scheduler,
                 logger);
         root.then(economy.build()).then(economy.buildMarket());
