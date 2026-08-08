@@ -19,7 +19,21 @@ public enum TravelKind {
     RTP_RESOURCE("rtp-resource"),
 
     /** An admin-defined public warp, SPEC 32.7. Free, 30s, 5s. */
-    WARP("warp");
+    WARP("warp"),
+
+    /**
+     * A player's own mining claim, SPEC 32.7. 100 C, 3 min, 8s.
+     *
+     * <p>Its numbers live under {@code mining-claims.teleport} rather than {@code travel.mine-tp},
+     * because they belong with the feature they gate — an operator turning mining claims off or
+     * retuning them should find every number in one block.
+     */
+    MINE_TP("mine-tp") {
+        @Override
+        public String configPath() {
+            return "mining-claims.teleport";
+        }
+    };
 
     private final String key;
 

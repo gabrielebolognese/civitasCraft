@@ -113,6 +113,11 @@ class SchemaTest {
         // contest visit warps are the temporary case and write rows here.
         schema.put("warps", List.of("name", "world", "x", "y", "z", "yaw", "pitch",
                 "created_by", "created_at", "expires_at"));
+        // V20, SPEC 32.6's personal mining claims: the only land ownership available to a
+        // player with no city. Trust is keyed by owner, because /mine trust takes no claim.
+        schema.put("mining_claims", List.of("id", "uuid", "world", "chunk_x", "chunk_z",
+                "claimed_at", "cost_paid", "delinquent_since"));
+        schema.put("mining_claim_trust", List.of("owner_uuid", "trusted_uuid", "granted_at"));
         // V5, SPEC 13.2: weekly challenges, which SPEC 3 lists no table for. Keyed by city
         // and week because progress is pooled across every member.
         schema.put("city_challenges", List.of("id", "city_id", "challenge_id", "progress",

@@ -1982,3 +1982,89 @@ Format:
   punctuation character. Worth recording as a lesson about test design rather than about encoding:
   **a test written from one failure tends to encode that failure rather than its class.**
   *Date:* 2026-08-08
+
+- **[M3c]** SPEC 32.6 gives `/mine trust <player>` a maximum of four and **no claim argument**, so
+  trust cannot be per claim — there is nothing in the command to say which one. *Implemented
+  default:* per **owner**. Trusting somebody trusts them on everything you hold, which is the only
+  reading the command's shape supports and the simpler one for a player to hold in their head. The
+  table is keyed `(owner_uuid, trusted_uuid)` accordingly, and there is a test asserting a grant
+  covers both of a two-claim player's chunks. *Date:* 2026-08-08
+
+- **[M3c]** `MiningClaimRegistry` is keyed by a `(world, chunkX, chunkZ)` **record** rather than by
+  `ChunkKey`'s packed long, which is what city claims use. `ClaimRegistry`'s packing needs a
+  world-index allocator that is private to it, and a second allocator is a second thing that could
+  disagree about which world is index 3 — the two-authorities defect again, in a place where the
+  consequence would be one player's protection applied to another's chunk. The record costs one
+  small allocation per lookup, and that only matters on the hot path, which this is not:
+  `ProtectionService` asks the **world kind first**, so a block broken in the main overworld never
+  reaches the map at all. *Date:* 2026-08-08
+
+- **[M3c]** SPEC 32.6 says an unpaid claim is "released. **Blocks are not removed**", and a unit
+  test cannot assert the absence of an action. *Implemented default:* asserted structurally —
+  `MiningClaimService` holds no reference to `org.bukkit.World` and calls no `setType`, so it has
+  no means to remove anything. The same shape M22 used for the player-shop tax and M9a for the
+  peer-trade exemption: prove no code path exists rather than that one path behaves.
+  *Date:* 2026-08-08
+
+- **[M3c]** The grace clock runs from the **first** missed payment, not the latest. SPEC 32.6 says
+  "7-day grace" without saying which. Restarting it on each failed sweep would mean a player who
+  can never pay never runs out of grace, because every sweep pushes the deadline back a day —
+  which makes the upkeep optional. There is a test for exactly that. *Date:* 2026-08-08
+
+- **[M3c]** Mining upkeep gets its **own timer** rather than a line inside the city upkeep sweep.
+  The two charge different accounts — a city pays from its treasury, a mining claim from its
+  owner's own wallet — and a failure in one must not stop the other. It also means an operator who
+  switches mining claims off stops paying for the sweep entirely. *Date:* 2026-08-08
+
+- **[M3c]** `/mine tp` reads its numbers from `mining-claims.teleport` rather than
+  `travel.mine-tp`, which is where `TravelKind`'s other four destinations look. The override is one
+  method on the enum constant. An operator turning mining claims off or retuning them should find
+  every number for the feature in one block, rather than four of them in one place and the
+  teleport's three somewhere else. *Date:* 2026-08-08
+
+- **[M3c]** `/mine info` shows a trusted player's **id** when they are offline rather than their
+  name. Resolving four names is four database reads for one line of output, and the id is still
+  enough to run `/mine untrust` against. Online players are named. Recorded because it is visibly
+  less polished than the rest of the command and the reason is not obvious from reading it.
+  *Date:* 2026-08-08
+
+- **[M3c]** SPEC 4.6's ledger types have nothing for a mining claim, so a purchase is
+  `CHUNK_CLAIM`, a refund is `CHUNK_UNCLAIM_REFUND` and upkeep is `UPKEEP_CHARGE`, each with
+  `{"mining_claim": …}` in the metadata. Third instance of the same call after M9a's burned
+  treasury and M3b's travel fare: use the nearest existing type rather than break SPEC 4.6's
+  stated exhaustiveness, and let the metadata carry the distinction. **Worth a developer decision
+  at some point** — three features now share types with city land and city upkeep, and an admin
+  summing `CHUNK_CLAIM` gets both. *Date:* 2026-08-08
+
+- **[M3c]** This milestone filled the two seams earlier ones left rather than adding new checks:
+  `ProtectionService.useMiningClaims` and `PvpPolicy.useMiningClaims`, one call each. Recorded
+  because it is the first time the seam discipline has paid off in this project rather than merely
+  been described — M4a wrote the PvP seam without knowing what would fill it, and filling it took
+  one line and no changes to `PvpPolicy` at all. *Date:* 2026-08-08
+
+- **[M3c]** **The upkeep sweep released a player's mining claim and told them nothing**, and the
+  key-usage sweep is what found it: `mine.released` and `mine.upkeep-failed` were written into both
+  language files and sent by nothing. SPEC 23.1's first principle is that "every action produces
+  feedback", and a player losing a claim they paid 15,000 C for without a word is the exact silent
+  failure that principle exists to prevent. *Implemented default:* a `Notifier` seam on the
+  service, in the same shape `UpkeepTask.Notifier.online` already uses, telling the owner when a
+  payment fails and how long they have, and again when the claim goes. Worth recording as evidence
+  that the orphaned-key half of `LangKeyUsageTest` earns its keep: it does not catch dead text so
+  much as **features that were never finished**. *Date:* 2026-08-08
+
+- **[M3c]** `mine.wrong-world` was passed a `<world>` placeholder it never displayed — the defect
+  M23's localisation check was built for, committed again one milestone after the check found six
+  of them. *Implemented default:* the placeholder is dropped rather than the message changed. The
+  refusal already tells the player where they *can* claim, which is more use than the name of the
+  world they are standing in. *Date:* 2026-08-08
+
+- **[M3c]** A pre-existing test was **flaky by construction** and failed this milestone's build for
+  it. `IncomeSystemsTest`'s "a different day draws different quests" compared two **players** on
+  one day, not two days, and asserted their draws differed — but SPEC 13.1 draws three quests from
+  a pool of eight, so two players legitimately collide a few percent of the time. It passed three
+  reruns immediately afterwards, which is exactly what makes this kind of test expensive: it will
+  fail somebody else's build and look like a real regression. *Implemented default:* replaced with
+  the two properties that are actually true and cannot collide — the draw is seeded **per player**,
+  which shows up across thirteen players as more than one distinct draw; and asking twice on one
+  day is **stable**, or a player could refresh until they liked their quests. The name and the body
+  also disagreed, which is how the flakiness survived review. *Date:* 2026-08-08

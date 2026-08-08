@@ -70,6 +70,24 @@ public final class ProtectionService {
                     Map.of());
         }
 
+        // SPEC 32.6's mining claims, checked before city claims because they live in worlds
+        // where a city claim cannot exist — SPEC 32.5 blocks those entirely — so the two can
+        // never both answer and the order costs nothing. Asked first only in the worlds that
+        // can hold one, so a block broken in the main overworld never reaches this map.
+        if (mining != null && mining.claimableWorld(world)) {
+            Optional<dev.civitas.storage.row.MiningClaimRow> mine =
+                    mining.registry().at(world, chunkX, chunkZ);
+            if (mine.isPresent()) {
+                return mining.registry().mayBuild(player, world, chunkX, chunkZ)
+                        ? ProtectionDecision.ALLOWED
+                        : ProtectionDecision.deny("MINING_CLAIM", "mine.protected",
+                                Map.of("owner", String.valueOf(mine.get().uuid())));
+            }
+            // An unclaimed chunk in a resource world is unprotected, which SPEC 32.5 says
+            // outright: everything outside a mining claim there can be built on by anyone.
+            return ProtectionDecision.ALLOWED;
+        }
+
         Optional<Claim> claim = claims.at(world, chunkX, chunkZ);
         if (claim.isEmpty()) {
             // Wilderness. SPEC 5.5 protects claims, not the world.
@@ -262,6 +280,28 @@ public final class ProtectionService {
     public long denyMessageCooldownMillis() {
         return configs.get(ConfigFile.CITIES)
                 .getLong("protection.deny-message-cooldown-ms", 2000L);
+    }
+
+    /**
+     * SPEC 32.6's mining claims, injected because they arrived after this class.
+     *
+     * <p>Null means no mining claims, which is what every test written before M3c constructs
+     * and what a server with the feature switched off has.
+     */
+    private MiningAccess mining;
+
+    /** What this service needs to know about mining claims, and no more. */
+    public interface MiningAccess {
+
+        /** Whether a mining claim could exist in this world at all. */
+        boolean claimableWorld(String world);
+
+        dev.civitas.core.mining.MiningClaimRegistry registry();
+    }
+
+    /** Hands the service SPEC 32.6's mining claims. */
+    public void useMiningClaims(MiningAccess access) {
+        this.mining = java.util.Objects.requireNonNull(access, "access");
     }
 
     /** Exposed so a listener can answer "who owns this" without reaching past the service. */

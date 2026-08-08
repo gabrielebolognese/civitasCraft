@@ -369,17 +369,44 @@ class IncomeSystemsTest {
         }
 
         @Test
-        @DisplayName("a different day draws different quests")
-        void nextDayDiffers() {
+        @DisplayName("the draw is seeded per player, so players do not all get the same quests")
+        void drawIsPerPlayer() {
+            // Was "a different day draws different quests" and compared two PLAYERS on one day,
+            // asserting their draws differed. That is flaky by construction: SPEC 13.1 draws
+            // three quests from a pool of eight, so two players legitimately collide a few
+            // percent of the time, and this test failed a build for doing exactly that.
+            //
+            // The property that is actually true is that the draw is seeded per player rather
+            // than per server. Across a population that shows up as more than one distinct
+            // draw, which no collision can make false.
             long today = System.currentTimeMillis();
-            List<String> first = await(quests.todaysQuests(player, today)).stream()
-                    .map(PlayerQuestRow::questId).sorted().toList();
+            java.util.Set<List<String>> draws = new java.util.LinkedHashSet<>();
 
-            UUID other = support.givenPlayer("Second", new BigDecimal("100.00"), 0L);
-            List<String> theirs = await(quests.todaysQuests(other, today)).stream()
-                    .map(PlayerQuestRow::questId).sorted().toList();
+            draws.add(await(quests.todaysQuests(player, today)).stream()
+                    .map(PlayerQuestRow::questId).sorted().toList());
+            for (int i = 0; i < 12; i++) {
+                UUID other = support.givenPlayer("Miner" + i, new BigDecimal("100.00"), 0L);
+                draws.add(await(quests.todaysQuests(other, today)).stream()
+                        .map(PlayerQuestRow::questId).sorted().toList());
+            }
 
-            assertNotEquals(first, theirs, "two players do not share one draw");
+            assertTrue(draws.size() > 1,
+                    "thirteen players all drew the same three quests, so the draw is not "
+                            + "seeded per player: " + draws);
+        }
+
+        @Test
+        @DisplayName("the same player on the same day draws the same quests")
+        void drawIsStable() {
+            // The other half, and the one that makes the seeding meaningful: asking twice must
+            // not reroll, or a player could refresh until they liked their quests.
+            long today = System.currentTimeMillis();
+
+            assertEquals(
+                    await(quests.todaysQuests(player, today)).stream()
+                            .map(PlayerQuestRow::questId).sorted().toList(),
+                    await(quests.todaysQuests(player, today)).stream()
+                            .map(PlayerQuestRow::questId).sorted().toList());
         }
 
         @Test

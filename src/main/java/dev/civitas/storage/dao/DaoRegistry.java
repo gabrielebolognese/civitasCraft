@@ -47,6 +47,7 @@ public final class DaoRegistry {
     private final DailyActivityDao dailyActivity;
     private final PlayerToggleDao playerToggles;
     private final WarpDao warps;
+    private final MiningClaimDao miningClaims;
     private final PlayerShopDao playerShops;
     private final PlayerQuestDao playerQuests;
     private final CityChallengeDao cityChallenges;
@@ -93,6 +94,7 @@ public final class DaoRegistry {
         this.dailyActivity = new DailyActivityDao(db);
         this.playerToggles = new PlayerToggleDao(db);
         this.warps = new WarpDao(db);
+        this.miningClaims = new MiningClaimDao(db);
         this.playerShops = new PlayerShopDao(db);
         this.playerQuests = new PlayerQuestDao(db);
         this.cityChallenges = new CityChallengeDao(db);
@@ -242,6 +244,11 @@ public final class DaoRegistry {
         return warps;
     }
 
+    /** {@code mining_claims}, SPEC 32.6's personal claims in the resource worlds. */
+    public MiningClaimDao miningClaims() {
+        return miningClaims;
+    }
+
     public PlayerShopDao playerShops() {
         return playerShops;
     }
@@ -288,7 +295,7 @@ public final class DaoRegistry {
                 ledger, economySnapshots, wars, warBlockLog, warContainerLog, warParticipants, warKills,
                 warEntitySnapshots, bounties, protectedChunks, reports,
                 upkeepMultipliers, alliances,
-                truces, marketStock, sellQuota, dailyActivity, playerToggles, warps, playerShops, playerQuests, cityChallenges, contests, contestEntries, contestVotes,
+                truces, marketStock, sellQuota, dailyActivity, playerToggles, warps, miningClaims, playerShops, playerQuests, cityChallenges, contests, contestEntries, contestVotes,
                 cityUpgrades, cityVault, defenseUnits, auditLog);
     }
 }

@@ -192,6 +192,8 @@ public final class CivitasPlugin extends JavaPlugin {
                 new dev.civitas.command.player.ToggleCommand(services::get, lang, scheduler);
         dev.civitas.command.player.TravelCommands travelCommands =
                 new dev.civitas.command.player.TravelCommands(services::get, lang, scheduler);
+        dev.civitas.command.player.MineCommand mineCommand =
+                new dev.civitas.command.player.MineCommand(services::get, lang, scheduler);
         QuestsCommand questsCommand = new QuestsCommand(services::get, lang, scheduler);
         AllyCommand allyCommand = new AllyCommand(services::get, lang, scheduler, getLogger());
         AllianceChatCommand allianceChat = new AllianceChatCommand(services::get, lang);
@@ -209,7 +211,7 @@ public final class CivitasPlugin extends JavaPlugin {
                         shopCommand.build(), sellCommand.build(), worthCommand.build(),
                         quotaCommand.build(), toggleCommand.build(),
                         travelCommands.buildSpawn(), travelCommands.buildRtp(),
-                        travelCommands.buildWarp(),
+                        travelCommands.buildWarp(), mineCommand.build(),
                         questsCommand.buildQuests(), questsCommand.buildChallenges(),
                         allyCommand.buildAlly(), allyCommand.buildTruce(),
                         allianceChat.build(), leaderboardCommand.build(),
@@ -707,6 +709,42 @@ public final class CivitasPlugin extends JavaPlugin {
                     main.getName(), spawn.getBlockX() >> 4, spawn.getBlockZ() >> 4});
         });
 
+        // SPEC 32.6's mining claims. Built before travel because /mine tp goes through the
+        // TeleportService below, and before the services record because two seams read it.
+        dev.civitas.core.world.WorldRegistry worldRegistry =
+                new dev.civitas.core.world.WorldRegistry(configs, getLogger());
+        dev.civitas.core.mining.MiningClaimRegistry miningRegistry =
+                new dev.civitas.core.mining.MiningClaimRegistry(loadedDaos.miningClaims(),
+                        getLogger());
+        dev.civitas.core.mining.MiningClaimService miningClaimService =
+                new dev.civitas.core.mining.MiningClaimService(manager,
+                        loadedDaos.miningClaims(), miningRegistry, economyService, worldRegistry,
+                        configs, scheduler);
+        miningClaimService.useNotifier((owner, key, extra) -> {
+            org.bukkit.entity.Player online = Bukkit.getPlayer(owner);
+            if (online != null) {
+                lang.send(online, key, extra);
+            }
+        });
+        miningRegistry.loadAll().thenAccept(count ->
+                getLogger().info(() -> "Loaded " + count + " mining claims."));
+
+        // The two seams earlier milestones left for this one, each a single call.
+        protection.useMiningClaims(new dev.civitas.core.protection.ProtectionService
+                .MiningAccess() {
+            @Override
+            public boolean claimableWorld(String world) {
+                return worldRegistry.allowsMiningClaims(world);
+            }
+
+            @Override
+            public dev.civitas.core.mining.MiningClaimRegistry registry() {
+                return miningRegistry;
+            }
+        });
+        // SPEC 33.1's table puts PvP off inside a mining claim, which M4a left as a seam.
+        pvpPolicy.useMiningClaims(miningRegistry::isClaimed);
+
         // SPEC 32.7's travel. One TeleportService for the three new destinations, because
         // the warmup-and-cooldown rule had already been written twice before this.
         dev.civitas.core.travel.TeleportService teleportService =
@@ -734,7 +772,8 @@ public final class CivitasPlugin extends JavaPlugin {
                 ledgerRollback,
                 upkeepCalculator,
                 upkeepTask, marketService, marketFilter, togglePreferences, messenger,
-                teleportService, randomTeleport, warpService, shopService, questService,
+                teleportService, randomTeleport, warpService, miningClaimService,
+                shopService, questService,
                 challengeService, leaderboardService, statsService, contestService,
                 eventService, warWiring.service(), warWiring.allies(), warWiring.peace(),
                 warWiring.capturePoints(), warWiring.rollback(), warWiring.trigger(),
@@ -827,6 +866,7 @@ public final class CivitasPlugin extends JavaPlugin {
         }
 
         scheduleEconomy(loadedDaos, economyService, treasuryService, upkeepTask);
+        scheduleMiningUpkeep(miningClaimService);
         scheduleInactivity(inactivityTask);
         registerIntegrations(economyService);
 
@@ -875,6 +915,41 @@ public final class CivitasPlugin extends JavaPlugin {
         }
         long ticks = Math.max(1L, task.checkIntervalMinutes()) * 60L * 20L;
         Bukkit.getScheduler().runTaskTimerAsynchronously(this, task, ticks, ticks);
+    }
+
+    /**
+     * SPEC 32.6's daily mining-claim upkeep, from each owner's personal balance.
+     *
+     * <p>Its own timer rather than a line inside the city sweep, because the two charge different
+     * accounts and a failure in one must not stop the other. A city that cannot pay loses chunks
+     * to its treasury; a mining claim is somebody's own wallet.
+     */
+    private void scheduleMiningUpkeep(dev.civitas.core.mining.MiningClaimService mines) {
+        if (!mines.enabled()) {
+            return;
+        }
+        long ticks = configs.get(ConfigFile.WORLD)
+                .getLong("mining-claims.check-interval-minutes", 60) * 60L * 20L;
+        Bukkit.getScheduler().runTaskTimerAsynchronously(this, () -> {
+            try {
+                mines.chargeUpkeep(System.currentTimeMillis())
+                        .thenAccept(released -> {
+                            if (released > 0) {
+                                getLogger().info(() -> released
+                                        + " mining claim(s) were released for unpaid upkeep.");
+                            }
+                        })
+                        .exceptionally(error -> {
+                            getLogger().log(java.util.logging.Level.WARNING,
+                                    "The mining claim upkeep sweep failed.", error);
+                            return null;
+                        });
+            } catch (RuntimeException e) {
+                // A closed pool throws from the call itself rather than failing the future.
+                getLogger().log(java.util.logging.Level.WARNING,
+                        "The mining claim upkeep sweep failed.", e);
+            }
+        }, ticks, ticks);
     }
 
     private void scheduleEconomy(DaoRegistry loadedDaos, EconomyService economyService,

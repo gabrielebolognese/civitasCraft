@@ -60,7 +60,7 @@ public final class HelpPages {
     public static final java.util.List<String> ROOT_COMMANDS = java.util.List.of(
             "city", "money", "pay", "shop", "sell", "worth", "quota", "quests", "challenges",
             "ally", "truce", "ac", "citychat", "leaderboard", "contest", "war", "bounty",
-            "report", "civitas", "toggle", "spawn", "rtp", "warp", "cityadmin");
+            "report", "civitas", "toggle", "spawn", "rtp", "warp", "mine", "cityadmin");
 
     public static final String GENERAL = "help.category-general";
 
@@ -136,6 +136,7 @@ public final class HelpPages {
             Entry.of("help.spawn", "civitas.use", GENERAL, "spawn"),
             Entry.of("help.rtp", "civitas.use", GENERAL, "rtp"),
             Entry.of("help.warp", "civitas.use", GENERAL, "warp"),
+            Entry.of("help.mine", "civitas.use", GENERAL, "mine"),
 
             // ---- SPEC 9.2, city member commands -------------------------------------------
             Entry.of("help.city-spawn", "civitas.use", CITY, "city", "spawn"),

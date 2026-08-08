@@ -90,3 +90,39 @@ travel:
     cost: 0
     cooldown: 30
     warmup: 5
+
+# SPEC 32.6's personal mining claims.
+#
+# SPEC 32.5 blocks city claims in the resource worlds and SPEC 33.5 blocks PvP there, which
+# leaves everything a player builds in the place the economy expects them to mine wide open to
+# griefing — so nobody builds there. One chunk each is the answer: enough for a mine entrance,
+# storage and a base, and not enough to be territory.
+#
+# This is also the ONLY land ownership available to a player with no city, and SPEC 32.6 says
+# that is deliberate rather than an oversight.
+#
+# Setting enabled: false is the other position SPEC 33.5 describes — the resource worlds as
+# purely extractive, with the Guide Book stating plainly that nothing built there is safe.
+mining-claims:
+  enabled: true
+  cost: 15000
+  # Charged daily from the owner's OWN balance, not a city treasury. That is the point.
+  upkeep-per-day: 500
+  # One each. More via civitas.limit.miningclaims.<n>.
+  base-limit: 1
+  max-trusted: 4
+  # Unpaid upkeep releases the claim after this long. SPEC 32.6: "Blocks are not removed."
+  grace-days: 7
+  # Half, matching what SPEC 6.4 refunds on city land.
+  unclaim-refund-percent: 50
+
+  # How often the upkeep sweep runs. Its own timer rather than a line in the city sweep,
+  # because the two charge different accounts: a city pays from its treasury and a mining
+  # claim from its owner's own wallet.
+  check-interval-minutes: 60
+
+  # SPEC 32.7's /mine tp.
+  teleport:
+    cost: 100
+    cooldown: 180
+    warmup: 8
