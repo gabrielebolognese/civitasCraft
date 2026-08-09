@@ -449,6 +449,21 @@ class DefenseServiceTest {
             // actually run under test. These tests call the materializer directly, on the
             // test thread, so they can have one.
             server.addSimpleWorld(WORLD);
+
+            // MockBukkit does not implement setRemoveWhenFarAway, which SPEC 31 case 106
+            // requires and DefenseSpawner calls on every spawn — so the real spawner aborts
+            // any test that uses it, and does so as a SKIP rather than a failure. This spawns
+            // the same mob without that one call, so the health round trip can be asserted.
+            materializer.useSpawn((unit, type, city, fortification) -> {
+                var loc = new org.bukkit.Location(server.getWorld(WORLD),
+                        unit.x(), unit.y(), unit.z());
+                var spawned = (org.bukkit.entity.LivingEntity) server.getWorld(WORLD)
+                        .spawnEntity(loc, type.mob());
+                spawned.getAttribute(org.bukkit.attribute.Attribute.MAX_HEALTH)
+                        .setBaseValue(type.health());
+                spawned.setHealth(type.health());
+                return java.util.Optional.of(spawned);
+            });
         }
 
         /** A unit row, written straight to storage so no spawn happens on the wrong thread. */

@@ -76,6 +76,30 @@ public final class UnitMaterializer {
         this.wars = Objects.requireNonNull(zones, "zones");
     }
 
+    /**
+     * How a unit becomes an entity. Defaults to {@link DefenseSpawner}.
+     *
+     * <p>A seam, and it exists for a specific reason rather than for tidiness: MockBukkit does
+     * not implement {@code setRemoveWhenFarAway}, which SPEC 31 case 106 requires and
+     * {@code DefenseSpawner} therefore calls on every spawn. That one unimplemented method
+     * aborts any test that spawns a unit — as a skip rather than a failure, which is worse —
+     * so without this the health round trip that is this milestone's whole promise could not
+     * be asserted at all.
+     */
+    @FunctionalInterface
+    public interface Spawn {
+
+        Optional<LivingEntity> spawn(DefenseUnit unit, DefenseUnitType type, City city,
+                                     int fortificationLevel);
+    }
+
+    private Spawn spawn;
+
+    /** Replaces the spawner, for the tests that cannot use the real one. */
+    public void useSpawn(Spawn replacement) {
+        this.spawn = Objects.requireNonNull(replacement, "replacement");
+    }
+
     // ==================================================================================
     // The sweep
     // ==================================================================================
@@ -161,7 +185,8 @@ public final class UnitMaterializer {
             return false;
         }
 
-        Optional<LivingEntity> spawned = spawner.spawn(unit, type.get(), city.get(),
+        Spawn how = spawn == null ? spawner::spawn : spawn;
+        Optional<LivingEntity> spawned = how.spawn(unit, type.get(), city.get(),
                 fortificationOf(city.get()));
         if (spawned.isEmpty()) {
             return false;
