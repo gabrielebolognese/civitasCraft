@@ -216,13 +216,4 @@ public final class DefenseCatalogue {
         return configs.get(ConfigFile.DEFENSE).getInt("behaviour.name-visible-range", 16);
     }
 
-    public boolean attacksHostilesInPeacetime() {
-        return configs.get(ConfigFile.DEFENSE)
-                .getBoolean("behaviour.attack-hostile-mobs-in-peacetime", true);
-    }
-
-    public boolean attacksPlayersInPeacetime() {
-        return configs.get(ConfigFile.DEFENSE)
-                .getBoolean("behaviour.attack-players-in-peacetime", false);
-    }
 }

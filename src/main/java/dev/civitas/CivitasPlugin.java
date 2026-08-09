@@ -597,6 +597,23 @@ public final class CivitasPlugin extends JavaPlugin {
                 cityRegistry, claimRegistry, treasuryService, upgradeService, lang, scheduler);
         DefenseBehaviour defenseBehaviour = new DefenseBehaviour(defenseCatalogue, cityRegistry);
 
+        // SPEC 30.1: one targeting handler, and no unit-specific targeting logic anywhere
+        // else. DefenseBehaviour kept the two questions about sides -- including SPEC 17.4
+        // case 41's, that a player with no city is a bystander -- and lost the decision.
+        dev.civitas.core.defense.UnitStates unitStates =
+                new dev.civitas.core.defense.UnitStates();
+        dev.civitas.core.defense.UnitTargeting unitTargeting =
+                new dev.civitas.core.defense.UnitTargeting(cityRegistry, defenseRegistry,
+                        defenseSpawner, unitStates, defenseCatalogue, configs);
+        unitTargeting.useWars((cityId, player) -> cityRegistry.city(cityId)
+                .map(owner -> defenseBehaviour.isEnemyOf(owner, player))
+                .orElse(false));
+        unitTargeting.useDiplomacy((cityId, otherCityId) -> cityRegistry.city(cityId)
+                .map(owner -> cityRegistry.city(otherCityId)
+                        .map(other -> defenseBehaviour.isSameSide(owner, other.mayorUuid()))
+                        .orElse(false))
+                .orElse(false));
+
         // SPEC 25.4's materialisation. Replaces the chunk-load respawn that used to be the
         // only trigger, which had no despawn path at all.
         dev.civitas.core.defense.UnitMaterializer materializer =
@@ -868,7 +885,7 @@ public final class CivitasPlugin extends JavaPlugin {
                 .AdminInspectListener(inspectMode, lang,
                 dev.civitas.listener.AdminInspectListener.ProtectedChunkLookup.none()), this);
         getServer().getPluginManager().registerEvents(new DefenseListener(this, defenseService,
-                defenseBehaviour, cityRegistry, lang, getLogger()), this);
+                unitTargeting, cityRegistry, lang, getLogger()), this);
         scheduleDefenseLeash(new dev.civitas.core.defense.DefenseLeash(defenseRegistry,
                 defenseSpawner, defenseBehaviour, claimRegistry), defenseRegistry);
         getServer().getPluginManager().registerEvents(

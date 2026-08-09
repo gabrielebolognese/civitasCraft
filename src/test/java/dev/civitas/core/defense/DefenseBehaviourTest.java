@@ -60,78 +60,17 @@ class DefenseBehaviourTest {
     // SPEC 12.3, players
     // ==================================================================================
 
-    @Nested
-    @DisplayName("SPEC 12.3: players")
-    class Players {
-
-        @Test
-        @DisplayName("row 1: a visitor in peacetime is ignored completely")
-        void visitorInPeacetime() {
-            // Standing right next to it, in the middle of the city, and nothing happens.
-            assertEquals(DefenseBehaviour.Reaction.IGNORE,
-                    behaviour.towardsPlayer(city, stranger, 1.0));
-            assertEquals(DefenseBehaviour.Reaction.IGNORE,
-                    behaviour.towardsPlayer(city, stranger, 0.5));
-        }
-
-        @Test
-        @DisplayName("a visitor is ignored at every distance, not merely at range")
-        void ignoredAtAnyDistance() {
-            for (double distance : new double[] {0, 1, 5, 12, 24, 100}) {
-                assertEquals(DefenseBehaviour.Reaction.IGNORE,
-                        behaviour.towardsPlayer(city, stranger, distance),
-                        "at " + distance + " blocks");
-            }
-        }
-
-        @Test
-        @DisplayName("row 4: a member of the owning city is ignored")
-        void ownMember() {
-            assertEquals(DefenseBehaviour.Reaction.IGNORE,
-                    behaviour.towardsPlayer(city, member, 1.0));
-        }
-
-        @Test
-        @DisplayName("peacetime aggression can be turned on, for a server that wants it")
-        void configurablePeacetimeAggression() {
-            support.configs.get(ConfigFile.DEFENSE)
-                    .set("behaviour.attack-players-in-peacetime", true);
-
-            assertEquals(DefenseBehaviour.Reaction.ATTACK,
-                    behaviour.towardsPlayer(city, stranger, 1.0));
-            assertEquals(DefenseBehaviour.Reaction.ATTACK,
-                    behaviour.towardsPlayer(city, member, 1.0),
-                    "and it is genuinely indiscriminate, which is why it is off by default");
-        }
-    }
-
-    // ==================================================================================
-    // SPEC 12.3, mobs
-    // ==================================================================================
-
-    @Nested
-    @DisplayName("SPEC 12.3: hostile mobs")
-    class Hostiles {
-
-        @Test
-        @DisplayName("row 2: a hostile mob in the claim is attacked")
-        void hostilesAreAttacked() {
-            assertEquals(DefenseBehaviour.Reaction.ATTACK, behaviour.towardsHostile(city));
-        }
-
-        @Test
-        @DisplayName("that can be turned off, leaving units purely decorative in peacetime")
-        void configurable() {
-            support.configs.get(ConfigFile.DEFENSE)
-                    .set("behaviour.attack-hostile-mobs-in-peacetime", false);
-
-            assertEquals(DefenseBehaviour.Reaction.IGNORE, behaviour.towardsHostile(city));
-        }
-    }
-
-    // ==================================================================================
-    // The leash, SPEC 12.3
-    // ==================================================================================
+    // The SPEC 12.3 player and hostile-mob rows moved to TargetingRuleTest with the decision
+    // itself: SPEC 30.1 requires one handler and "no unit-specific targeting logic anywhere
+    // else", so a second table here would be the thing it forbids. Every row they covered is
+    // asserted there — a visitor ignored in peacetime, a member ignored always, a hostile mob
+    // attacked — against the rule that actually runs.
+    //
+    // Two config toggles went with them and are not coming back. attack-players-in-peacetime
+    // had no equivalent in SPEC 30.1's table and, switched on, would break SPEC 13.4's contest
+    // voting outright, which SPEC 25.2 Rule 2 exists to protect: "peacetime is safe". The same
+    // reasoning the config sweep applied to bounties.claimable-only-during-war — a switch that
+    // disables a rule SPEC calls deliberate is not something to ship.
 
     @Nested
     @DisplayName("SPEC 12.3: the leash")

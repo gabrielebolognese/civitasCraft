@@ -125,7 +125,10 @@ public final class UnitTargeting {
      */
     private double rangeOf(String type) {
         var defense = configs.get(dev.civitas.config.ConfigFile.DEFENSE);
-        double fallback = defense.getDouble("targeting.default-range-blocks", 16.0);
+        // behaviour.war-target-range, not a second key of my own: one concept under two names
+        // is the twin the config sweep found three of, and this one was already shipped and
+        // tested. M12d's roster adds units.<key>.range on top.
+        double fallback = defense.getDouble("behaviour.war-target-range", 24.0);
         return defense.getDouble("units." + type + ".range", fallback);
     }
 

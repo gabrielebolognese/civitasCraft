@@ -6,7 +6,6 @@ import java.util.logging.Logger;
 
 import dev.civitas.core.city.City;
 import dev.civitas.core.city.CityRegistry;
-import dev.civitas.core.defense.DefenseBehaviour;
 import dev.civitas.core.defense.DefenseService;
 import dev.civitas.core.defense.DefenseUnit;
 import dev.civitas.core.defense.DefenseUnitType;
@@ -33,25 +32,25 @@ import org.bukkit.inventory.ItemStack;
 /**
  * Defense units in the world, SPEC 12.3 to 12.5.
  *
- * <p>Placement from an egg, death, the SPEC 12.3 targeting table, and the SPEC 12.5
- * persistence rules. The decisions all live in {@link DefenseBehaviour}; this class is the
- * wiring that asks it.
+ * <p>Placement from an egg, death, SPEC 30.1's targeting, and the SPEC 12.5 persistence
+ * rules. Every decision lives in {@link dev.civitas.core.defense.TargetingRule}; this class is
+ * the wiring that asks it.
  */
 public final class DefenseListener implements Listener {
 
     private final org.bukkit.plugin.Plugin plugin;
     private final DefenseService defense;
-    private final DefenseBehaviour behaviour;
+    private final dev.civitas.core.defense.UnitTargeting targeting;
     private final CityRegistry cities;
     private final LangManager lang;
     private final Logger logger;
 
     public DefenseListener(org.bukkit.plugin.Plugin plugin, DefenseService defense,
-                           DefenseBehaviour behaviour, CityRegistry cities, LangManager lang,
-                           Logger logger) {
+                           dev.civitas.core.defense.UnitTargeting targeting, CityRegistry cities,
+                           LangManager lang, Logger logger) {
         this.plugin = Objects.requireNonNull(plugin, "plugin");
         this.defense = Objects.requireNonNull(defense, "defense");
-        this.behaviour = Objects.requireNonNull(behaviour, "behaviour");
+        this.targeting = Objects.requireNonNull(targeting, "targeting");
         this.cities = Objects.requireNonNull(cities, "cities");
         this.lang = Objects.requireNonNull(lang, "lang");
         this.logger = Objects.requireNonNull(logger, "logger");
@@ -156,51 +155,39 @@ public final class DefenseListener implements Listener {
     // ==================================================================================
 
     /**
-     * What a unit is allowed to go after.
+     * What a unit is allowed to go after, SPEC 30.1.
      *
-     * <p>The whole SPEC 12.3 table, applied at the moment the mob picks a target. Peacetime
-     * players are the case that matters: a unit that targets a visitor is a unit that makes
-     * its city unvisitable.
+     * <p>Plumbing only. Every decision is {@link dev.civitas.core.defense.TargetingRule}'s, and
+     * SPEC 30.1 requires that this be the only handler: "no unit-specific targeting logic
+     * anywhere else". Before M12b there were two tables — this one and SPEC 12.3's — and the
+     * ordering guarantee that keeps a unit from attacking its own members holds only in the
+     * one that has it.
      */
     @EventHandler(priority = EventPriority.HIGH, ignoreCancelled = true)
     public void onTarget(EntityTargetLivingEntityEvent event) {
-        Optional<Integer> id = defense.spawner().unitIdOf(event.getEntity());
-        if (id.isEmpty()) {
-            return;
-        }
-        Optional<DefenseUnit> unit = defense.registry().byId(id.get());
-        Optional<City> owner = unit.flatMap(found -> cities.city(found.cityId()));
-        if (owner.isEmpty()) {
-            event.setCancelled(true);
-            return;
-        }
+        targeting.decide(event.getEntity(), event.getTarget(), System.currentTimeMillis())
+                .filter(decision -> !decision.allowed())
+                .ifPresent(decision -> {
+                    event.setCancelled(true);
+                    event.setTarget(null);
+                });
+    }
 
-        LivingEntity target = event.getTarget();
-        if (target == null) {
-            return;
-        }
+    /** SPEC 26.4: five seconds after joining, nothing may target you. */
+    @EventHandler(priority = EventPriority.MONITOR)
+    public void onJoin(org.bukkit.event.player.PlayerJoinEvent event) {
+        targeting.graceFor(event.getPlayer().getUniqueId(), System.currentTimeMillis());
+    }
 
-        if (target instanceof Player player) {
-            double distance = distanceBetween(event.getEntity(), player);
-            if (behaviour.towardsPlayer(owner.get(), player.getUniqueId(), distance)
-                    == DefenseBehaviour.Reaction.IGNORE) {
-                event.setCancelled(true);
-                event.setTarget(null);
-            }
-            return;
-        }
+    /** And the same after respawning, which is the case that matters during a war. */
+    @EventHandler(priority = EventPriority.MONITOR)
+    public void onRespawn(org.bukkit.event.player.PlayerRespawnEvent event) {
+        targeting.graceFor(event.getPlayer().getUniqueId(), System.currentTimeMillis());
+    }
 
-        boolean hostile = target instanceof Monster;
-        if (!hostile) {
-            // A guard must not decide the city's cows are the enemy.
-            event.setCancelled(true);
-            event.setTarget(null);
-            return;
-        }
-        if (behaviour.towardsHostile(owner.get()) == DefenseBehaviour.Reaction.IGNORE) {
-            event.setCancelled(true);
-            event.setTarget(null);
-        }
+    @EventHandler(priority = EventPriority.MONITOR)
+    public void onQuit(org.bukkit.event.player.PlayerQuitEvent event) {
+        targeting.forget(event.getPlayer().getUniqueId());
     }
 
     /** A unit never targets something for a reason the table does not cover. */

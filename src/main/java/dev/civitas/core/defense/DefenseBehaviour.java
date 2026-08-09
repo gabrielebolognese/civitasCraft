@@ -8,16 +8,19 @@ import dev.civitas.core.city.City;
 import dev.civitas.core.city.CityRegistry;
 
 /**
- * The SPEC 12.3 behaviour table, as decisions rather than as event handling.
+ * What a unit knows about a war, and how far it may wander. SPEC 12.3's leash and sides.
  *
- * <h2>The rule that matters most</h2>
- * SPEC 12.3's first row: <b>in peacetime, a visitor in a claim is ignored completely.</b> A
- * defended city is a place people can walk through. Getting this wrong turns every city into
- * a no-go zone and contradicts SPEC 1.4 directly, which says combat is a scheduled event
- * rather than the default state of the world.
+ * <h2>What this no longer does</h2>
  *
- * <p>Pure, so the table can be tested one row at a time without a server, and so the listener
- * that consumes it has nothing in it but plumbing.
+ * <p>It used to decide targeting, and SPEC 30.1 forbids that: "There must be exactly one such
+ * handler and no unit-specific targeting logic anywhere else." That decision moved to
+ * {@link TargetingRule}, which is ordered so a member of the owning city is safe whatever
+ * state a unit is in — a guarantee a second table sitting beside it would quietly undo.
+ *
+ * <p>What stayed is the part that was never targeting: SPEC 12.3's leash, and the two questions
+ * about sides that {@link UnitTargeting} now asks through its seams. Those carry a nuance worth
+ * keeping — SPEC 17.4 case 41, that a player with no city is a bystander rather than an enemy,
+ * so somebody who wandered in during a war is not shot at.
  */
 public final class DefenseBehaviour {
 
@@ -40,36 +43,6 @@ public final class DefenseBehaviour {
     // ==================================================================================
     // Players
     // ==================================================================================
-
-    /**
-     * What a unit does about a player, SPEC 12.3 rows 1, 3 and 4.
-     *
-     * @param owner    the city the unit belongs to
-     * @param player   who it can see
-     * @param distance how far away, in blocks
-     */
-    public Reaction towardsPlayer(City owner, UUID player, double distance) {
-        // Rows 3 and 4: only ever in war, and never against its own side.
-        if (!isAtWarWith(owner, player)) {
-            // Row 1: a visitor in peacetime is ignored completely. Not warned, not pushed,
-            // not damaged.
-            return catalogue.attacksPlayersInPeacetime() ? Reaction.ATTACK : Reaction.IGNORE;
-        }
-        if (owner.isMember(player) || isAllied(owner, player)) {
-            return Reaction.IGNORE;
-        }
-        return distance <= catalogue.warTargetRange() ? Reaction.ATTACK : Reaction.IGNORE;
-    }
-
-    /**
-     * What a unit does about a hostile mob, SPEC 12.3 row 2.
-     *
-     * <p>Attacks it, in peace or in war. This is what a unit does with the other 99% of its
-     * existence and is most of what a city is actually buying.
-     */
-    public Reaction towardsHostile(City owner) {
-        return catalogue.attacksHostilesInPeacetime() ? Reaction.ATTACK : Reaction.IGNORE;
-    }
 
     // ==================================================================================
     // The leash, SPEC 12.3
@@ -104,7 +77,7 @@ public final class DefenseBehaviour {
      * with anybody, which is SPEC 17.4 case 41 again: somebody who wandered in during a war
      * is a bystander, and a guard that killed them would be attacking a passer-by.
      */
-    private boolean isAtWarWith(City owner, UUID player) {
+    public boolean isEnemyOf(City owner, UUID player) {
         if (wars == null) {
             return false;
         }
@@ -126,7 +99,7 @@ public final class DefenseBehaviour {
      * city this one has an alliance with: SPEC 11.10 lets an ally sit a war out, and one that
      * did not join has no business being shot at either. Same side, or not a target.
      */
-    private boolean isAllied(City owner, UUID player) {
+    public boolean isSameSide(City owner, UUID player) {
         Optional<City> theirs = cities.cityOf(player);
         if (theirs.isEmpty()) {
             return false;

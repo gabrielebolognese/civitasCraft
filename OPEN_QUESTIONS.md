@@ -2351,3 +2351,44 @@ Format:
   regeneration measures from that timestamp, so a server offline for a week would otherwise heal
   every damaged unit to full on boot — the healing SPEC 25.4 disables during a war, arriving for
   free just after one. *Date:* 2026-08-09
+
+- **[M12b]** SPEC 30.1's second clause — "no unit-specific targeting logic anywhere else" — is a
+  prohibition, and honouring it meant **deleting** rather than adding. `DefenseBehaviour`'s
+  `towardsPlayer` and `towardsHostile` were the superseded SPEC 12.3 table, and leaving them
+  beside `TargetingRule` would have been two authorities deciding what a unit attacks: the
+  defect this project has been bitten by repeatedly, in the one place where the consequence is a
+  city's guards killing its own members. *Implemented default:* both deleted, with zero
+  references remaining, so the prohibition is enforced by the compiler rather than by a comment.
+  `isEnemyOf` and `isSameSide` were **kept and promoted**, because they carry a nuance the new
+  code would otherwise have lost — SPEC 17.4 case 41, that a player with no city is a bystander
+  rather than an enemy, so somebody who wandered in during a war is not shot at.
+  *Date:* 2026-08-09
+
+- **[M12b]** Two `defense.yml` toggles went with the old table and are deliberately not replaced.
+  `behaviour.attack-players-in-peacetime` has **no equivalent anywhere in SPEC 30.1's decision
+  table**, and switched on it makes units attack visitors — which breaks SPEC 13.4's contest
+  voting outright, since that requires players to travel to other cities to view and score
+  entries. SPEC 25.2 Rule 2 names this consequence directly: "peacetime is safe… a defense
+  system that attacks visitors makes contest voting impossible and kills build tourism. On a
+  building-focused server that is fatal." `attack-hostile-mobs-in-peacetime` went for the
+  narrower reason that SPEC 30.1 allows a PASSIVE unit to attack a hostile mob unconditionally.
+  Same call the config sweep made about `bounties.claimable-only-during-war`: a switch that
+  disables a rule SPEC calls deliberate is not something to ship. *Date:* 2026-08-09
+
+- **[M12b]** **I shipped a twin config key about an hour after writing about that exact defect.**
+  `targeting.default-range-blocks` was a second name for `behaviour.war-target-range`, which
+  already existed, was already shipped and was already tested. It was caught while removing the
+  old code — not by `ConfigKeyUsageTest`, which cannot see it, because both keys were read by
+  something and neither was dead. Worth recording because the sweep that found three of these
+  has a blind spot: it detects a key nothing reads, not two keys meaning one thing. The
+  `noDeadTwins` half only catches the case where one of the pair is inert. *Date:* 2026-08-09
+
+- **[M12b]** A nested test class named `Ordering` claimed to verify SPEC 30.1's positional order
+  and **did not**. Mutation testing showed that moving the ownership check to after the state
+  checks fails nothing — it still cancels before any allow, so the decision is identical — and
+  that only deleting the check outright fails anything, which it does, seven times.
+  *Implemented default:* renamed to `NeverAttackedInAnyState`, which is what it actually
+  guarantees: ownership and alliance are always consulted before a unit is allowed to attack.
+  Third instance this session of a test claiming more than it delivers, after M6c's concurrency
+  test and M12a's skipped materialisation tests, so it is a habit to watch rather than three
+  accidents. *Date:* 2026-08-09

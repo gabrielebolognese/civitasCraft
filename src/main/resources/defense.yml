@@ -1,8 +1,3 @@
-# SPEC 30.1's targeting. How far a unit can see before it stops caring, until M12d ships the
-# SPEC 27 roster and its per-unit ranges (units.<key>.range overrides this).
-targeting:
-  default-range-blocks: 16
-
 # SPEC 25.4. A unit is a row that becomes an entity only while somebody is near it, and goes
 # back to being a row when they leave. SPEC 25.4 opens by calling this "an architectural
 # requirement, not an optimisation": two hundred cities times twelve units is 2,400 permanently
@@ -38,12 +33,11 @@ placement:
   wartime-purchase-multiplier: 2.0
 
 behaviour:
-  # SPEC 12.3
+  # SPEC 12.3, and SPEC 30.1's last line: how far a unit can see. M12d's roster adds
+  # units.<key>.range on top of this for the units SPEC 27 gives their own figure.
   war-target-range: 24
   leash-distance-blocks: 8
   name-visible-range: 16
-  attack-hostile-mobs-in-peacetime: true
-  attack-players-in-peacetime: false
 
 # Each unit is a vanilla mob with attribute modifiers and equipment. No NMS.
 # The Fortification upgrade adds health-bonus-percent-per-level to every unit.
