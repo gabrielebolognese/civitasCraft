@@ -111,6 +111,13 @@ final class MenuTestSupport implements AutoCloseable {
                 cities.daos.defenseUnits(), defenseRegistry, defenseCatalogue,
                 new DefenseSpawner(plugin, defenseCatalogue, lang), cities.registry,
                 cities.claimRegistry, cities.treasury, upgradeService, lang, Scheduler.direct());
+        dev.civitas.core.defense.WardenRegistry wardenRegistry =
+                new dev.civitas.core.defense.WardenRegistry(cities.daos.cityWardens());
+        dev.civitas.core.defense.WardenService wardenService =
+                new dev.civitas.core.defense.WardenService(cities.db, cities.daos.cityWardens(),
+                        cities.daos.defenseUnits(), wardenRegistry, defenseRegistry,
+                        defenseCatalogue, cities.registry, cities.treasury, upgradeService,
+                        Scheduler.direct());
 
         DiplomacyRegistry diplomacyRegistry = new DiplomacyRegistry(cities.daos.alliances(),
                 cities.daos.truces());
@@ -208,7 +215,7 @@ final class MenuTestSupport implements AutoCloseable {
                         0, false),
                 cities.daos,
                 scoreboard, outposts,
-                outpostTeleport, upgradeService, defenseService, diplomacyService, vaultService,
+                outpostTeleport, upgradeService, defenseService, wardenService, diplomacyService, vaultService,
                 vaultView, menus, layouts,
                 input, spawns, halls,
                 cities.accounts, new PlayerLookup(cities.daos.players()), Scheduler.direct());

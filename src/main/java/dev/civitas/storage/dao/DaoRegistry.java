@@ -58,6 +58,7 @@ public final class DaoRegistry {
     private final CityUpgradeDao cityUpgrades;
     private final CityVaultDao cityVault;
     private final DefenseUnitDao defenseUnits;
+    private final CityWardenDao cityWardens;
     private final AuditLogDao auditLog;
 
     public DaoRegistry(DatabaseManager db) {
@@ -106,6 +107,7 @@ public final class DaoRegistry {
         this.cityUpgrades = new CityUpgradeDao(db);
         this.cityVault = new CityVaultDao(db);
         this.defenseUnits = new DefenseUnitDao(db);
+        this.cityWardens = new CityWardenDao(db);
         this.auditLog = new AuditLogDao(db);
     }
 
@@ -291,6 +293,11 @@ public final class DaoRegistry {
         return defenseUnits;
     }
 
+    /** SPEC 28's City Warden, one row per city that owns one. */
+    public CityWardenDao cityWardens() {
+        return cityWardens;
+    }
+
     public AuditLogDao auditLog() {
         return auditLog;
     }
@@ -302,6 +309,6 @@ public final class DaoRegistry {
                 warEntitySnapshots, bounties, protectedChunks, reports,
                 upkeepMultipliers, alliances,
                 truces, marketStock, sellQuota, dailyActivity, playerToggles, warps, miningClaims, waystations, playerShops, playerQuests, cityChallenges, contests, contestEntries, contestVotes,
-                cityUpgrades, cityVault, defenseUnits, auditLog);
+                cityUpgrades, cityVault, defenseUnits, cityWardens, auditLog);
     }
 }

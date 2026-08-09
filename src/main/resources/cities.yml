@@ -239,11 +239,12 @@ upgrades:
   fortification:
     display-name: Fortification
     effect-per-level: 5.0        # +5% defense unit health
-    # How many extra units a level allows is configured in defense.yml, under
-    # placement.units-per-fortification-level, because placement is defense's business.
-    # SPEC 5.7 says +1 and SPEC 12.4 says +2; SPEC 12.4 wins, because its stated range of
-    # "5 to 15" is only arithmetic at +2. Keeping the number in one file means the two
-    # cannot disagree the way the specification does.
+    # How much more a level lets a city field is configured in defense.yml, under
+    # capacity.per-fortification-level, because placement is defense's business.
+    #
+    # It is points now, not units. SPEC 5.7 said +1 unit and SPEC 12.4 said +2, and SPEC 25.5
+    # retires the argument along with the count itself: "A count permits fifteen Colossi. A
+    # points budget does not." A level buys 25 points of capacity, out of 100 to 225.
     costs: [50000, 110000, 240000, 500000, 1100000]
   market-access:
     display-name: Market Access

@@ -893,6 +893,12 @@ public final class ClaimService {
         if (removed.type() != ClaimType.CORE) {
             return;
         }
+        // SPEC 30.2 case 99: "Core chunk is admin-transferred while a Warden is placed: Warden is
+        // removed and the city is refunded 100%, because this is an admin action, not a player
+        // outcome." SPEC writes the case for transfer only; force-unclaim reaches here by the
+        // same route and leaves a Warden standing in land the city no longer owns, so it is
+        // treated identically. Both are an operator's decision rather than a game outcome.
+        onCoreChunkMoved.accept(removed.cityId());
         registry.claimsOf(removed.cityId()).stream()
                 .filter(claim -> claim.type() != ClaimType.OUTPOST)
                 .min(Comparator.comparingLong(Claim::claimedAt))
@@ -904,6 +910,19 @@ public final class ClaimService {
                     registry.remove(oldest);
                     registry.put(promoted);
                 });
+    }
+
+    private java.util.function.IntConsumer onCoreChunkMoved = cityId -> { };
+
+    /**
+     * Told when an admin takes a city's core chunk away, SPEC 30.2 case 99.
+     *
+     * <p>A hook rather than a {@code ClaimUnclaimEvent} listener for the reason M13 recorded about
+     * disbanding: the custom events fire <em>before</em> their mutation so that cancelling them can
+     * mean something, and case 99's consequence has to run after the chunk has actually moved.
+     */
+    public void onCoreChunkMoved(java.util.function.IntConsumer listener) {
+        this.onCoreChunkMoved = java.util.Objects.requireNonNull(listener, "listener");
     }
 
     /** SPEC 9.4.3: "Move ownership of current chunk to another city." */

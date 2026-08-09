@@ -119,8 +119,10 @@ public final class AdminInspectCommands {
                             ? stamp(city.warProtectionUntil()) : "-"));
             lang.sendRaw(audience, "admin.info.upgrades",
                     Replies.p("bought", String.valueOf(current.upgrades().totalLevels(city.id()))),
-                    Replies.p("defense", String.valueOf(current.defense().registry()
-                            .activeCount(city.id()))));
+                    // Points, not a count: an admin looking for a city that is over budget
+                    // cannot see it from how many units are standing.
+                    Replies.p("defense", current.defense().pointsSpent(city.id())
+                            + "/" + current.defense().capacity(city)));
         }, () -> lang.send(audience, "city.unknown"));
     }
 

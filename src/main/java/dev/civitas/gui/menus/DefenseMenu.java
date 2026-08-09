@@ -57,9 +57,13 @@ public final class DefenseMenu extends CityMenu {
         }
 
         set(31, info(Material.PAPER, text("gui.defense.summary"),
-                text("gui.defense.active", "active",
-                        String.valueOf(services.defense().registry().activeCount(city.id())),
-                        "max", String.valueOf(services.defense().maxUnits(city))),
+                // SPEC 25.5's budget, not a unit count: the count was what "permit[ted] fifteen
+                // Colossi", so showing it here would be reporting the retired rule.
+                text("gui.defense.capacity",
+                        "used", String.valueOf(services.defense().pointsSpent(city.id())),
+                        "total", String.valueOf(services.defense().capacity(city))),
+                text("gui.defense.standing", "active",
+                        String.valueOf(services.defense().registry().activeCount(city.id()))),
                 text("gui.defense.upkeep", "amount",
                         money(services.defense().registry().dailyUpkeep(city.id()))),
                 text("gui.defense.per-chunk", "limit", String.valueOf(
@@ -69,18 +73,44 @@ public final class DefenseMenu extends CityMenu {
     private Button unitButton(City city, DefenseUnitType type) {
         BigDecimal cost = services.defense().costFor(city, type);
 
-        Button.Builder builder = Button.of(iconFor(type),
+        Button.Builder builder = Button.of(
+                        dev.civitas.core.defense.DefenseService.eggMaterialFor(type),
                         text("gui.defense.unit", "name", type.displayName()))
-                .lore(text(type.messageKey()))
-                .lore(text("gui.defense.stats",
-                        "health", trim(type.health()),
-                        "damage", trim(type.damage())))
-                .lore(text("gui.defense.cost", "amount", money(cost)))
+                .lore(text(type.messageKey()));
+
+        // Two of SPEC 27's six deal no damage at all, and SPEC 27.1 gives the Watchtower
+        // Keeper's health as "n/a". A line reading "Health 40, damage 0" for a unit that cannot
+        // fight reads as a broken unit rather than as a stated design.
+        if (type.dealsDamage()) {
+            builder.lore(text("gui.defense.stats",
+                    "health", trim(type.health()),
+                    "damage", trim(type.damage())));
+        } else {
+            builder.lore(text("gui.defense.no-damage"));
+        }
+
+        builder.lore(text("gui.defense.cost", "amount", money(cost)))
                 .lore(text("gui.defense.unit-upkeep", "amount", money(type.upkeepPerDay())));
 
+        // SPEC 25.5's price in points, which is the number a composition decision turns on. A
+        // zero-point unit says so rather than reading as free: SPEC 25.5 excludes the City
+        // Warden from the budget deliberately, and "0 points" invites the wrong conclusion.
+        builder.lore(type.points() > 0
+                ? text("gui.defense.points", "points", String.valueOf(type.points()))
+                : text("gui.defense.points-free"));
+
+        // SPEC 8.9 asks each entry to show "current count".
+        builder.lore(text("gui.defense.owned", "count",
+                String.valueOf(countOf(city, type))));
+
         if (cost.compareTo(type.cost()) > 0) {
-            // SPEC 12.4: units bought during a war cost double, so defense is planned in PREP.
+            // SPEC 27.8: units bought during a war cost double, so defense is planned in PREP.
             builder.lore(text("gui.defense.wartime-price"));
+        }
+        if (!services.defense().fits(city, type)) {
+            builder.lore(text("gui.defense.will-not-fit",
+                    "points", String.valueOf(type.points()),
+                    "free", String.valueOf(services.defense().pointsRemaining(city))));
         }
         if (city.treasury().compareTo(cost) < 0) {
             builder.lore(text("gui.defense.cannot-afford"));
@@ -112,20 +142,28 @@ public final class DefenseMenu extends CityMenu {
                                     .dropItemNaturally(player.getLocation(), left));
                     manager.lang().send(player, "defense.bought",
                             dev.civitas.lang.LangManager.placeholder("unit",
-                                    type.displayName()));
+                                    type.displayName()),
+                            // SPEC 30.4's template. An unplaced egg costs no capacity, so this
+                            // is the only warning a player gets before buying more than the
+                            // budget will let them put in the ground.
+                            dev.civitas.lang.LangManager.placeholder("used", String.valueOf(
+                                    services.defense().pointsSpent(city().id()))),
+                            dev.civitas.lang.LangManager.placeholder("total", String.valueOf(
+                                    services.defense().capacity(city()))));
                     refresh();
                 }));
+    }
+
+    /** How many of this unit the city already has standing, SPEC 8.9's "current count". */
+    private long countOf(City city, DefenseUnitType type) {
+        return services.defense().registry().activeOf(city.id()).stream()
+                .filter(unit -> unit.type().equals(type.key()))
+                .count();
     }
 
     private static String trim(double value) {
         return value == Math.rint(value)
                 ? String.valueOf((long) value)
                 : String.valueOf(value);
-    }
-
-    /** The unit's own spawn egg, so the grid reads like what it hands out. */
-    private static Material iconFor(DefenseUnitType type) {
-        Material egg = Material.matchMaterial(type.mob().name() + "_SPAWN_EGG");
-        return egg == null ? Material.IRON_GOLEM_SPAWN_EGG : egg;
     }
 }

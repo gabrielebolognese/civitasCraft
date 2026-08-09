@@ -1,3 +1,35 @@
+# SPEC 26.2, which opens "This is what replaces 'attacks foreigners on sight.'" A city's guards
+# ignore visitors entirely until one player repeatedly does something they were told they could
+# not -- and even then the first thing that happens is a warning they can act on.
+#
+# Only NON-MEMBERS generate violations. A citizen who lacks CONTAINER is refused too, and
+# counting that would have a city's guards attack the people who live there.
+trespass:
+  enabled: true
+  violations: 3
+  window-seconds: 30
+  # "No player is ever killed without being told, in plain language, that they are about to be.
+  # This matters most for the Warden, which is lethal to an unarmored player."
+  warning-seconds: 5
+  duration-seconds: 45
+  de-escalation-seconds: 10
+  # A radius rather than the whole city: a guard on the far side of a two-hundred-chunk city
+  # has not seen anything.
+  alert-radius-chunks: 2
+  # One player action must not be several violations. A held left-click fires a break event
+  # every tick, one bucket pour asks the guard twice, and one multi-place asks once per
+  # replaced block -- counted raw, a fifth of a second of holding a mouse button crosses the
+  # three-strike threshold and a city's first word to a visitor is a false accusation.
+  violation-cooldown-ms: 1500
+  # SPEC 26.2 step 1's "units glow in the city colour". Purely visual, so it can be turned off.
+  # The colour itself is derived from the city id: SPEC asks for a city colour and defines one
+  # nowhere, so there is nothing to configure here.
+  glow: true
+  # SPEC 30.4 names ENTITY_WARDEN_ROAR at 1.0 for the trespass warning.
+  warning-sound: "entity.warden.roar"
+  warning-sound-volume: 1.0
+  warning-sound-pitch: 1.0
+
 # SPEC 25.4. A unit is a row that becomes an entity only while somebody is near it, and goes
 # back to being a row when they leave. SPEC 25.4 opens by calling this "an architectural
 # requirement, not an optimisation": two hundred cities times twelve units is 2,400 permanently
@@ -14,6 +46,10 @@ materialization:
   max-materialized: 60
   sweep-interval-ticks: 40
   health-checkpoint-seconds: 30
+  # SPEC 28.8 asks for the Warden alone to be checkpointed three times as often: its health is
+  # the difference between a city keeping a 750,000 C asset through a crash and losing the record
+  # of the fight that was killing it.
+  warden-health-checkpoint-seconds: 10
   # Healing while nobody is watching, capped at full. Disabled during a war whatever this says,
   # so damage dealt in a war sticks: a city that could heal its garrison by keeping players
   # away from it would have found the cheapest possible defence against a siege.
@@ -24,13 +60,33 @@ materialization:
 
 enabled: true
 
+# SPEC 25.5's points budget, which replaces Part I 12.4's unit count. SPEC 25.5 gives the reason
+# in one sentence: "A count permits fifteen Colossi. A points budget does not." A count says
+# nothing about what a city fields, so a maxed one could put fifteen of the most expensive thing
+# on the roster in the ground -- the unbeatable garrison SPEC 25.2 Rule 1 forbids outright.
+#
+# 100 at Fortification 0, 225 at Fortification 5. SPEC 25.5's own worked garrisons: five City
+# Guards (5 x 20) fit exactly at level 0, three Colossi (3 x 45) fit at level 2, and five Colossi
+# (5 x 45) fit exactly at level 5.
+#
+# SPEC 25.5's prose names these defense.base-capacity and defense.capacity-per-fortification;
+# SPEC 30.3's own defense.yml nests them as below, and the file is the one that shows the nesting.
+capacity:
+  base: 100
+  per-fortification-level: 25
+
 placement:
-  # SPEC 12.4
-  base-max-active-units: 5
-  units-per-fortification-level: 2
+  # SPEC 27.8
   max-units-per-chunk: 3
   # Units bought during an ACTIVE war cost this multiplier.
   wartime-purchase-multiplier: 2.0
+  # SPEC 27.8: a unit placed during an ACTIVE war "enter[s] a 60-second inactive period before
+  # functioning". The double price makes reinforcing mid-fight expensive; this makes it late,
+  # which is the half that decides the fight it was bought for.
+  war-purchase-inactive-seconds: 60
+  # SPEC 30.2 case 92: "If teleport fails three times, dematerialized and re-materialized at
+  # post." Stated in the case itself; SPEC 30.3 gives it no home.
+  leash-teleport-failures: 3
 
 behaviour:
   # SPEC 12.3, and SPEC 30.1's last line: how far a unit can see. M12d's roster adds
@@ -39,65 +95,122 @@ behaviour:
   leash-distance-blocks: 8
   name-visible-range: 16
 
+# SPEC 30.2 case 112. A unit that pathfinds into lava or off a cliff is put back at its post
+# rather than deleted by terrain -- "prevents terrain from deleting paid assets" -- but only
+# once an hour, so a player who keeps pushing one in eventually wins.
+#
+# Neither number has a home in SPEC 30.3; both are stated in case 112 itself.
+survival:
+  death-save-health-percent: 20
+  death-save-cooldown-minutes: 60
+
 # Each unit is a vanilla mob with attribute modifiers and equipment. No NMS.
 # The Fortification upgrade adds health-bonus-percent-per-level to every unit.
 health-bonus-percent-per-fortification-level: 5.0
 
+# =====================================================================================
+# The roster, SPEC 27.
+#
+# SPEC 25.1 retired the eight-unit catalogue this replaces: "Watchman, City Guard, and Elite
+# Guard were one unit at three price points. Archer and Sharpshooter were one unit at two.
+# Five of eight entries performed two jobs, and the only decision a player made was how much
+# to spend." Vertical scaling belongs to the Fortification upgrade, not to parallel tiers.
+#
+# Six units, and every one does a job no other does. Two of them deal no damage at all.
+#
+# `range` is one key doing three jobs on purpose, because SPEC gives it three names for the
+# same number: the Warhound's "chases up to 24 blocks", the Archer's "20 blocks, hard capped",
+# and the Keeper's "detection radius 32". Shipping chase-range beside range would be the dead
+# twin the config sweep found three of -- and worse here, because the targeting handler already
+# reads `range` and would have fallen silently through to the identical default of 24.
+# =====================================================================================
 units:
-  watchman:
-    display-name: Watchman
-    mob: ZOMBIE
+
+  # SPEC 27.2. Area denial, and it never deals damage to anything.
+  # Counterplay (SPEC 25.2 Rule 3): 30 HP, dies to two arrows, and melts in lava or near fire.
+  # Its rain and water damage are cancelled (SPEC 30.2 case 107) and its fire damage is not,
+  # which is the whole of the difference between a bug and a stated weakness.
+  frost-sentry:
+    display-name: Frost Sentry
+    mob: SNOW_GOLEM
+    health: 30
+    damage: 0
+    speed: 0.0
+    range: 16
+    cost: 6000
+    upkeep-per-day: 300
+    points: 8
+    # SPEC 30.3 writes these as LEVELS. Bukkit takes an amplifier, and Slowness II is
+    # amplifier 1, so the conversion happens once in UnitAbilities rather than in each caller.
+    slowness-level: 2
+    slowness-seconds: 3
+    mining-fatigue-level: 1
+    mining-fatigue-seconds: 2
+
+  # SPEC 27.3. Detection. Cannot fight, and cannot be fought outside a war.
+  # Counterplay: during a war it has 40 HP and no defence, so killing the Keepers first is the
+  # correct opening move for any competent attacker.
+  watchtower-keeper:
+    display-name: Watchtower Keeper
+    mob: ARMOR_STAND
+    # SPEC 27.1 gives its health as "n/a" and SPEC 27.3 as "Invulnerable outside war, 40
+    # during war". One number and a flag, rather than SPEC 30.3's war-health beside a health
+    # that does not exist.
     health: 40
-    damage: 5
-    speed: 0.25
-    cost: 8000
-    upkeep-per-day: 400
+    damage: 0
+    speed: 0.0
+    range: 32
+    cost: 9000
+    upkeep-per-day: 350
+    points: 10
+    invulnerable-outside-war: true
+    glow-refresh-seconds: 3
+    chat-alert-cooldown-minutes: 5
+    # An armour stand has no spawn egg, so without this the shop draws one item and hands
+    # over another.
+    icon: SPYGLASS
     equipment:
-      helmet: CHAINMAIL_HELMET
-      chestplate: CHAINMAIL_CHESTPLATE
-      leggings: CHAINMAIL_LEGGINGS
-      boots: CHAINMAIL_BOOTS
-      main-hand: IRON_SWORD
+      helmet: LEATHER_HELMET
+      chestplate: LEATHER_CHESTPLATE
+      leggings: LEATHER_LEGGINGS
+      boots: LEATHER_BOOTS
+      main-hand: SPYGLASS
 
-  city-guard:
-    display-name: City Guard
-    mob: ZOMBIE
-    health: 100
-    damage: 9
-    speed: 0.30
-    cost: 20000
-    upkeep-per-day: 900
-    equipment:
-      helmet: IRON_HELMET
-      chestplate: IRON_CHESTPLATE
-      leggings: IRON_LEGGINGS
-      boots: IRON_BOOTS
-      main-hand: IRON_SWORD
-      off-hand: SHIELD
+  # SPEC 27.4. Fast interceptor, faster than a sprinting player.
+  # Counterplay: 45 HP and no armour, and its speed means it arrives first and dies first.
+  warhound:
+    display-name: Warhound
+    mob: WOLF
+    health: 45
+    damage: 6
+    speed: 0.42
+    range: 24
+    cost: 10000
+    upkeep-per-day: 500
+    points: 12
+    # "Prioritises the lowest-health valid target rather than the nearest." Selection among
+    # candidates the one targeting handler already permitted, never permission of its own.
+    target-priority: LOWEST_HEALTH
+    bite-slowness-level: 1
+    bite-slowness-seconds: 2
 
-  elite-guard:
-    display-name: Elite Guard
-    mob: ZOMBIE
-    health: 160
-    damage: 14
-    speed: 0.32
-    cost: 45000
-    upkeep-per-day: 2000
-    equipment:
-      helmet: DIAMOND_HELMET
-      chestplate: DIAMOND_CHESTPLATE
-      leggings: DIAMOND_LEGGINGS
-      boots: DIAMOND_BOOTS
-      main-hand: DIAMOND_SWORD
-
+  # SPEC 27.5. Ranged, and deliberately out-ranged by a player's own bow.
+  # Counterplay: out-range it, or close to melee where its fire rate halves.
   archer:
     display-name: Archer
     mob: SKELETON
-    health: 60
-    damage: 8
-    speed: 0.28
-    cost: 15000
+    health: 55
+    damage: 7
+    # SPEC 27.5 states no movement speed; this is vanilla skeleton.
+    speed: 0.25
+    range: 20
+    cost: 16000
     upkeep-per-day: 700
+    points: 18
+    melee-firerate-penalty: 0.5
+    # SPEC 27.5 says "while any enemy is within 5 blocks" in prose and gives the figure no
+    # home in SPEC 30.3.
+    melee-firerate-radius: 5
     equipment:
       helmet: LEATHER_HELMET
       chestplate: LEATHER_CHESTPLATE
@@ -107,55 +220,135 @@ units:
       main-hand-enchantments:
         POWER: 3
 
-  sharpshooter:
-    display-name: Sharpshooter
-    mob: SKELETON
+  # SPEC 27.6. The melee line holder, and the backbone of a garrison.
+  # Counterplay: slow enough to kite, knockback works normally, and the alert network is also
+  # its weakness -- pulling one guard pulls a predictable group into a chokepoint of the
+  # attacker's choosing.
+  city-guard:
+    display-name: City Guard
+    mob: ZOMBIE
     health: 90
-    damage: 13
+    damage: 8
     speed: 0.28
-    cost: 32000
-    upkeep-per-day: 1400
+    cost: 20000
+    upkeep-per-day: 900
+    points: 20
+    # SPEC 25.3 files dyed leather under appearance, not under protection, so the leather this
+    # unit wears is stripped of its armour value and these two numbers are the whole of what
+    # it is wearing. Otherwise 8 would silently become 15.
+    armor: 8
+    toughness: 2
+    alert-network-chunks: 3
+    alert-network-seconds: 20
     equipment:
-      helmet: CHAINMAIL_HELMET
-      chestplate: CHAINMAIL_CHESTPLATE
-      leggings: CHAINMAIL_LEGGINGS
-      boots: CHAINMAIL_BOOTS
-      main-hand: BOW
-      main-hand-enchantments:
-        POWER: 5
+      helmet: LEATHER_HELMET
+      chestplate: LEATHER_CHESTPLATE
+      leggings: LEATHER_LEGGINGS
+      boots: LEATHER_BOOTS
+      main-hand: IRON_SWORD
+      off-hand: SHIELD
 
-  warhound:
-    display-name: Warhound
-    mob: WOLF
-    health: 45
-    damage: 7
-    speed: 0.42
-    cost: 10000
-    upkeep-per-day: 500
-    equipment:
-      body: WOLF_ARMOR
-
-  siege-golem:
-    display-name: Siege Golem
+  # SPEC 27.7. The heavy tank, at 1.8x scale.
+  # Counterplay: the slowest thing in the game at 0.20, cannot climb, and can simply be walked
+  # away from. Its arrow resistance is capped at 8 damage on purpose "so a fully charged
+  # Power V bow still hurts it".
+  colossus:
+    display-name: Colossus
     mob: IRON_GOLEM
-    health: 250
-    damage: 22
-    speed: 0.22
-    cost: 60000
-    upkeep-per-day: 3000
-    equipment: {}
+    health: 220
+    damage: 16
+    speed: 0.20
+    cost: 55000
+    upkeep-per-day: 2600
+    points: 45
+    scale: 1.8
+    knockback-resistance: 1.0
+    slam-radius: 3
+    slam-damage: 4
+    # SPEC 27.7 says "heavy knockback" and gives no magnitude anywhere.
+    slam-knockback: 1.2
+    # A threshold, not a scale: an arrow under 8 lands at a fifth, one at 8 lands whole.
+    arrow-resist-threshold: 8
+    arrow-resist-percent: 80
 
-  sentry:
-    display-name: Sentry
-    mob: SNOW_GOLEM
-    health: 30
-    damage: 0
-    speed: 0.0
-    cost: 6000
-    upkeep-per-day: 300
-    equipment: {}
-    # The Sentry debuffs instead of dealing damage, SPEC 12.2.
-    effect:
-      type: SLOWNESS
-      amplifier: 1
-      duration-ticks: 100
+# =====================================================================================
+# The City Warden, SPEC 28.
+#
+# The flagship. One per city, gated behind Fortification 5 and 750,000 C -- close to 2.75 million
+# once the upgrade track is counted, which SPEC 28.2 intends to be the most significant purchase
+# in the game. Only a handful of cities on a server should ever have one.
+#
+# SPEC 28.1: "It is a prestige unlock and a landmark, not a weapon." Every number below serves the
+# asymmetry SPEC 28.4 calls "the entire design" -- full vanilla health, drastically reduced
+# damage -- so that an unarmoured trespasser dies in two hits and a netherite raider needs twenty,
+# and the unit is therefore a serious obstacle and never a fight-decider.
+#
+# A sibling of `units:` rather than an entry inside it, exactly as SPEC 30.3 lays it out, which is
+# also what keeps it out of the shop: DefenseCatalogue parses this block into a unit type findable
+# by key and absent from the roster.
+# =====================================================================================
+warden:
+  enabled: true
+
+  mob: WARDEN
+  display-name: City Warden
+
+  cost: 750000
+  upkeep-per-day: 8000
+  required-fortification-level: 5
+  # SPEC 28.2: "Defense Capacity cost 0, excluded from the budget." Charging it against capacity
+  # would force a city to choose between its flagship and having any garrison at all, which makes
+  # the flagship feel like a punishment.
+  points: 0
+
+  # SPEC 28.3. Health unchanged from vanilla -- "this is the point of the unit" -- and damage cut
+  # from 30 to 10, which is the whole of SPEC 28.4's tuning table.
+  health: 500
+  damage: 10
+  # Slower than a sprinting player, deliberately: "a sprinting player can always escape".
+  speed: 0.25
+  knockback-resistance: 1.0
+  # How far it can see. Its confinement, not its eyesight, is what keeps it at the City Hall.
+  range: 24
+
+  # SPEC 28.2 gates the Warden behind Fortification 5, so without this every Warden that can
+  # legally exist would take the full SPEC 5.7 health bonus and stand at 625 HP -- making SPEC
+  # 28.3's "Health 500. Unchanged." false and every figure in SPEC 28.5's time-to-kill table
+  # wrong by a quarter. SPEC does not address the interaction; false is the reading under which
+  # its own two sections agree.
+  apply-fortification-health-bonus: false
+
+  # SPEC 28.3: never true. The vanilla boom is unblockable, unarmour-mitigated ranged damage, and
+  # "has no place in a defense unit". Setting this true is refused with a warning at startup
+  # rather than honoured, because the alternative is a config key that re-enables the one attack
+  # against which SPEC 28.4's whole armour table means nothing.
+  sonic-boom: false
+
+  # SPEC 28.3: ten blocks, and only against the trespasser it is alerted at, against vanilla's
+  # twenty blocks applied to everyone. "Atmosphere without blinding peaceful visitors."
+  darkness-radius: 10
+  # SPEC gives the radius and no duration, amplifier or refresh rate. These three are this
+  # implementation's; the duration is longer than the sweep that reapplies it so it does not
+  # flicker between ticks.
+  darkness-duration-ticks: 100
+  darkness-amplifier: 0
+
+  # SPEC 28.3: "core chunk plus 6 blocks", against free roaming in vanilla. Not the same key as
+  # behaviour.leash-distance-blocks, which is 8 and governs every other unit: "It guards the City
+  # Hall, it does not patrol the city."
+  leash-blocks: 6
+
+  # What the plugin writes on the one target the SPEC 30.1 handler permitted. A Warden is a brain
+  # mob whose attack fires from its anger map rather than from setTarget, so this is what makes
+  # SPEC 28.4's 10 damage land at all. Vanilla treats 80 as ANGRY.
+  anger-on-target: 80
+
+  # SPEC 28.6. Killed in peacetime, it burrows and comes back at full health after this long.
+  # "A 2.75 million coin asset must not be removable by a single griefer outside the sanctioned
+  # combat window."
+  recovery-hours: 6
+  # SPEC 30.3 ships these two, and both are DECLARATIONS rather than switches: an immortal
+  # 750,000 C asset in war and one a lone griefer can delete in peacetime are both outcomes SPEC
+  # 28.6 spends a paragraph refusing. Changing either is refused with a warning at startup.
+  killable-in-peacetime: false
+  killable-in-war: true

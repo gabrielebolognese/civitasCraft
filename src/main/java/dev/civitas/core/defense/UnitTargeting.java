@@ -42,6 +42,16 @@ public final class UnitTargeting {
     /** When each player last joined or respawned. Memory only; a restart resets everyone. */
     private final Map<UUID, Long> grace = new ConcurrentHashMap<>();
 
+    /**
+     * SPEC 27.8's wartime placement window. Empty until M12e's service hands over its own, so a
+     * handler built without one treats every unit as ready rather than as inert.
+     */
+    private UnitCommissioning commissioning = new UnitCommissioning();
+
+    public void useCommissioning(UnitCommissioning window) {
+        this.commissioning = Objects.requireNonNull(window, "window");
+    }
+
     public UnitTargeting(CityRegistry cities, DefenseRegistry units, DefenseSpawner spawner,
                          UnitStates states, DefenseCatalogue catalogue,
                          dev.civitas.config.ConfigManager configs) {
@@ -87,7 +97,8 @@ public final class UnitTargeting {
         UnitStates.Current current = states.of(unitId.get(), now);
 
         return Optional.of(rule.decide(
-                new TargetingRule.Unit(current.state(), current.alertedTarget(), range),
+                new TargetingRule.Unit(current.state(), current.alertedTarget(), range,
+                        !commissioning.isWarmingUp(unitId.get(), now)),
                 candidateOf(owner.get(), attacker, target, now)));
     }
 

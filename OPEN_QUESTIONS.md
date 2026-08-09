@@ -2392,3 +2392,325 @@ Format:
   Third instance this session of a test claiming more than it delivers, after M6c's concurrency
   test and M12a's skipped materialisation tests, so it is a habit to watch rather than three
   accidents. *Date:* 2026-08-09
+
+- **[M12c]** **SPEC asks for a "city colour" and defines one nowhere.** SPEC 26.2 has units
+  "glow in the city colour" and SPEC 27 dresses the roster in "dyed leather in the city's
+  colour", but SPEC 3.2's `cities` table has no such column, `City` has no such field, and no
+  section of SPEC anywhere says what a city's colour is or how one is chosen. The nearest thing
+  is SPEC 8.10 slot 22's "city banner", which is not implemented and is not a chat colour.
+  *Implemented default:* **an invention, and recorded as one.** `CityColour` derives one of
+  fifteen `NamedTextColor` values from the city id by a stride coprime with the wheel, so
+  consecutive ids -- the cities most likely to border each other -- never share a colour, and
+  the answer depends on the id and on nothing else. Black is dropped: the only use is a glowing
+  outline, and a black outline at night is not a colour. The alternative, letting a city choose,
+  is a feature SPEC never asked for and would cost a column, a command, a GUI and a migration.
+  A city that later wants to pick one can be given a column that falls back to this.
+  *Date:* 2026-08-09
+
+- **[M12c]** SPEC 3.9 defines `audit_log` as "**Admin actions only**, separate from ledger", and
+  `AuditService`'s own javadoc restates it. SPEC 26.2 then requires player violations to be
+  written there: "Violations are logged to `audit_log`, so an admin investigating a grief report
+  can see the pattern." *Implemented default:* the later section wins, so they are written --
+  actor is the trespasser, action is `TRESPASS_VIOLATION`, target is the city, metadata carries
+  the chunk and the strike count. **Worth knowing before reading `/ca audit`:** those rows have
+  a player as their actor and no admin anywhere in them, which is the first time that has been
+  true of that table. *Date:* 2026-08-09
+
+- **[M12c]** SPEC 26.2 says violations are logged and gives the reason -- so an admin can see the
+  pattern -- but every blocked click is a violation, and a held left-click fires a break event
+  every tick. One row per raw violation is an unbounded database write rate driven by a player
+  holding a mouse button. *Implemented default:* one row per **debounced** violation, which
+  after `trespass.violation-cooldown-ms` is one per deliberate act. Every counted violation and
+  not only the ones that cross the threshold, because two strikes and a walk away is a pattern
+  and never produces a warning. *Date:* 2026-08-09
+
+- **[M12c]** **Violations were over-counted by construction, in the half that was already
+  committed.** `reportViolation` sits inside `ProtectionGuard.decide`, which `allowsSilently`
+  also calls, so: stepping on a pressure plate was a violation (the PHYSICAL branch is silent
+  *by design* -- "a player walking past a door should not be nagged for something they did with
+  their feet"), one bucket pour was two, and one `BlockMultiPlaceEvent` was one per replaced
+  block. Three steps down a garden path crossed SPEC 26.2's threshold, and a visitor who was
+  never even shown a refusal got a title telling them the city's defenses were activating.
+  *Implemented default:* two fixes, at two different levels. `allowsSilently` no longer counts
+  at all -- a refusal the player was never shown is not something they kept doing after being
+  told, which is the whole structure of SPEC 26.2. And a debounce in `TrespassService`, not in
+  the guard: the guard would then be a protection concern reading defense configuration, and
+  any later violation source gets the debounce for nothing where it is. **The debounce interval
+  is not from SPEC.** *Date:* 2026-08-09
+
+- **[M12c]** **Two of SPEC 26.2's six violation sources could never fire.** "Damaging a defense
+  unit": `EntityProtectionListener` returns early for `victim instanceof Enemy`, and SPEC 27's
+  Watchman, City Guard, Elite Guard, Archer and Sharpshooter are all Zombies or Skeletons -- so
+  hitting the five most common units never reached the guard at all. "Damaging a city member":
+  PvP is decided by `PvpPolicy` in a branch that returns before any guard call, so it never
+  produced a `NOT_A_MEMBER` refusal. *Implemented default:* both report explicitly, through
+  `ProtectionGuard.reportDirectViolation`, which runs the ordinary `ENTITY_DAMAGE` check and
+  throws the answer away -- so "is this person a non-member here" is still answered by one piece
+  of code and SPEC 26.2's trusted-ally exemption is not remembered twice. Hitting a unit is
+  **reported and not blocked**: SPEC 25.2's Rule 3 requires every unit to have a stated
+  counterplay, and a guard that cannot be hit has none. The member case is reported only when
+  the person hit is a member of the city whose land they are standing on, because SPEC says
+  "damaging a city member" and a scuffle between two outsiders in somebody's streets is not
+  that. *Date:* 2026-08-09
+
+- **[M12c]** **SPEC 26.2 step 3's ten-second de-escalation shipped as a config key nothing
+  called.** `trespass.de-escalation-seconds` was in `defense.yml` with SPEC's default and
+  `TrespassService.deEscalationSeconds()` read it -- which is why `ConfigKeyUsageTest` passed --
+  and no caller existed. `leftClaims` calmed instantly, so a raider could step over the border
+  and be safe on the spot. Exactly the CONFIG.md class of defect, committed in the half that was
+  already marked done, and the reason a getter is not evidence that a key is honoured.
+  *Implemented default:* the listener schedules the calm and cancels it on re-entry;
+  mutation-checked by making it instant and confirming the two named tests go red.
+  *Date:* 2026-08-09
+
+- **[M12c]** SPEC 23.6's toggle categories are a closed list and **none of them is about
+  defense**. SPEC 26.2's warning exists so that "no player is ever killed without being told",
+  which makes it a safety message and therefore one that must not be mutable -- and the only
+  locked categories are `TREASURY_WITHDRAW`, `UPKEEP_CRITICAL` and `WAR`. *Implemented default:*
+  `WAR` for the two trespasser-facing messages, on the ground that it is the only locked
+  category whose subject is "somebody is about to attack you", and `MEMBERSHIP` for the
+  city-facing notice, which is informational. The name is wrong and the property is right;
+  adding a category SPEC lists exhaustively would have been inventing one. *Date:* 2026-08-09
+
+- **[M12c]** SPEC 26.2 puts the glow in step 1 and says nothing about it in step 2, so read
+  literally it is a warning-phase effect. *Implemented default:* the literal reading, and it is
+  also the safe one. The warning always ends, because ending it is a scheduled task that always
+  runs, so a glow tied to the warning always clears. A glow tied to the **alert** would have to
+  be cleared when the alert expires -- and nothing sweeps expiries, `UnitStates` resolves them on
+  read, so the first time nobody asked a city's guards would glow until the next restart. The
+  practical argument for the other reading (a unit about to attack you should be visible) is
+  real and is recorded here rather than acted on. *Date:* 2026-08-09
+
+- **[M12c]** The glow must **not** be produced by alerting units early. That is the obvious
+  implementation and it would break the one guarantee the warning phase exists to give:
+  `TargetingRule` permits a unit to attack a player only in ALERTED or HOSTILE, so the sole
+  reason nothing attacks during SPEC 26.2's five seconds is that `UnitStates` is untouched until
+  the warning ends. Reaching for an alert to get a visual effect would let guards kill somebody
+  during the window that exists so they do not. Recorded because the shortcut looks harmless.
+  *Date:* 2026-08-09
+
+- **[M12c]** SPEC 30.4 spells its key `trespass.city_notice`, with an underscore, and
+  `LangKeyUsageTest`'s key-shaped literal pattern is `[a-z][a-z0-9-]*(\.[a-z0-9-]+)+` -- which
+  underscores do not match. Shipped as SPEC writes it, the Java literal would be invisible to
+  the scanner and the `en.yml` key would be reported as orphaned. *Implemented default:*
+  `trespass.city-notice`. The same trap waits for `warden.defeated_peacetime` in M12f.
+  *Date:* 2026-08-09
+
+- **[M12c]** **`<city>` is both a SPEC 23.2 palette colour and the placeholder every existing
+  message uses for a city's name**, and the two collide the moment a message goes through
+  `Messenger`: `render` puts the palette resolver first, and Adventure's sequential resolver
+  returns the first match, so the colour wins and the name is never substituted. Latent until
+  now, because M7a shipped the palette and no catalogue, and every existing `<city>` message is
+  sent through `lang.send` with no palette. *Implemented default:* these five messages name the
+  city with `<cityname>`, with a test asserting it in both languages. Not fixed globally --
+  reversing the resolver order in `Messenger.render` is the right fix and it belongs to M23a,
+  which is the milestone that converts every message and would otherwise hit this on the first
+  one. **This needs a decision before M23a.** *Date:* 2026-08-09
+
+- **[M12c]** `Messenger.send(Channel.TITLE)` renders one key and an empty subtitle, and SPEC
+  30.4's trespass warning is a title *and* a subtitle. Calling `audience.showTitle` directly is
+  the obvious fix and walks straight past SPEC 23.4's four-per-hour cap and the toggle, which
+  are the only reasons the class exists. *Implemented default:* `Messenger.sendTitle`, which
+  goes through the same cap. Unlike `send`, a capped title is **dropped rather than downgraded
+  to chat**: every caller pairs it with a chat line carrying the same fact, so downgrading would
+  print it twice. *Date:* 2026-08-09
+
+- **[M12c]** SPEC 26.3 suspends the trespass response during an ACTIVE war and nothing
+  implemented it. *Implemented default:* a `TrespassService.Wars` seam in the shape
+  `UnitTargeting.useWars` already established, answering false until the plugin wires it from
+  the war registry. Without it a besieged city would warn its attackers before its guards
+  engaged them, which is the opposite of a siege. *Date:* 2026-08-09
+
+- **[M12c]** SPEC 30.2 case 94 -- "a trespasser who logs out during ALERTED keeps the alert for
+  its remaining duration, and logging back in inside the claims resumes it" -- is the most
+  fragile thing in this milestone, and the reason is that the state lives in two places. The
+  response survives a logout on its own because it is a clock. The per-unit half does not: case
+  95 lets the units dematerialise while the trespasser is away, and `UnitStates.materialized`
+  brings every one of them back PASSIVE. So without `TrespassService.reapply` the response would
+  say ALERTED, every unit would say PASSIVE, and not one guard would move. Two consequences
+  recorded rather than discovered later: the listener must **not** call `trespass.forget` on
+  quit, which every other listener in the package does for its own state, and a logout is not
+  "leaving the claims", so routing quit into `leftClaims` breaks the same case from the other
+  side. Mutation-checked by adding the `forget` call and confirming two named tests go red.
+  A re-applied alert also ends when the response does rather than at its full length, or a unit
+  standing up would buy the trespasser another forty-five seconds. *Date:* 2026-08-09
+
+- **[M12c]** SPEC 23.5's audience code CITY means every online member with no radius, so
+  `trespass.city-notice` reaches a member on the far side of a two-hundred-chunk city.
+  *Implemented default:* left as SPEC words it. Reusing `trespass.alert-radius-chunks` would be
+  a second meaning for one key, which is the twin the config sweep found three of. It fires
+  **once, at the warning**, rather than on every violation or again on the alert: the warning is
+  the moment the city can still do something about it, and a line per blocked click is the flood
+  SPEC 23.1 spends a section avoiding. *Date:* 2026-08-09
+
+- **[M12c]** SPEC 30.4's own chat template hardcodes "within **5 seconds**", which contradicts
+  CLAUDE.md's rule on hardcoded numbers and SPEC 26.2's own `trespass.warning-seconds`.
+  *Implemented default:* the configured value is rendered. *Date:* 2026-08-09
+
+- **[M12c]** `LangKeyUsageTest`'s "does it exist" half scans `lang.send`, `lang.sendRaw`,
+  `lang.get` and `Result.failure`, and nothing else -- so a key reached only through the
+  messenger is checked in one direction only: an orphan fails the build, but a **typo ships as
+  "Missing message" to a player**. All five of this milestone's keys are messenger-only.
+  *Implemented default:* a targeted test asserting each key exists and is non-blank in both
+  language files. Widening the scanner to `messenger.send` is awkward -- the key is the fourth
+  or fifth argument of a multi-line call -- and belongs with M23a, which will have a hundred
+  such keys rather than five. *Date:* 2026-08-09
+
+- **[M12d]** **SPEC 27 requires a city colour and SPEC defines one nowhere.** SPEC 27.3, 27.5 and
+  27.6 all dress a unit in "dyed leather in the city's colour" and SPEC 27.4 gives the Warhound a
+  dyed collar, but SPEC 3.2's `cities` table has a name, a tag, a display name and a motd, and
+  nothing that is a colour. *Implemented default:* `CityColour`, which M12c already added for SPEC
+  26.2's glow and which derives one from the city id, extended into leather and a collar dye. No
+  column, no migration, no command. **A developer decision is needed** on whether a city should be
+  able to *choose* its colour, which needs a SPEC 3.2 column; until then the derivation is the
+  conservative option because it adds nothing a player has to learn. *Date:* 2026-08-09
+
+- **[M12d]** SPEC 27.1 gives the Watchtower Keeper's health as **"n/a"** and SPEC 27.3 as
+  "Invulnerable outside war, 40 during war", while SPEC 30.3 ships `war-health: 40` and no
+  `health`. Two names for one number, one of which does not exist. *Implemented default:* one
+  `health: 40` and a separate `invulnerable-outside-war: true` flag, which is the shape that does
+  not need `DefenseUnitType`'s "health must be positive" precondition relaxed and does not ship a
+  twin. The war half is a seam on `DefenseSpawner` in the shape the package already uses, and it
+  **fails towards invulnerable**: a wiring mistake leaves a 9,000 C asset indestructible rather
+  than leaving it destructible during peace. *Date:* 2026-08-09
+
+- **[M12d]** **SPEC 30.2 cases 107 and 112 together destroy SPEC 27.2's counterplay if read
+  literally.** Case 107 cancels a snow golem's "water and melting damage"; case 112 saves a unit
+  from terrain; and SPEC 27.2's stated counterplay for the Frost Sentry is, in full, "Melts in lava
+  or near fire". SPEC 25.2 Rule 3 makes counterplay a shipping gate, so the two are separated on
+  SPEC's own two axes: **case 107 is about weather** (MELTING and DROWNING cancelled, fire and lava
+  not), and **case 112 is about pathfinding** -- its premise is a unit that "pathfinds into lava or
+  off a cliff", so the save is offered only to a unit that can walk. The Frost Sentry and the
+  Keeper are both static at zero speed, so neither is ever saved. That is the only reading under
+  which both SPEC sentences are true at once. Both halves are mutation-checked. *Date:* 2026-08-09
+
+- **[M12d]** SPEC 27.6 gives the City Guard "Armor 8 points, plus 2 toughness" **and** full dyed
+  leather, and worn armour contributes through attribute modifiers -- so a base of 8 plus a leather
+  set is 15, and a 90 HP unit at 15 armour is most of the way to the unbeatable garrison SPEC 25.2
+  Rule 1 forbids. *Implemented default:* SPEC 25.3 files dyed leather under **appearance**, beside
+  custom names and team colours, so the leather is made cosmetic -- an explicit `ARMOR` modifier of
+  zero replaces the item's own -- and the config number is the total. The same argument settles the
+  Archer: SPEC 27.5 gives it "7 damage per arrow" and a "Power III bow", which cannot both be the
+  final figure, so the arrow's damage is written to 7 at launch (vanilla bakes Power in at that
+  moment) and Power III is the glint. *Date:* 2026-08-09
+
+- **[M12d]** **Nothing in the plugin acquires a target, and until M12d nothing ever had.** SPEC
+  30.1's handler only *vetoes* -- it answers "may this unit target that candidate" -- and a veto is
+  meaningless until something proposes a candidate. A City Guard that becomes ALERTED stands still,
+  because a zombie's own goals never picked that player out; a Warhound is worse, because SPEC 27.4
+  makes it a wolf and `DefenseSpawner` tames it with no owner, and a tamed ownerless wolf initiates
+  nothing at all. So the entire roster was inert while every test of the state machine passed.
+  *Implemented default:* `DefenseTick.acquire`, a ten-tick pass that asks the one handler and then
+  proposes. `UnitAcquisition` is the pure selection half and carries SPEC 27.4's lowest-health
+  priority -- **selection, never permission**, which is the distinction that keeps SPEC 30.1's "no
+  unit-specific targeting logic anywhere else" true. *Date:* 2026-08-09
+
+- **[M12d]** SPEC 27.6's alert network fires "regardless of trespass state", which contradicts SPEC
+  26.2's promise that "no player is ever killed without being told, in plain language, that they
+  are about to be" -- 26.2 requires three strikes and a five-second warning first. *Implemented
+  default:* both. The network turns the guards hostile immediately, as the later and more specific
+  rule says, **and** the attacker is told at that moment, through the same sink and the same words
+  the trespass response already uses. Skipping the telling would break the promise; skipping the
+  network would break SPEC 27.6's stated behaviour and its stated weakness. *Date:* 2026-08-09
+
+- **[M12d]** SPEC 27.5 calls the Archer's twenty blocks "hard capped" and a vanilla skeleton's
+  follow range is **sixteen**, so the cap sits above the unit's natural reach, is never met, and a
+  test asserting it proves nothing. *Implemented default:* every unit's `range` is written onto
+  `Attribute.FOLLOW_RANGE` at spawn, so the cap binds and the Warhound's 24-block chase and the
+  Keeper's 32-block detection are real rather than aspirational. Worth recording because the
+  implementation looks complete without it and the test passes either way. *Date:* 2026-08-09
+
+- **[M12d]** Several SPEC 27 numbers have no home in SPEC 30.3's config block and are shipped
+  anyway, because the hard rule forbids hardcoding them: the Frost Sentry's 16-block range and the
+  Keeper's 32 (SPEC 27.2 and 27.3 state them in prose), the Archer's five-block melee radius (SPEC
+  27.5, prose), case 112's 20% and one hour (stated in the case itself), and the Colossus's slam
+  knockback, for which **SPEC gives no magnitude anywhere** -- 1.2 is this implementation's.
+  Conversely three SPEC 30.3 keys are deliberately **not** shipped: `points` (SPEC 25.5's budget is
+  M12e and a key nothing reads is the defect the config sweep found nineteen of),
+  `placement.leash-blocks` and `placement.war-purchase-cost-multiplier` (twins of the existing
+  `behaviour.leash-distance-blocks` and `placement.wartime-purchase-multiplier`). SPEC 30.3 also
+  writes unit keys in snake_case and potion strengths as **levels** where Bukkit takes an
+  amplifier; this project is kebab-case throughout and the level-to-amplifier conversion happens
+  once, in `UnitAbilities`. *Date:* 2026-08-09
+
+- **[M12d]** **Existing rows of retired unit types have no stated fate.** A server that ran the
+  superseded M12 has `defense_units` rows of type `watchman`, `elite-guard`, `sharpshooter`,
+  `siege-golem` and `sentry`. After the catalogue change they load into the registry, never
+  materialise (the catalogue has no entry, so `UnitMaterializer` returns false), still appear in
+  `/city defense list` as a raw key, and **still charge upkeep** from the amount stored on the row.
+  SPEC 30.2 case 100 covers a Fortification downgrade and says nothing about a retired type.
+  *Implemented default:* left alone and recorded, because the three options -- remap, refund and
+  remove, or leave and log -- are a policy decision about other people's money rather than a
+  reading of SPEC. **This needs a developer decision; the test server has such rows.**
+  *Date:* 2026-08-09
+
+- **[M12d]** Two rules were added that SPEC does not list, both in the class case 105 belongs to. A
+  Watchtower Keeper is an armour stand wearing dyed leather and holding a spyglass, and any player
+  may take all five items by hand through `PlayerArmorStandManipulateEvent` -- which is case 105's
+  loot pinata arriving from a direction case 105 does not mention, and drop chances do nothing
+  about it; a snow golem can likewise be sheared out of existence with one click. Both are refused
+  alongside case 110's name tag and case 111's lead, as one "hands off" rule. Separately, a
+  garrison of Frost Sentries lays a snow layer wherever it stands, and inside a war zone every one
+  of those is a block change M17 logs and M18 must replay, so `EntityBlockFormEvent` is cancelled
+  for units. *Date:* 2026-08-09
+
+- **[M12d]** SPEC 30.2 case 106 says units "must not count toward the vanilla mob cap". Only half
+  is deliverable and that half was already true: `setRemoveWhenFarAway(false)` and
+  `setPersistent(true)` are called on every spawn, and Paper exposes no supported way to exclude a
+  specific entity from spawn calculations without NMS, which SPEC 2.1 forbids unless unavoidable.
+  Unchanged from the superseded M12's finding, restated because case 106 is on this milestone's
+  list and a reader will otherwise look for the other half. *Date:* 2026-08-09
+
+- **[M12c to M12f]** These four were built by an orchestrated multi-agent run: four survey agents
+  reading SPEC in parallel, four build agents in strict sequence (they share `DefenseCatalogue`,
+  `DefenseSpawner` and `defense.yml`, and SPEC 31 insists the Warden be built on a targeting system
+  "already proven by six simpler units"), then three adversarial reviewers. **The review found a
+  critical defect none of the four builders did, and it is the kind this project keeps producing:
+  a rule assigned to a milestone that had already shipped.** Nothing anywhere called
+  `UnitStates.hostile()`. During an ACTIVE war every unit sat at PASSIVE, `TargetingRule` cancelled
+  every enemy with `STATE_PASSIVE`, and `TrespassService` refuses violations during a war — so a
+  city's whole garrison was **inert in the one situation SPEC 27 built it for**. `UnitStates`' own
+  javadoc said "M19" writes HOSTILE, and M19 closed before this defense system existed.
+  `UnitMaterializer.useWars` had never been wired either, so SPEC 25.4's war materialisation
+  trigger was dead alongside it. *Implemented default:* HOSTILE on materialising into a running
+  war, plus `reconcileWarStates` on every sweep so a war starting around a standing garrison arms
+  it and SPEC 30.2 case 96 disarms it — ALERTED left alone, or every sweep would drop a trespass
+  alert. Five tests; reverting the fix fails all five. **ACTIVE only, never PREP**: SPEC 26.3 says
+  "During PREP, units remain PASSIVE. Prep is a building phase, not a fighting phase", and
+  `isEngaged()` covers both, so it would have armed a garrison two days before anyone was allowed
+  to fight it. *Date:* 2026-08-09
+
+- **[M12c to M12f]** What is built and what is **verified** differ here more than in any previous
+  milestone, and the difference is worth stating rather than leaving to be discovered:
+  **`DefenseSpawner` has still never executed under any test**, and M12d added SCALE, four
+  attributes, dyed-leather colouring, wolf collar colours and five behaviour flags to it. The cause
+  is unchanged from M12a: MockBukkit does not implement `setRemoveWhenFarAway`, which SPEC 31 case
+  106 requires and the spawner calls on every spawn, and an unimplemented call **skips** rather
+  than fails. `UnitShaping` was written as a pure record so the intended shaping is asserted
+  somewhere — that is a mitigation, not a fix, because nothing asserts it is *applied*.
+  `DefenseAbilityListener` and `DefenseTick` have no tests at all. The glow and the roar are
+  review-only for the same reason. **All of this needs the SPEC 18.3-style live-server pass, and
+  M20a's balance pass cannot substitute for it.** *Date:* 2026-08-09
+
+- **[M12f]** SPEC 28.8 says to "cancel `EntityDamageEvent` with `DamageCause.SONIC_BOOM`
+  unconditionally", and read literally that is server-wide. *Implemented default:* scoped to this
+  plugin's Wardens. A wild Warden in an ancient city has nothing to do with a city's defenses, and
+  a player who beat one and took no damage would be looking at a bug rather than a feature. The
+  same applies to `WardenAngerChangeEvent` and to the Darkness aura; each has a test asserting a
+  wild Warden is left alone. Recorded because the literal reading is defensible and this is a
+  narrowing. *Date:* 2026-08-09
+
+- **[M12c]** SPEC 26.2 says units "glow in the city colour" and **no city colour exists anywhere
+  in SPEC or in this codebase**. *Implemented default:* derived stably from the city id and applied
+  through a scoreboard team, which is the mechanism SPEC 25.3 lists. Known limitation, documented
+  in `UnitGlow`: a team lives on one scoreboard, and `WarScoreboard` hands a player their own board
+  on `/war scoreboard`. The team is registered on the main board and on every board reachable
+  through an online player, which covers the case only if the viewer is online when the glow
+  starts; otherwise they see a white outline. *Date:* 2026-08-09
+
+- **[M12c]** An agent caught an error of mine worth recording: I briefed the run that
+  `TrespassService`, its test and the `ProtectionGuard` seam were committed. They were not — commit
+  `acc37cf` contains only `TrespassTracker` and `TrespassResponse`, because the service was written
+  after it. The agent checked `git show` rather than believing the brief, and said so. Worth noting
+  as evidence for what adversarial verification is actually for: not only reviewing code, but
+  disbelieving the premises it was handed. *Date:* 2026-08-09

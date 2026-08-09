@@ -122,6 +122,7 @@ public record CivitasServices(
         OutpostTravel outpostTeleport,
         UpgradeService upgrades,
         DefenseService defense,
+        dev.civitas.core.defense.WardenService warden,
         DiplomacyService diplomacy,
         VaultService vaults,
         VaultView vaultView,

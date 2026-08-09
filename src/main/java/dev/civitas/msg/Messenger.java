@@ -108,6 +108,36 @@ public final class Messenger {
         return true;
     }
 
+    /**
+     * A title with a subtitle under it, which {@link #send} cannot express.
+     *
+     * <p>{@code send(Channel.TITLE)} renders one key and an empty subtitle, and several SPEC
+     * 23.5 and SPEC 30.4 entries are a title <i>and</i> a subtitle — SPEC 30.4's trespass
+     * warning is {@code WARNING} over "{city} defenses are activating". Calling
+     * {@code audience.showTitle} directly is the obvious fix and is the wrong one: it walks
+     * straight past SPEC 23.4's four-per-hour cap and the player's toggle, which are the only
+     * reasons this class exists.
+     *
+     * <p>Unlike {@link #send}, a capped title is <b>dropped rather than downgraded to chat</b>.
+     * Every caller of this pairs the title with a chat line carrying the same fact — a title is
+     * decoration over a message, never the message — so downgrading would print it twice.
+     *
+     * @return whether the title was actually shown
+     */
+    public boolean sendTitle(UUID player, Audience audience, ToggleCategory category,
+                             String titleKey, String subtitleKey, TagResolver... resolvers) {
+        Objects.requireNonNull(audience, "audience");
+        if (player != null && !toggles.wants(player, category)) {
+            return false;
+        }
+        if (player != null && !allowTitle(player, now())) {
+            return false;
+        }
+        audience.showTitle(Title.title(render(titleKey, resolvers),
+                render(subtitleKey, resolvers)));
+        return true;
+    }
+
     /** Chat, the default channel, for the common case. */
     public boolean send(UUID player, Audience audience, ToggleCategory category, String key,
                         TagResolver... resolvers) {

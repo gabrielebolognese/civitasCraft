@@ -40,10 +40,23 @@ public final class EntityProtectionListener implements Listener {
      */
     private final dev.civitas.core.combat.PvpPolicy pvp;
 
+    /**
+     * Whether an entity is one of a city's defense units, for SPEC 26.2's violation list.
+     *
+     * <p>A seam rather than a dependency on the defense package, because protection is wired
+     * long before defense is and must work on a server where defense is switched off entirely.
+     * Answers false until M12c's wiring hands over the real test.
+     */
+    private java.util.function.Predicate<Entity> defenseUnits = entity -> false;
+
     public EntityProtectionListener(ProtectionGuard guard,
                                     dev.civitas.core.combat.PvpPolicy pvp) {
         this.guard = Objects.requireNonNull(guard, "guard");
         this.pvp = Objects.requireNonNull(pvp, "pvp");
+    }
+
+    public void useDefenseUnits(java.util.function.Predicate<Entity> test) {
+        this.defenseUnits = Objects.requireNonNull(test, "test");
     }
 
     @EventHandler(priority = EventPriority.LOW, ignoreCancelled = true)
@@ -64,8 +77,18 @@ public final class EntityProtectionListener implements Listener {
                     hurt.getWorld().getName(), chunk.getX(), chunk.getZ(),
                     System.currentTimeMillis()).denied()) {
                 event.setCancelled(true);
+                reportMemberHurt(attacker.get(), hurt);
             }
             return;
+        }
+
+        // SPEC 26.2 lists "Damaging a defense unit" as a violation, and nothing else here
+        // would catch it: most of SPEC 27's roster are Zombies and Skeletons, so the Enemy
+        // carve-out below lets them be hit without ever asking the guard. Reported and not
+        // blocked, deliberately — SPEC 25.2's Rule 3 requires every unit to have a stated
+        // counterplay, and a guard that cannot be hit has none.
+        if (defenseUnits.test(victim)) {
+            guard.reportDirectViolation(attacker.get(), victim.getLocation());
         }
 
         // SPEC 5.5: "except hostile mobs". Enemy covers monsters, slimes, ghasts, phantoms
@@ -84,6 +107,25 @@ public final class EntityProtectionListener implements Listener {
         if (!guard.allows(attacker.get(), victim.getLocation(), ProtectionAction.ENTITY_DAMAGE)) {
             event.setCancelled(true);
         }
+    }
+
+    /**
+     * SPEC 26.2's "damaging a city member", which no protection check produces.
+     *
+     * <p>PvP is decided by {@link dev.civitas.core.combat.PvpPolicy} in a branch that returns
+     * before the guard is ever asked, so a swing at a citizen inside their own city generates
+     * nothing. Reported only when the person hit is a member of the city whose land they are
+     * standing on: SPEC 26.2 says "damaging a city member", and a scuffle between two
+     * outsiders in somebody's streets is not that.
+     */
+    private void reportMemberHurt(Player attacker, Player hurt) {
+        var at = hurt.getLocation();
+        if (at.getWorld() == null) {
+            return;
+        }
+        guard.service().cityAt(at.getWorld().getName(), at.getBlockX() >> 4, at.getBlockZ() >> 4)
+                .filter(city -> city.isMember(hurt.getUniqueId()))
+                .ifPresent(city -> guard.reportDirectViolation(attacker, at));
     }
 
     /**

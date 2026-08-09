@@ -9,6 +9,7 @@ import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.function.ToIntFunction;
 
 import dev.civitas.storage.dao.DefenseUnitDao;
 import dev.civitas.storage.row.DefenseUnitRow;
@@ -99,7 +100,7 @@ public final class DefenseRegistry {
         return found;
     }
 
-    /** Only the units that are actually standing, which is what the SPEC 12.4 cap counts. */
+    /** Only the units that are actually standing, which is what SPEC 25.5's budget counts. */
     public List<DefenseUnit> activeOf(int cityId) {
         return of(cityId).stream().filter(DefenseUnit::active).toList();
     }
@@ -108,7 +109,36 @@ public final class DefenseRegistry {
         return activeOf(cityId).size();
     }
 
-    /** How many active units stand in one chunk, for the SPEC 12.4 per-chunk cap. */
+    /**
+     * A city's standing units priced for SPEC 25.5's budget, oldest first.
+     *
+     * <p>Takes the price as a function rather than the catalogue, so {@link DefenseCapacity}
+     * never has to know what a {@code defense.yml} is. Oldest first because SPEC 30.2 case 101
+     * suspends newest-first, and "newest" has no stored fact behind it: {@link DefenseUnit}
+     * carries no placed-at timestamp, so the order is by row id. That is safe rather than exact —
+     * SQLite's AUTOINCREMENT is monotonic and MySQL's AUTO_INCREMENT never issues an id below an
+     * existing row — but it is an inference, and it is the reason a column was not added for it.
+     */
+    public List<DefenseCapacity.Placed> standing(int cityId, ToIntFunction<String> points) {
+        return priced(activeOf(cityId), points);
+    }
+
+    /** The same for units that are owned but not standing, which is what may come back. */
+    public List<DefenseCapacity.Placed> suspended(int cityId, ToIntFunction<String> points) {
+        return priced(of(cityId).stream().filter(unit -> !unit.active()).toList(), points);
+    }
+
+    private static List<DefenseCapacity.Placed> priced(List<DefenseUnit> units,
+                                                       ToIntFunction<String> points) {
+        List<DefenseCapacity.Placed> placed = new ArrayList<>(units.size());
+        for (DefenseUnit unit : units) {
+            placed.add(new DefenseCapacity.Placed(unit.id(),
+                    Math.max(0, points.applyAsInt(unit.type()))));
+        }
+        return placed;
+    }
+
+    /** How many active units stand in one chunk, for the SPEC 27.8 per-chunk cap. */
     public int countInChunk(int cityId, String world, int chunkX, int chunkZ) {
         int count = 0;
         for (DefenseUnit unit : activeOf(cityId)) {
@@ -120,7 +150,7 @@ public final class DefenseRegistry {
         return count;
     }
 
-    /** What this city's standing units cost it a day, SPEC 12.2. */
+    /** What this city's standing units cost it a day, SPEC 27.1. */
     public BigDecimal dailyUpkeep(int cityId) {
         BigDecimal total = dev.civitas.storage.SqlDialect.zero();
         for (DefenseUnit unit : activeOf(cityId)) {

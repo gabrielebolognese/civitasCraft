@@ -91,8 +91,9 @@ public final class MainMenu extends CityMenu {
         put("defense", 20, Material.IRON_GOLEM_SPAWN_EGG, "gui.main.defense", entry ->
                 Button.of(entry.material(), text(entry.labelKey()))
                         .lore(text("gui.main.defense-lore",
-                                "active", String.valueOf(services.defense().registry()
-                                        .activeCount(city.id())),
+                                "used", String.valueOf(services.defense()
+                                        .pointsSpent(city.id())),
+                                "total", String.valueOf(services.defense().capacity(city)),
                                 "upkeep", money(services.defense().registry()
                                         .dailyUpkeep(city.id()))))
                         .onClick(context -> new DefenseMenu(manager, services, viewer, city,

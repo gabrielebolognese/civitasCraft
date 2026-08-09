@@ -13,9 +13,6 @@ import dev.civitas.command.Replies;
 import dev.civitas.lang.LangManager;
 import dev.civitas.util.Result;
 import org.bukkit.entity.Entity;
-import org.bukkit.entity.LivingEntity;
-import org.bukkit.entity.Mob;
-import org.bukkit.entity.Monster;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
@@ -110,7 +107,22 @@ public final class DefenseListener implements Listener {
                             consumeOne(player, held);
                             lang.send(player, "defense.placed",
                                     LangManager.placeholder("unit", type.get().displayName()));
+                            tellIfCommissioning(player, result.orElseThrow());
                         }));
+    }
+
+    /**
+     * SPEC 27.8's 60-second window after a wartime placement, told to whoever placed it.
+     *
+     * <p>Without this the unit stands there ignoring an enemy in front of it and reads as broken,
+     * at the one moment a defender is least inclined to give it the benefit of the doubt.
+     */
+    private void tellIfCommissioning(Player player, DefenseUnit unit) {
+        if (!defense.commissioning().isWarmingUp(unit.id(), System.currentTimeMillis())) {
+            return;
+        }
+        lang.send(player, "defense.commissioning", LangManager.placeholder("seconds",
+                String.valueOf(defense.catalogue().warPurchaseInactiveMillis() / 1000L)));
     }
 
     private static void consumeOne(Player player, ItemStack held) {
@@ -128,9 +140,10 @@ public final class DefenseListener implements Listener {
     /**
      * A unit that dies is gone for good.
      *
-     * <p>Drops are cleared as well as the row: a Siege Golem dropping iron would make killing
-     * a city's defenses profitable, which SPEC 12.1 rules out by calling units consumed
-     * resources.
+     * <p>Drops are cleared as well as the row, which SPEC 30.2 case 105 needs as much as the
+     * zero drop chances do: a Colossus dropping iron, or an armour stand Keeper dropping
+     * <em>itself</em> and its dyed leather, would make killing a city's defenses profitable.
+     * SPEC 25.2 Rule 4 rules that out by calling units consumed resources.
      */
     @EventHandler(priority = EventPriority.MONITOR)
     public void onDeath(EntityDeathEvent event) {
@@ -141,13 +154,39 @@ public final class DefenseListener implements Listener {
         event.getDrops().clear();
         event.setDroppedExp(0);
 
-        defense.registry().byId(id.get()).ifPresent(unit ->
-                defense.onDeath(unit, event.getEntity().getUniqueId())
-                        .exceptionally(error -> {
-                            logger.log(java.util.logging.Level.WARNING,
-                                    "Could not remove a dead defense unit", error);
-                            return 0;
-                        }));
+        defense.registry().byId(id.get()).ifPresent(unit -> {
+            announceLoss(unit, event.getEntity().getKiller());
+            defense.onDeath(unit, event.getEntity().getUniqueId())
+                    .exceptionally(error -> {
+                        logger.log(java.util.logging.Level.WARNING,
+                                "Could not remove a dead defense unit", error);
+                        return 0;
+                    });
+        });
+    }
+
+    /**
+     * SPEC 30.4's {@code defense.unit_killed}, to the city that paid for it.
+     *
+     * <p>Told before the row is deleted, because the message names the unit and the row is where
+     * its type is. A unit killed by nobody in particular — terrain, or an admin — still costs
+     * the city the same money, so the killer falls back to the same unknown label rather than
+     * the message being skipped.
+     */
+    private void announceLoss(DefenseUnit unit, Player killer) {
+        Optional<DefenseUnitType> type = defense.catalogue().byKey(unit.type());
+        cities.city(unit.cityId()).ifPresent(city -> city.members().forEach(member -> {
+            Player online = org.bukkit.Bukkit.getPlayer(member.uuid());
+            if (online != null) {
+                lang.send(online, "defense.unit-killed",
+                        LangManager.placeholder("unit",
+                                type.map(DefenseUnitType::displayName).orElse(unit.type())),
+                        LangManager.placeholder("x", String.valueOf(unit.chunkX() << 4)),
+                        LangManager.placeholder("z", String.valueOf(unit.chunkZ() << 4)),
+                        LangManager.placeholder("killer",
+                                killer == null ? "?" : killer.getName()));
+            }
+        }));
     }
 
     // ==================================================================================
@@ -243,14 +282,4 @@ public final class DefenseListener implements Listener {
         }
     }
 
-    // ==================================================================================
-    // Helpers
-    // ==================================================================================
-
-    private static double distanceBetween(Entity one, Entity other) {
-        if (one.getWorld() != other.getWorld()) {
-            return Double.MAX_VALUE;
-        }
-        return one.getLocation().distance(other.getLocation());
-    }
 }

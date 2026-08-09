@@ -145,6 +145,23 @@ public final class TrespassResponse {
         return alerted;
     }
 
+    /**
+     * When whatever a city is currently doing about this player ends.
+     *
+     * <p>Empty when nothing is running. Used to re-apply an alert at the time it has left
+     * rather than at its full length, so a unit standing up during one does not extend it.
+     */
+    public Optional<Long> endsAt(int cityId, UUID player) {
+        Map<UUID, Response> city = byCity.get(cityId);
+        if (city == null) {
+            return Optional.empty();
+        }
+        Response current = city.get(player);
+        return current == null || current.phase() == Phase.NONE
+                ? Optional.empty()
+                : Optional.of(current.until());
+    }
+
     /** When the running warning for this player ends, if one is running. */
     public Optional<Long> warningEndsAt(int cityId, UUID player) {
         Map<UUID, Response> city = byCity.get(cityId);

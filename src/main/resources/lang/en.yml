@@ -362,7 +362,7 @@ gui:
     members: "<aqua>Members"
     members-lore: "<gray>Online <white><online></white>/<white><total>"
     defense: "<gray>Defense"
-    defense-lore: "<gray>Standing: <white><active></white>, <white><upkeep></white> a day"
+    defense-lore: "<gray>Capacity <white><used></white>/<white><total></white>, <white><upkeep></white> a day"
     wars: "<red>Wars"
     wars-lore.at-peace: "<gray>At peace"
     wars-lore.at-war: "<gray>War: <white><state>"
@@ -765,12 +765,18 @@ gui:
     title: "<dark_gray>Defense <gray>| <gold><city>"
     unit: "<gold><name>"
     stats: "<gray>Health <white><health></white>, damage <white><damage>"
+    no-damage: "<gray>Deals no damage. This one does another job."
     cost: "<gray>Cost: <white><amount>"
     unit-upkeep: "<gray>Upkeep: <white><amount></white> a day"
+    points: "<gray>Capacity: <white><points></white> points"
+    points-free: "<gray>Capacity: <white>none</white>, this one is not budgeted"
+    owned: "<gray>You have <white><count></white> of these"
+    will-not-fit: "<red>No room: <white><points></white> points needed, <white><free></white> left."
     wartime-price: "<red>Doubled: your city is at war."
     cannot-afford: "<red>The treasury cannot cover that."
     summary: "<gray>Garrison"
-    active: "<gray>Standing: <white><active></white>/<white><max>"
+    capacity: "<gray>Capacity used: <white><used></white>/<white><total>"
+    standing: "<gray>Units standing: <white><active>"
     upkeep: "<gray>Daily upkeep: <white><amount>"
     per-chunk: "<gray>At most <white><limit></white> per chunk"
 
@@ -891,26 +897,72 @@ defense:
   egg-not-yours: "<red>That unit belongs to another city."
   unknown-unit: "<red>This server no longer offers that unit."
   unknown-unit-named: "<red>There is no defense unit called <white><unit></white>."
-  bought: "<green><unit> hired. Place the egg where you want it to stand."
+  bought: "<green><unit> hired.</green> <gray>Place the egg where you want it to stand. Capacity: <white><used></white>/<white><total></white>."
   placed: "<green><unit> is on duty."
   dismissed: "<gray>The unit has been dismissed. Nothing is refunded."
   not-your-land: "<red>A defense unit must be stationed inside your own claims."
   not-yours: "<red>That is not one of your city's units."
-  limit: "<red>Your city may field <white><limit></white> units. Upgrade Fortification for more."
+  capacity-full: "<red>Defense capacity full: <white><used></white>/<white><total></white>. Upgrade Fortification or remove a unit."
+  capacity-suspended: "<red><count> unit(s) stood down</red><gray>: your city is over its defense capacity. Nothing was lost, and they return when there is room."
+  commissioning: "<gray>Placed mid-war, so it takes <white><seconds></white> seconds to come on duty."
   chunk-full: "<red>No more than <white><limit></white> units may stand in one chunk."
-  list-header: "<gold>Defense <gray>(<white><active></white>/<white><max></white> standing)"
+  list-header: "<gold>Defense <gray>(<white><used></white>/<white><total></white> capacity, <white><active></white> standing)"
   list-empty: "<gray>Your city has no defense units."
   list-entry: "<gray>#<id> <white><unit></white> <dark_gray>(<world> <x>, <z>)"
   list-entry-inactive: "<dark_gray>#<id> <gray><unit> <red>(unpaid) <dark_gray>(<world> <x>, <z>)"
+  no-name-tag: "<red>A defense unit cannot be renamed."
+  no-lead: "<red>A defense unit cannot be led anywhere."
+  hands-off: "<red>Leave that unit alone."
+  watchtower-sighted: "<dark_gray>[</dark_gray><aqua>City</aqua><dark_gray>]</dark_gray> <gray>A watchtower has spotted <white><player></white> at <white>(<x>, <z>)</white>."
+  unit-killed: "<dark_gray>[</dark_gray><aqua>City</aqua><dark_gray>]</dark_gray> <red><unit> destroyed</red> <gray>at <white>(<x>, <z>)</white> by <white><killer></white>."
+  # SPEC 27's six. Every one names the job no other unit does, because SPEC 25.1 retired the
+  # eight-unit catalogue precisely for being one unit at three price points.
   unit:
-    watchman: "<gray>A cheap sentry for a young city"
-    city-guard: "<gray>The backbone of a city's defense"
-    elite-guard: "<gray>Diamond-clad, and priced like it"
-    archer: "<gray>Shoots what comes close"
-    sharpshooter: "<gray>Shoots what comes close, harder"
-    warhound: "<gray>Fast, cheap, and hard to hit"
-    siege-golem: "<gray>Slow, enormous, and very hard to kill"
-    sentry: "<gray>Slows attackers instead of hurting them"
+    frost-sentry: "<gray>Slows and tires attackers, and never hurts anyone"
+    watchtower-keeper: "<gray>Sees who is coming. Cannot fight at all"
+    warhound: "<gray>Runs down whoever is hurt worst"
+    archer: "<gray>Shoots what comes close, and nothing beyond 20 blocks"
+    city-guard: "<gray>The line. Hurt one and the rest come"
+    colossus: "<gray>Enormous, very slow, and very hard to kill"
+
+# SPEC 30.4, the trespass response. Rendered through Messenger, so SPEC 23.2's palette tokens
+# resolve. The city's name is <subject> rather than <city>: "city" is also a palette colour, and
+# a message cannot mean both at once -- the palette resolver would win and the name would
+# render as a colour.
+trespass:
+  warning-title: "<war>WARNING"
+  warning-subtitle: "<body><subject><cityname></subject> defenses are activating"
+  warning: "<dim>[</dim><city>City</city><dim>]</dim> <neg>Leave <subject><cityname></subject> territory within <subject><seconds></subject> seconds.</neg>"
+  alerted: "<dim>[</dim><neg>!</neg><dim>]</dim> <neg><subject><cityname></subject> defenses are hostile to you for <subject><seconds></subject> seconds.</neg>"
+  city-notice: "<dim>[</dim><city>City</city><dim>]</dim> <neg>Trespasser detected:</neg> <subject><player></subject><body> at <subject>(<x>, <z>)</subject><body>.</body>"
+
+# SPEC 30.4's five warden keys, plus the refusals SPEC 28.2's three gates need and the fallback
+# SPEC does not supply. SPEC writes two of its keys with underscores (warden.defeated_peacetime,
+# warden.destroyed_war); every key in this file is hyphenated, and a dotted child under a key that
+# is itself requested would load as a MemorySection and render as one to players.
+warden:
+  disabled: "<red>This server does not offer a City Warden."
+  # SPEC 28.2's three gates, each naming the remedy rather than only the refusal.
+  already-owned: "<red>Your city already has a City Warden. There is only ever one."
+  needs-fortification: "<red>A City Warden needs Fortification level <white><required></white>. Yours is <white><level></white>."
+  not-core-chunk: "<red>The City Warden may only be placed in your core chunk, and can never be moved."
+  recovering: "<gray>Your City Warden is underground. It returns in <white><time></white>."
+  purchased: "<gold><city></gold> <gray>has awakened a <gold>City Warden</gold>."
+  purchased-title: "<gold>City Warden"
+  # SPEC 30.4's warden.emerged, shown once per alert to the one player it woke up for.
+  emerged-title: "<dark_red>The Warden stirs"
+  placed: "<green>The City Warden has risen in your core chunk.</green> <gray>It guards the City Hall and never leaves it."
+  # SPEC 30.4 names {player} as the killer. Peacetime damage often has no player behind it, so
+  # there are two messages rather than one that says "killed by ?".
+  defeated-peacetime: "<dark_gray>[</dark_gray><aqua>City</aqua><dark_gray>]</dark_gray> <red>Your City Warden was driven underground</red> <gray>by <white><killer></white>. It returns in <white><hours></white> hours."
+  defeated-peacetime-environment: "<dark_gray>[</dark_gray><aqua>City</aqua><dark_gray>]</dark_gray> <red>Your City Warden was driven underground.</red> <gray>It returns in <white><hours></white> hours."
+  returned: "<dark_gray>[</dark_gray><aqua>City</aqua><dark_gray>]</dark_gray> <green>Your City Warden has returned."
+  destroyed-war: "<dark_red>The City Warden of <white><city></white> has fallen."
+  # SPEC 30.2 case 99. The only path in the plugin that refunds a defense unit, because an
+  # operator moving a chunk is not a game outcome.
+  admin-refunded: "<gray>Your City Warden was removed by staff and <green><amount></green> was returned to the treasury."
+  status-none: "<gray>Your city has no City Warden. <white>750,000 C</white> at Fortification <white><required></white>."
+  status-standing: "<gold>City Warden <gray>| <white><health></white>/<white><max></white> health, guarding <white>(<x>, <z>)</white>."
 
 diplomacy:
   same-city: "<red>A city cannot ally with itself."
@@ -1273,7 +1325,7 @@ admin:
     land: "<gray>Claims <white><claims></white>, outposts <white><outposts></white>, core <white><core>"
     people: "<gray>Members <white><members></white>/<white><cap>"
     state: "<gray>Frozen <white><frozen></white>, deleted <white><deleted></white>, immunity <white><immunity>"
-    upgrades: "<gray>Upgrade levels <white><bought></white>, defense units <white><defense>"
+    upgrades: "<gray>Upgrade levels <white><bought></white>, defense capacity <white><defense>"
   player:
     header: "<dark_gray>--- <gold><player><dark_gray> ---"
     money: "<gray>Balance <white><balance></white>, frozen <white><frozen>"

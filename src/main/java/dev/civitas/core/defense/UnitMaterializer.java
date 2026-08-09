@@ -100,6 +100,28 @@ public final class UnitMaterializer {
         this.spawn = Objects.requireNonNull(replacement, "replacement");
     }
 
+    /**
+     * SPEC 26.1's state machine, which follows materialisation and had nothing telling it so.
+     *
+     * <p>{@link UnitStates} answers DORMANT for a unit it has never heard of, and until this was
+     * wired nothing ever called {@link UnitStates#materialized} in production — so every unit on
+     * a live server was DORMANT forever, {@link TargetingRule} cancelled on the state check, and
+     * {@link UnitStates#alert} refused outright. The whole roster was inert while every test of
+     * the state machine passed, because the tests set the state themselves.
+     *
+     * <p>Its own instance by default, so a materializer built without one is still correct.
+     */
+    private UnitStates states = new UnitStates();
+
+    public void useStates(UnitStates unitStates) {
+        this.states = Objects.requireNonNull(unitStates, "unitStates");
+    }
+
+    /** What the plugin thinks each unit is doing, for the tick that reads it. */
+    public UnitStates states() {
+        return states;
+    }
+
     // ==================================================================================
     // The sweep
     // ==================================================================================
@@ -139,7 +161,40 @@ public final class UnitMaterializer {
                 acted++;
             }
         }
+
+        reconcileWarStates(now);
         return acted;
+    }
+
+    /**
+     * Flips standing units between HOSTILE and PASSIVE as wars begin and end, SPEC 26.3.
+     *
+     * <p>Materialising covers a unit that comes up during a war. This covers the other two
+     * moments, which are the ones that actually happen: a war starting around a garrison that
+     * is already standing, and SPEC 30.2 case 96 — "War ends while units are mid-combat: units
+     * revert to PASSIVE immediately at war end, before rollback evacuation."
+     *
+     * <p>An ALERTED unit is left alone. SPEC 26.2's trespass response is about one named player
+     * and runs on its own timer; overwriting it here would drop an alert every sweep.
+     */
+    private void reconcileWarStates(long now) {
+        for (DefenseUnit unit : registry.all()) {
+            if (!registry.isMaterialized(unit.id())) {
+                continue;
+            }
+            // Fully qualified: this file imports Materialization.UnitState, which is the
+            // sweep's per-unit record and a different thing from the state enum entirely.
+            dev.civitas.core.defense.UnitState state = states.stateOf(unit.id(), now);
+            if (state == dev.civitas.core.defense.UnitState.ALERTED) {
+                continue;
+            }
+            boolean fighting = atWar(unit);
+            if (fighting && state != dev.civitas.core.defense.UnitState.HOSTILE) {
+                states.hostile(unit.id());
+            } else if (!fighting && state == dev.civitas.core.defense.UnitState.HOSTILE) {
+                states.peace(unit.id());
+            }
+        }
     }
 
     /** Every active unit, in the shape the rule reasons about. */
@@ -207,6 +262,21 @@ public final class UnitMaterializer {
         // next time it went down, for hours it spent standing up.
         registry.put(unit.withState(restored, null));
         write(unit.id(), restored, null);
+
+        // SPEC 26.3: a unit of a city party to a running war is HOSTILE, not PASSIVE. Without
+        // this every defense unit sits at PASSIVE through a siege and TargetingRule cancels
+        // every enemy with STATE_PASSIVE — a garrison that is inert in the one situation SPEC
+        // 27 built it for. Found by review, not by a test, which is why reconcileWarStates
+        // below now runs on every sweep rather than only here.
+        // SPEC 26.3: a unit of a city party to a running war is HOSTILE, not PASSIVE. Without
+        // this every defense unit sits at PASSIVE through a siege and TargetingRule cancels
+        // every enemy with STATE_PASSIVE — a garrison that is inert in the one situation SPEC
+        // 27 built it for. Found by adversarial review, not by a test.
+        if (atWar(unit)) {
+            states.hostile(unit.id());
+        } else {
+            states.materialized(unit.id());
+        }
         return true;
     }
 
@@ -222,6 +292,7 @@ public final class UnitMaterializer {
 
         registry.put(unit.withState(health, now));
         write(unit.id(), health, now);
+        states.dematerialized(unit.id());
         return true;
     }
 
@@ -233,11 +304,27 @@ public final class UnitMaterializer {
      * because the process died first.
      */
     public int checkpoint() {
+        return checkpoint(id -> true);
+    }
+
+    /**
+     * The same, for a subset.
+     *
+     * <p>SPEC 28.8 asks for the City Warden alone to be checkpointed every ten seconds against
+     * thirty for everything else, so there are two timers and each takes the units the other does
+     * not. Splitting by predicate rather than running the whole sweep twice matters because the
+     * second pass would write a Warden's health at both intervals and the faster one would always
+     * find it unchanged — a database round trip per Warden per ten seconds, for nothing.
+     */
+    public int checkpoint(java.util.function.IntPredicate include) {
         if (!enabled()) {
             return 0;
         }
         int written = 0;
         for (DefenseUnit unit : registry.all()) {
+            if (!include.test(unit.id())) {
+                continue;
+            }
             Optional<LivingEntity> entity = registry.entityOf(unit.id());
             if (entity.isEmpty()) {
                 continue;

@@ -147,6 +147,12 @@ class SchemaTest {
         // the entity, which meant despawning it was a free full heal.
         schema.put("defense_units", List.of("id", "city_id", "type", "world", "spawn_x", "spawn_y",
                 "spawn_z", "upkeep", "active", "health", "dormant_since"));
+        // V23, SPEC 28. The primary key on city_id is what makes "one per city" physical rather
+        // than a check the service might forget, and recovering_until is SPEC 28.7's fifth state
+        // -- a deadline rather than a task, because SPEC 30.2 case 98 forbids a war shortening it
+        // and a scheduled task cannot survive the crash it exists to be robust against.
+        schema.put("city_wardens", List.of("city_id", "unit_id", "purchased_at",
+                "recovering_until"));
         schema.put("audit_log", List.of("id", "timestamp", "actor_uuid", "action", "target",
                 "reason", "metadata"));
         // Added by V3: SPEC 4.8 needs circulation history that SPEC 3 does not define.

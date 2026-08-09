@@ -85,8 +85,7 @@ class ConfigKeyUsageTest {
      * somebody forgot to wire.
      */
     private static final Set<String> DATA_NOT_SETTINGS = new TreeSet<>(Set.of(
-            "defense.yml:units.archer.equipment.main-hand-enchantments.POWER",
-            "defense.yml:units.sharpshooter.equipment.main-hand-enchantments.POWER"));
+            "defense.yml:units.archer.equipment.main-hand-enchantments.POWER"));
 
     private static String mainSource() {
         StringBuilder source = new StringBuilder();

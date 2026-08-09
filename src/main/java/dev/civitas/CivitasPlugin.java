@@ -589,7 +589,8 @@ public final class CivitasPlugin extends JavaPlugin {
         DefenseCatalogue defenseCatalogue = new DefenseCatalogue(configs, getLogger());
         getLogger().info(() -> "Defense catalogue: " + defenseCatalogue.load() + " units.");
         DefenseRegistry defenseRegistry = new DefenseRegistry(loadedDaos.defenseUnits());
-        defenseRegistry.loadAll().thenAccept(loaded ->
+        java.util.concurrent.CompletableFuture<Integer> defenseLoaded = defenseRegistry.loadAll();
+        defenseLoaded.thenAccept(loaded ->
                 getLogger().info(() -> "Loaded " + loaded + " defense units."));
         DefenseSpawner defenseSpawner = new DefenseSpawner(this, defenseCatalogue, lang);
         DefenseService defenseService = new DefenseService(this, manager,
@@ -622,17 +623,122 @@ public final class CivitasPlugin extends JavaPlugin {
                         getLogger());
         materializer.useUpgrades(city -> upgradeService.levelOf(city,
                 dev.civitas.core.upgrade.UpgradeType.FORTIFICATION));
+        // SPEC 26.1's states follow materialisation, and nothing had been telling them so: every
+        // unit stayed DORMANT for the life of the server, which SPEC 30.1 cancels on -- so no
+        // unit could target anybody and no trespass alert could take hold. Wired here rather
+        // than through the constructor because the state map is built after the materializer.
+        materializer.useStates(unitStates);
         // SPEC 31 case 87: everything is dormant on startup, whatever the server was doing
         // when it died. Clearing it is what stops a week of downtime healing every unit.
         materializer.onStartup(System.currentTimeMillis());
+        // SPEC 28's Warden. Built here because the spawner has to know about it before anything
+        // can be materialised, and because SPEC 28.8's ten-second checkpoint shares a timer block
+        // with SPEC 25.4's thirty-second one.
+        dev.civitas.core.defense.WardenRegistry wardenRegistry =
+                new dev.civitas.core.defense.WardenRegistry(loadedDaos.cityWardens());
+        wardenRegistry.loadAll().thenAccept(loaded -> {
+            if (loaded > 0) {
+                getLogger().info(() -> "Loaded " + loaded + " City Warden(s).");
+            }
+        });
+        dev.civitas.core.defense.WardenSuppression wardenSuppression =
+                new dev.civitas.core.defense.WardenSuppression(defenseCatalogue);
+        defenseSpawner.useWardenSuppression(wardenSuppression);
+        for (String unsupported : defenseCatalogue.unsupportedWardenSettings()) {
+            // SPEC 30.3 ships these as declarations rather than switches, and SPEC 28.3's own
+            // comment on the first is "NEVER set true". An operator who changed one is told it
+            // did nothing, rather than being left to believe it did.
+            getLogger().warning(() -> unsupported + " is not a supported setting; SPEC 28 states "
+                    + "the only behaviour this plugin implements. The change has no effect.");
+        }
+        dev.civitas.core.defense.WardenService wardenService =
+                new dev.civitas.core.defense.WardenService(manager, loadedDaos.cityWardens(),
+                        loadedDaos.defenseUnits(), wardenRegistry, defenseRegistry,
+                        defenseCatalogue, cityRegistry, treasuryService, upgradeService, scheduler);
+        wardenService.useMaterializer(materializer::dematerialize);
+
         if (materializer.enabled()) {
             getServer().getScheduler().runTaskTimer(this,
                     () -> materializer.sweep(System.currentTimeMillis()),
                     100L, materializer.sweepIntervalTicks());
-            getServer().getScheduler().runTaskTimer(this, materializer::checkpoint,
+            // Split by predicate rather than run twice: SPEC 28.8 gives the Warden ten seconds and
+            // SPEC 25.4 gives everything else thirty, and a Warden written by both would cost a
+            // round trip every ten seconds to discover it had not changed.
+            getServer().getScheduler().runTaskTimer(this,
+                    () -> materializer.checkpoint(id -> !wardenRegistry.isWarden(id)),
                     materializer.checkpointIntervalTicks(),
                     materializer.checkpointIntervalTicks());
+            long wardenTicks = Math.max(1L, defenseCatalogue.wardenCheckpointSeconds() * 20L);
+            getServer().getScheduler().runTaskTimer(this,
+                    () -> materializer.checkpoint(wardenRegistry::isWarden),
+                    wardenTicks, wardenTicks);
         }
+        // SPEC 30.2 case 101. Nothing in the plugin can downgrade a Fortification level, so
+        // there is no event to hook: the realistic trigger is an operator lowering
+        // capacity.base and reloading, which nothing announces. It runs as a pass instead.
+        dev.civitas.core.defense.CapacityReconciler capacityReconciler =
+                new dev.civitas.core.defense.CapacityReconciler(defenseService, defenseRegistry,
+                        defenseCatalogue, loadedDaos.defenseUnits(), materializer, scheduler);
+        capacityReconciler.useNotifier((city, count) -> city.members().forEach(member -> {
+            org.bukkit.entity.Player online = getServer().getPlayer(member.uuid());
+            if (online != null) {
+                lang.send(online, "defense.capacity-suspended",
+                        dev.civitas.lang.LangManager.placeholder("count",
+                                String.valueOf(count)));
+            }
+        }));
+        defenseService.useCapacity(capacityReconciler);
+        // The catalogue is parsed once at startup, so a retuned points value would not otherwise
+        // reach the budget -- and an operator lowering capacity.base is the only realistic way
+        // case 101 ever fires, which makes this the pass that has to see the change.
+        this.capacitySweep = () -> {
+            defenseCatalogue.load();
+            capacityReconciler.reconcileAll(cityRegistry);
+        };
+        unitTargeting.useCommissioning(defenseService.commissioning());
+        defenseLoaded.thenCompose(loaded -> capacityReconciler.reconcileAll(cityRegistry))
+                .thenAccept(changed -> {
+                    if (changed > 0) {
+                        getLogger().info(() -> changed + " defense unit(s) stood down: their "
+                                + "city is over its SPEC 25.5 Defense Capacity.");
+                    }
+                });
+
+        // SPEC 26.2's trespass response. Built here because it needs the unit states and the
+        // registry; its effects are attached further down, once the messenger and the audit
+        // log it reports through exist.
+        dev.civitas.core.defense.TrespassService trespassService =
+                new dev.civitas.core.defense.TrespassService(configs, cityRegistry, claimRegistry,
+                        unitStates, defenseRegistry);
+        dev.civitas.core.defense.UnitGlow unitGlow =
+                new dev.civitas.core.defense.UnitGlow(defenseRegistry);
+        // SPEC 27.3's Keeper, and SPEC 30.1's blind spot. The one targeting handler only ever
+        // vetoes, so until something proposes a candidate an ALERTED guard stands still --
+        // DefenseTick.acquire is what makes the whole roster do anything at all.
+        dev.civitas.core.defense.WatchtowerDetection watchtowers =
+                new dev.civitas.core.defense.WatchtowerDetection();
+        dev.civitas.core.defense.DefenseTick defenseTick =
+                new dev.civitas.core.defense.DefenseTick(defenseRegistry, defenseCatalogue,
+                        cityRegistry, unitStates, unitTargeting, watchtowers);
+        defenseTick.useDiplomacy((cityId, otherCityId) -> cityRegistry.city(cityId)
+                .map(owner -> cityRegistry.city(otherCityId)
+                        .map(other -> defenseBehaviour.isSameSide(owner, other.mayorUuid()))
+                        .orElse(false))
+                .orElse(false));
+        cityService.onCityDisbanded(watchtowers::forgetCity);
+        if (defenseCatalogue.enabled()) {
+            getServer().getScheduler().runTaskTimer(this,
+                    () -> defenseTick.acquire(System.currentTimeMillis()), 120L, 10L);
+            getServer().getScheduler().runTaskTimer(this,
+                    () -> defenseTick.watchtowers(System.currentTimeMillis(),
+                            (city, seen) -> announceSighting(lang, city, seen)),
+                    140L, watchtowerRefreshTicks(defenseCatalogue));
+        }
+        protectionGuard.useViolations((cityId, player, where) ->
+                trespassService.violated(cityId, player.getUniqueId(), where,
+                        System.currentTimeMillis()));
+        cityService.onCityDisbanded(trespassService::forgetCity);
+
         upkeepTask.useDefense(defenseRegistry, defenseService);
         // Registered on the same hook rather than left to the next milestone: a disbanded
         // city that keeps its units and its bought upgrade levels would hand them back to
@@ -640,6 +746,27 @@ public final class CivitasPlugin extends JavaPlugin {
         cityService.onCityDisbanded(upgradeService::forgetCity);
         cityService.onCityDisbanded(cityId -> cityRegistry.city(cityId)
                 .ifPresent(defenseService::removeCity));
+        cityService.onCityDisbanded(wardenService::removeCity);
+        // SPEC 30.2 case 99. The only path in the plugin that refunds a defense unit, because an
+        // operator moving a chunk is not a game outcome the city chose.
+        claimService.onCoreChunkMoved(cityId -> cityRegistry.city(cityId)
+                .ifPresent(wardenService::removeForAdmin));
+
+        // SPEC 28.3, 28.7 and 28.8: the anger map, the confinement, the darkness and the one
+        // title a trespasser gets. None of it applies to any other unit, which is why it is not
+        // in DefenseTick.
+        dev.civitas.core.defense.WardenTick wardenTick =
+                new dev.civitas.core.defense.WardenTick(wardenRegistry, defenseRegistry,
+                        defenseCatalogue, cityRegistry, unitStates, wardenSuppression);
+        if (defenseCatalogue.wardenEnabled()) {
+            getServer().getScheduler().runTaskTimer(this,
+                    () -> wardenTick.tick(System.currentTimeMillis()), 130L, 10L);
+            // SPEC 28.6's six hours, swept rather than scheduled: SPEC 30.2 case 98 forbids
+            // recovery being accelerated, and a task cannot survive the crash it guards against.
+            getServer().getScheduler().runTaskTimer(this,
+                    () -> wardenService.sweepRecovered(System.currentTimeMillis()),
+                    200L, 20L * 60L);
+        }
 
         MenuManager menuManager = new MenuManager(configs, lang);
         LayoutLoader layoutLoader = new LayoutLoader(dev.civitas.config.PluginResources.of(this));
@@ -723,10 +850,36 @@ public final class CivitasPlugin extends JavaPlugin {
         spawnService.useWars(warWiring.restrictions());               // SPEC 5.6 warmup
         outpostService.useWars(warWiring.restrictions());             // SPEC 11.11
         outpostTeleport.useWars(warWiring.restrictions());            // SPEC 7.4
+        // SPEC 26.3 and 25.4: a war both keeps units standing with nobody watching and turns
+        // them HOSTILE. This seam was written by M12a and never filled, so until now the war
+        // half of both rules was dead.
+        // ACTIVE only, never PREP. SPEC 26.3: "During PREP, units remain PASSIVE. Prep is a
+        // building phase, not a fighting phase." isEngaged() covers both and would arm a
+        // garrison two days before anyone is allowed to fight it.
+        materializer.useWars((cityId, world, chunkX, chunkZ) ->
+                warWiring.registry().engagedWarOf(cityId)
+                        .filter(war -> war.state() == dev.civitas.core.war.WarState.ACTIVE)
+                        .isPresent());
         upgradeService.useWars(warWiring.restrictions());             // SPEC 11.11
         statsService.useWars(warWiring.registry());                   // SPEC 13.3 Builder
         defenseService.useWars(warWiring.registry());                 // SPEC 12.4 price
         defenseBehaviour.useWars(warWiring.registry());               // SPEC 12.3 targeting
+        // SPEC 27.3: the Watchtower Keeper is "invulnerable outside war, 40 during war".
+        defenseSpawner.useWars(cityId -> warWiring.registry().engagedWarOf(cityId)
+                .map(war -> war.state() == dev.civitas.core.war.WarState.ACTIVE)
+                .orElse(false));
+        // SPEC 26.3: trespass response is suspended while a war is being fought, because
+        // everything in the zone is hostile anyway. Warning an attacker before the guards
+        // engage them would be the opposite of a siege.
+        trespassService.useWars(cityId -> warWiring.registry().engagedWarOf(cityId)
+                .map(war -> war.state() == dev.civitas.core.war.WarState.ACTIVE)
+                .orElse(false));
+        // SPEC 28.6: the one thing that makes a Warden's death final. ACTIVE only, matching every
+        // other war seam in this package -- SPEC 11.5 permits no grief during PREP, and a Warden
+        // deletable in a phase where nothing else may be broken would be the single exception.
+        wardenService.useWars(cityId -> warWiring.registry().engagedWarOf(cityId)
+                .map(war -> war.state() == dev.civitas.core.war.WarState.ACTIVE)
+                .orElse(false));
         warWiring.restrictions().useAdminProtection(adminProtection); // SPEC 11.6
         warWiring.restrictions().usePolicy(                           // SPEC 16.3
                 new dev.civitas.core.war.RollbackPolicy(configs));
@@ -818,6 +971,26 @@ public final class CivitasPlugin extends JavaPlugin {
         dev.civitas.msg.Messenger messenger =
                 new dev.civitas.msg.Messenger(lang, configs, togglePreferences);
 
+        // SPEC 26.2's visible half, attached now that both the router it speaks through and
+        // the audit log it records violations in exist.
+        dev.civitas.listener.TrespassListener trespassListener =
+                new dev.civitas.listener.TrespassListener(this, trespassService, messenger,
+                        unitGlow, auditService);
+        trespassService.useEffects(trespassListener::on);
+        getServer().getPluginManager().registerEvents(trespassListener, this);
+
+        // SPEC 27.2 to 27.7's abilities, and SPEC 30.2 cases 105 to 112. A separate listener
+        // from DefenseListener on purpose: SPEC 30.1 requires exactly one targeting handler,
+        // and the surest way to keep that visibly true is for the file holding it to contain
+        // nothing else that reasons about a unit and a player.
+        dev.civitas.listener.DefenseAbilityListener defenseAbilities =
+                new dev.civitas.listener.DefenseAbilityListener(defenseSpawner, defenseRegistry,
+                        defenseCatalogue, cityRegistry, unitStates, lang);
+        // SPEC 27.6's alert network fires "regardless of trespass state", and SPEC 26.2 still
+        // promises nobody is killed without being told. Both, through one sink.
+        defenseAbilities.useEffects(trespassListener::on);
+        getServer().getPluginManager().registerEvents(defenseAbilities, this);
+
         services.set(new CivitasServices(cityRegistry, cityService, rankService, claimRegistry,
                 claimService, claimMap, borderRenderer, protection, protectionGuard,
                 blockClassifier, economyService, treasuryService, bountyService,
@@ -849,7 +1022,7 @@ public final class CivitasPlugin extends JavaPlugin {
                         timings.enabled()),
                 loadedDaos, warWiring.scoreboard(),
                 outpostService, outpostTeleport, upgradeService,
-                defenseService, diplomacyService, vaultService, vaultView,
+                defenseService, wardenService, diplomacyService, vaultService, vaultView,
                 menuManager, layoutLoader,
                 amountInput, spawnService, cityHall, accounts, lookup, scheduler));
 
@@ -864,7 +1037,11 @@ public final class CivitasPlugin extends JavaPlugin {
 
         // SPEC 5.5, the land protection listeners. Registered together so it is obvious at a
         // glance which events the plugin guards.
-        registerProtection(protectionGuard, protection, blockClassifier);
+        // SPEC 26.2 lists damaging a defense unit among the violations, and nothing else
+        // catches it: most of SPEC 27's roster are hostile mob types, which entity protection
+        // deliberately lets anyone hit.
+        registerProtection(protectionGuard, protection, blockClassifier,
+                defenseSpawner::isDefenseUnit);
 
         // SPEC 4.5, chest shops.
         getServer().getPluginManager().registerEvents(
@@ -886,8 +1063,24 @@ public final class CivitasPlugin extends JavaPlugin {
                 dev.civitas.listener.AdminInspectListener.ProtectedChunkLookup.none()), this);
         getServer().getPluginManager().registerEvents(new DefenseListener(this, defenseService,
                 unitTargeting, cityRegistry, lang, getLogger()), this);
-        scheduleDefenseLeash(new dev.civitas.core.defense.DefenseLeash(defenseRegistry,
-                defenseSpawner, defenseBehaviour, claimRegistry), defenseRegistry);
+        // SPEC 28.8's suppressions and SPEC 28.6's peacetime defeat, which are all event-shaped
+        // and therefore all assertable -- SPEC 31 asks for the sonic boom and the vibration anger
+        // to be "disabled and verified", and an event is a thing a test can fire.
+        getServer().getPluginManager().registerEvents(new dev.civitas.listener.WardenListener(
+                defenseSpawner, defenseRegistry, wardenService, wardenSuppression), this);
+        wireWardenMessages(wardenService, wardenTick, lang, messenger);
+        dev.civitas.core.defense.DefenseLeash defenseLeash =
+                new dev.civitas.core.defense.DefenseLeash(defenseRegistry, defenseSpawner,
+                        defenseBehaviour, defenseCatalogue);
+        // SPEC 30.2 case 92's last resort: a unit whose teleport home keeps being refused is
+        // taken down and stood back up at its post, which is the one route that cannot fail.
+        defenseLeash.useRecovery(unit -> {
+            long now = System.currentTimeMillis();
+            materializer.dematerialize(unit, now);
+            defenseRegistry.byId(unit.id())
+                    .ifPresent(current -> materializer.materialize(current, now));
+        });
+        scheduleDefenseLeash(defenseLeash, defenseRegistry);
         getServer().getPluginManager().registerEvents(
                 new ActivityListener(activityTracker, questService, challengeService,
                         statsService, placedBlocks), this);
@@ -929,12 +1122,17 @@ public final class CivitasPlugin extends JavaPlugin {
 
     /** Every SPEC 5.5 listener. */
     private void registerProtection(ProtectionGuard guard, ProtectionService protection,
-                                    BlockClassifier blocks) {
+                                    BlockClassifier blocks,
+                                    java.util.function.Predicate<org.bukkit.entity.Entity>
+                                            defenseUnits) {
         var manager = getServer().getPluginManager();
         manager.registerEvents(new BlockProtectionListener(guard), this);
         manager.registerEvents(new ContainerProtectionListener(guard, blocks), this);
         manager.registerEvents(new InteractionProtectionListener(guard, blocks), this);
-        manager.registerEvents(new EntityProtectionListener(guard, pvpPolicy), this);
+        EntityProtectionListener entityProtection =
+                new EntityProtectionListener(guard, pvpPolicy);
+        entityProtection.useDefenseUnits(defenseUnits);
+        manager.registerEvents(entityProtection, this);
         // SPEC 37's join and respawn grace, both directions.
         manager.registerEvents(
                 new dev.civitas.listener.PvpListener(pvpPolicy, lang), this);
@@ -1386,6 +1584,99 @@ public final class CivitasPlugin extends JavaPlugin {
      * cannot let one cross the eight-block leash unnoticed and come back. Scanning nothing
      * when no city owns a unit, which is most servers most of the time.
      */
+    /**
+     * How often SPEC 27.3's Keepers repaint, from the Keeper's own glow refresh.
+     *
+     * <p>Read from whichever unit declares it rather than from a server-wide key, because it is
+     * a property of that unit and SPEC 27.3 states it there. A roster with no detection unit
+     * never schedules anything worth running fast, so the fallback is deliberately slow.
+     */
+    private static long watchtowerRefreshTicks(
+            dev.civitas.core.defense.DefenseCatalogue catalogue) {
+        return catalogue.all().stream()
+                .filter(type -> type.hasAbility(
+                        dev.civitas.core.defense.DefenseUnitType.Ability.GLOW_REFRESH_SECONDS))
+                .mapToLong(type -> Math.max(20L, (long) (type.ability(
+                        dev.civitas.core.defense.DefenseUnitType.Ability.GLOW_REFRESH_SECONDS,
+                        3) * 20)))
+                .min()
+                .orElse(60L);
+    }
+
+    /** SPEC 27.3: "Posts a message to city chat when an unknown player enters." */
+    /**
+     * SPEC 30.4's five {@code warden.*} messages, attached to the service that fires them.
+     *
+     * <p>SPEC 28.6 requires the city to be told "both when it goes down and when it returns", and
+     * SPEC 23.1's first principle makes that more than politeness: a 750,000 C asset that vanished
+     * for six hours with no message would read as a bug, and a city that never learned why would
+     * assume it had been stolen.
+     */
+    private void wireWardenMessages(dev.civitas.core.defense.WardenService wardens,
+                                    dev.civitas.core.defense.WardenTick tick,
+                                    dev.civitas.lang.LangManager lang,
+                                    dev.civitas.msg.Messenger messenger) {
+        wardens.onPurchased((city, owned) -> {
+            // SPEC 30.4 gives this a title as well as chat, and it is one of the few things in
+            // the plugin that earns one: a server should know when a city has done this.
+            org.bukkit.Bukkit.broadcast(lang.get("warden.purchased",
+                    dev.civitas.lang.LangManager.placeholder("city", city.name())));
+            city.members().forEach(member -> {
+                org.bukkit.entity.Player online = org.bukkit.Bukkit.getPlayer(member.uuid());
+                if (online != null) {
+                    messenger.sendTitle(member.uuid(), online,
+                            dev.civitas.msg.ToggleCategory.MEMBERSHIP,
+                            "warden.purchased-title", null);
+                }
+            });
+        });
+        // SPEC 30.4: BOTH plus SERVER. A war that kills a Warden has destroyed the single most
+        // expensive thing on the server, and SPEC 28.6 makes it permanent, so it is news.
+        wardens.onDestroyedInWar(city -> org.bukkit.Bukkit.broadcast(
+                lang.get("warden.destroyed-war",
+                        dev.civitas.lang.LangManager.placeholder("city", city.name()))));
+        wardens.onDefeated((city, hours, killer) -> toCity(lang, city,
+                killer == null
+                        ? "warden.defeated-peacetime-environment"
+                        : "warden.defeated-peacetime",
+                dev.civitas.lang.LangManager.placeholder("hours", String.valueOf(hours)),
+                dev.civitas.lang.LangManager.placeholder("killer",
+                        killer == null ? "" : killer)));
+        wardens.onRecovered(city -> toCity(lang, city, "warden.returned"));
+        wardens.onAdminRemoved((city, refund) -> toCity(lang, city, "warden.admin-refunded",
+                dev.civitas.lang.LangManager.placeholder("amount",
+                        dev.civitas.core.economy.Money.format(refund, configs))));
+        tick.onEmerged((owned, target) -> lang.send(target, "warden.emerged-title"));
+    }
+
+    private static void toCity(dev.civitas.lang.LangManager lang,
+                               dev.civitas.core.city.City city, String key,
+                               net.kyori.adventure.text.minimessage.tag.resolver.TagResolver...
+                                       placeholders) {
+        city.members().forEach(member -> {
+            org.bukkit.entity.Player online = org.bukkit.Bukkit.getPlayer(member.uuid());
+            if (online != null) {
+                lang.send(online, key, placeholders);
+            }
+        });
+    }
+
+    private static void announceSighting(dev.civitas.lang.LangManager lang,
+                                         dev.civitas.core.city.City city,
+                                         org.bukkit.entity.Player seen) {
+        city.members().forEach(member -> {
+            org.bukkit.entity.Player online = org.bukkit.Bukkit.getPlayer(member.uuid());
+            if (online != null) {
+                lang.send(online, "defense.watchtower-sighted",
+                        dev.civitas.lang.LangManager.placeholder("player", seen.getName()),
+                        dev.civitas.lang.LangManager.placeholder("x",
+                                String.valueOf(seen.getLocation().getBlockX())),
+                        dev.civitas.lang.LangManager.placeholder("z",
+                                String.valueOf(seen.getLocation().getBlockZ())));
+            }
+        });
+    }
+
     private void scheduleDefenseLeash(dev.civitas.core.defense.DefenseLeash leash,
                                       dev.civitas.core.defense.DefenseRegistry defenseRegistry) {
         Bukkit.getScheduler().runTaskTimer(this, () -> {
@@ -1542,7 +1833,15 @@ public final class CivitasPlugin extends JavaPlugin {
     private void reloadConfigs() {
         configs.reloadAll();
         lang.load();
+        capacitySweep.run();
     }
+
+    /**
+     * Re-reads the defense catalogue and brings every garrison back inside SPEC 25.5's budget.
+     *
+     * <p>A no-op until storage opens, like everything else built in {@code onStorageReady}.
+     */
+    private Runnable capacitySweep = () -> { };
 
     /**
      * Migrations discovered but not applied, for SPEC 9.4.6's {@code /ca migrate check}.

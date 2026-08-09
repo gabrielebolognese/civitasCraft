@@ -121,67 +121,51 @@ class DefenseServiceTest {
     // ==================================================================================
 
     @Nested
-    @DisplayName("SPEC 12.2 catalogue")
+    @DisplayName("SPEC 27 roster")
     class Catalogue {
 
+        // SPEC 27.1's stat table, the roster's membership and its ordering are asserted in
+        // UnitShapingTest, which needs no server and can therefore also assert the shaping the
+        // spawner applies. What is left here is what this class is for: that the catalogue the
+        // service buys from is the one on disk.
+        //
+        // The rows that used to live here asserted the eight-unit catalogue SPEC 25.1 retired
+        // -- watchman 40/8000/400, siege-golem 250/60000/3000, sharpshooter's Power V. They
+        // were replaced rather than deleted because SPEC 25.1's reason for retiring them is
+        // worth keeping visible: five of the eight performed two jobs.
+
         @Test
-        @DisplayName("all eight units load from the shipped config")
-        void eightUnits() {
-            assertEquals(8, catalogue.size());
-            for (String key : List.of("watchman", "city-guard", "elite-guard", "archer",
-                    "sharpshooter", "warhound", "siege-golem", "sentry")) {
+        @DisplayName("SPEC 27's roster loads from the shipped config")
+        void rosterLoads() {
+            assertEquals(6, catalogue.size());
+            for (String key : List.of("frost-sentry", "watchtower-keeper", "warhound", "archer",
+                    "city-guard", "colossus")) {
                 assertTrue(catalogue.byKey(key).isPresent(), key + " is missing");
             }
-        }
-
-        @Test
-        @DisplayName("the stats are the ones SPEC 12.2 lists")
-        void stats() {
-            DefenseUnitType watchman = type("watchman");
-            assertEquals(EntityType.ZOMBIE, watchman.mob());
-            assertEquals(40, watchman.health());
-            assertEquals(5, watchman.damage());
-            assertEquals(0, new BigDecimal("8000").compareTo(watchman.cost()));
-            assertEquals(0, new BigDecimal("400").compareTo(watchman.upkeepPerDay()));
-
-            DefenseUnitType golem = type("siege-golem");
-            assertEquals(EntityType.IRON_GOLEM, golem.mob());
-            assertEquals(250, golem.health());
-            assertEquals(0, new BigDecimal("60000").compareTo(golem.cost()));
-            assertEquals(0, new BigDecimal("3000").compareTo(golem.upkeepPerDay()));
         }
 
         @Test
         @DisplayName("equipment and enchantments load")
         void equipment() {
             DefenseUnitType guard = type("city-guard");
-            assertEquals(Material.IRON_CHESTPLATE,
+            assertEquals(Material.LEATHER_CHESTPLATE,
                     guard.equipment().get(DefenseUnitType.EquipmentSlotKey.CHESTPLATE));
             assertEquals(Material.SHIELD,
                     guard.equipment().get(DefenseUnitType.EquipmentSlotKey.OFF_HAND));
 
-            DefenseUnitType sharpshooter = type("sharpshooter");
-            assertTrue(sharpshooter.isRanged());
-            assertEquals(5, sharpshooter.mainHandEnchantments().get("POWER"));
+            DefenseUnitType archer = type("archer");
+            assertTrue(archer.isRanged());
+            assertEquals(3, archer.mainHandEnchantments().get("POWER"));
         }
 
         @Test
-        @DisplayName("the Sentry debuffs instead of hitting things")
-        void sentryIsSupport() {
-            DefenseUnitType sentry = type("sentry");
-
-            assertTrue(sentry.isSupport());
-            assertEquals(0, sentry.damage());
-            assertTrue(sentry.effect().isPresent());
-        }
-
-        @Test
-        @DisplayName("the list is cheapest first, which is buying order")
-        void sortedByCost() {
-            List<DefenseUnitType> all = catalogue.all();
-
-            assertEquals("sentry", all.get(0).key(), "6,000 C");
-            assertEquals("siege-golem", all.get(all.size() - 1).key(), "60,000 C");
+        @DisplayName("the two units that do not fight say so")
+        void twoUnitsDoNotFight() {
+            assertFalse(type("frost-sentry").dealsDamage(),
+                    "SPEC 27.2: \"deals no damage ever\"");
+            assertFalse(type("watchtower-keeper").dealsDamage(),
+                    "SPEC 27.3: \"cannot fight and cannot be targeted by mobs\"");
+            assertTrue(type("city-guard").dealsDamage());
         }
     }
 
@@ -196,52 +180,84 @@ class DefenseServiceTest {
         @Test
         @DisplayName("a unit is placed inside the city's own claims")
         void ownLandOnly() {
-            assertTrue(defense.checkPlacement(mayor, city, type("watchman"), WORLD,
+            assertTrue(defense.checkPlacement(mayor, city, type("city-guard"), WORLD,
                     8.0, 64.0, 8.0).isSuccess(), "the core chunk is theirs");
 
             assertEquals("NOT_YOUR_LAND", reasonOf(defense.checkPlacement(mayor, city,
-                    type("watchman"), WORLD, 5000.0, 64.0, 5000.0)));
+                    type("city-guard"), WORLD, 5000.0, 64.0, 5000.0)));
         }
 
         @Test
-        @DisplayName("SPEC 12.4: five units to start with")
-        void unitLimit() {
-            assertEquals(5, defense.maxUnits(city));
+        @DisplayName("SPEC 25.5: 100 points to start with, and five City Guards fill it exactly")
+        void capacityLimit() {
+            // Replaces "SPEC 12.4: five units to start with", which asserted the unit count
+            // SPEC 25.5 retires. The arithmetic happens to give the same five guards -- and
+            // that is the point of the change rather than an accident of it: five guards is
+            // 100 points, and two Colossi and a Sentry is 98, and a count could not tell them
+            // apart.
+            assertEquals(100, defense.capacity(city));
 
             for (int i = 0; i < 5; i++) {
                 // Spread across chunks so the per-chunk cap is not what stops it.
-                place("watchman", i * 16 + 8.0, 8.0);
+                place("city-guard", i * 16 + 8.0, 8.0);
+                support.claims.registry().put(new dev.civitas.core.claim.Claim(
+                        100L + i, city.id(), WORLD, i + 1, 0, System.currentTimeMillis(),
+                        mayor, BigDecimal.ZERO, dev.civitas.core.claim.ClaimType.NORMAL, null));
+            }
+            assertEquals(100, defense.pointsSpent(city.id()));
+            assertEquals(0, defense.pointsRemaining(city));
+
+            Result<DefenseUnitType> sixth = defense.checkPlacement(mayor, city,
+                    type("city-guard"), WORLD, 8.0, 64.0, 8.0);
+            assertEquals("CAPACITY_FULL", reasonOf(sixth));
+        }
+
+        @Test
+        @DisplayName("SPEC 25.5: a budget refuses fifteen Colossi where a count allowed them")
+        void aCountPermittedFifteenColossi() {
+            // SPEC 25.5's stated reason for the whole milestone: "A count permits fifteen
+            // Colossi. A points budget does not." Under Part I 12.4 a maxed city could field
+            // fifteen units of any kind at all.
+            await(support.daos.cityUpgrades().setLevel(city.id(),
+                    UpgradeType.FORTIFICATION.key(), 5));
+            await(upgrades.loadAll());
+            assertEquals(225, defense.capacity(city), "SPEC 25.5's 100 to 225");
+
+            for (int i = 0; i < 5; i++) {
+                place("colossus", i * 16 + 8.0, 8.0);
                 support.claims.registry().put(new dev.civitas.core.claim.Claim(
                         100L + i, city.id(), WORLD, i + 1, 0, System.currentTimeMillis(),
                         mayor, BigDecimal.ZERO, dev.civitas.core.claim.ClaimType.NORMAL, null));
             }
 
-            Result<DefenseUnitType> sixth = defense.checkPlacement(mayor, city,
-                    type("watchman"), WORLD, 8.0, 64.0, 8.0);
-            assertEquals("UNIT_LIMIT", reasonOf(sixth));
+            assertEquals(225, defense.pointsSpent(city.id()), "five Colossi fill it exactly");
+            assertEquals("CAPACITY_FULL", reasonOf(defense.checkPlacement(mayor, city,
+                    type("colossus"), WORLD, 8.0, 64.0, 8.0)),
+                    "the sixth is refused, where a count of fifteen would have allowed ten more");
         }
 
         @Test
-        @DisplayName("SPEC 12.4: Fortification raises the cap, at two units a level")
-        void fortificationRaisesTheCap() {
-            // SPEC 5.7 says +1 and SPEC 12.4 says +2, and 12.4's stated range of 5 to 15 is
-            // only arithmetic at +2. This is the resolution, asserted.
-            await(support.daos.cityUpgrades().setLevel(city.id(),
-                    UpgradeType.FORTIFICATION.key(), 5));
-            await(upgrades.loadAll());
-
-            assertEquals(15, defense.maxUnits(city), "SPEC 12.4's own 5 to 15");
+        @DisplayName("SPEC 25.5: Fortification buys 25 points a level, not units")
+        void fortificationBuysPoints() {
+            assertEquals(100, defense.capacity(city));
+            for (int level = 1; level <= 5; level++) {
+                await(support.daos.cityUpgrades().setLevel(city.id(),
+                        UpgradeType.FORTIFICATION.key(), level));
+                await(upgrades.loadAll());
+                assertEquals(100 + 25 * level, defense.capacity(city),
+                        "Fortification " + level);
+            }
         }
 
         @Test
         @DisplayName("SPEC 12.4: no more than three units in one chunk")
         void perChunkCap() {
-            place("watchman", 8.0, 8.0);
-            place("watchman", 9.0, 9.0);
-            place("watchman", 10.0, 10.0);
+            place("city-guard", 8.0, 8.0);
+            place("city-guard", 9.0, 9.0);
+            place("city-guard", 10.0, 10.0);
 
             assertEquals("CHUNK_FULL", reasonOf(defense.checkPlacement(mayor, city,
-                    type("watchman"), WORLD, 11.0, 64.0, 11.0)));
+                    type("city-guard"), WORLD, 11.0, 64.0, 11.0)));
             assertEquals(3, registry.countInChunk(city.id(), WORLD, 0, 0));
         }
 
@@ -253,9 +269,9 @@ class DefenseServiceTest {
             await(support.ranks.assign(mayor, city, member, citizen));
 
             assertEquals("NO_CITY_PERMISSION",
-                    reasonOf(await(defense.purchase(member, city, type("watchman")))));
+                    reasonOf(await(defense.purchase(member, city, type("city-guard")))));
             assertEquals("NO_CITY_PERMISSION", reasonOf(defense.checkPlacement(member, city,
-                    type("watchman"), WORLD, 8.0, 64.0, 8.0)));
+                    type("city-guard"), WORLD, 8.0, 64.0, 8.0)));
         }
     }
 
@@ -285,7 +301,7 @@ class DefenseServiceTest {
         @Test
         @DisplayName("it is ledgered as a defense purchase")
         void ledgered() {
-            await(defense.purchase(mayor, city, type("watchman")));
+            await(defense.purchase(mayor, city, type("city-guard")));
 
             assertEquals(1, await(support.daos.ledger()
                     .findByType(TransactionType.DEFENSE_PURCHASE.name(), 0L, 10)).size());
@@ -304,7 +320,7 @@ class DefenseServiceTest {
             fundTreasury("100.00");
 
             assertEquals("TREASURY_SHORT",
-                    reasonOf(await(defense.purchase(mayor, city, type("siege-golem")))));
+                    reasonOf(await(defense.purchase(mayor, city, type("colossus")))));
         }
     }
 
@@ -317,19 +333,19 @@ class DefenseServiceTest {
     class Upkeep {
 
         @Test
-        @DisplayName("SPEC 12.2: standing units add their fee to the city's daily bill")
+        @DisplayName("SPEC 27.1: standing units add their fee to the city's daily bill")
         void dailyUpkeep() {
-            place("watchman", 8.0, 8.0);
+            place("city-guard", 8.0, 8.0);
             place("archer", 9.0, 9.0);
 
-            assertEquals(0, new BigDecimal("1100").compareTo(registry.dailyUpkeep(city.id())),
-                    "400 plus 700");
+            assertEquals(0, new BigDecimal("1600").compareTo(registry.dailyUpkeep(city.id())),
+                    "900 plus 700");
         }
 
         @Test
         @DisplayName("SPEC 12.3: deactivated units stop costing, and their rows survive")
         void deactivation() {
-            place("watchman", 8.0, 8.0);
+            place("city-guard", 8.0, 8.0);
 
             await(defense.setActive(city, false));
 
@@ -345,7 +361,7 @@ class DefenseServiceTest {
         @Test
         @DisplayName("SPEC 12.3 and 17.4 case 56: a dead unit is gone, and refunds nothing")
         void deathIsPermanent() {
-            DefenseUnit unit = place("watchman", 8.0, 8.0);
+            DefenseUnit unit = place("city-guard", 8.0, 8.0);
             BigDecimal treasuryBefore = await(support.daos.cities().findById(city.id()))
                     .orElseThrow().treasury();
 
@@ -360,7 +376,7 @@ class DefenseServiceTest {
         @Test
         @DisplayName("dismissing a unit refunds nothing either")
         void dismissRefundsNothing() {
-            DefenseUnit unit = place("watchman", 8.0, 8.0);
+            DefenseUnit unit = place("city-guard", 8.0, 8.0);
             BigDecimal before = await(support.daos.cities().findById(city.id()))
                     .orElseThrow().treasury();
 
@@ -374,7 +390,7 @@ class DefenseServiceTest {
         @Test
         @DisplayName("SPEC 12.3: a disbanding city loses every unit")
         void disbandRemovesAll() {
-            place("watchman", 8.0, 8.0);
+            place("city-guard", 8.0, 8.0);
             place("archer", 9.0, 9.0);
 
             await(defense.removeCity(city));
@@ -386,7 +402,7 @@ class DefenseServiceTest {
         @Test
         @DisplayName("units survive a restart")
         void reload() {
-            place("watchman", 8.0, 8.0);
+            place("city-guard", 8.0, 8.0);
             place("archer", 9.0, 9.0);
 
             assertEquals(2, await(registry.loadAll()));
@@ -401,14 +417,23 @@ class DefenseServiceTest {
     @Test
     @DisplayName("the caps and the wartime multiplier are config keys")
     void configurable() {
-        assertEquals(5, catalogue.baseMaxUnits());
-        assertEquals(2, catalogue.unitsPerFortificationLevel());
+        assertEquals(100, catalogue.baseCapacity());
+        assertEquals(25, catalogue.capacityPerFortificationLevel());
+        assertEquals(60_000L, catalogue.warPurchaseInactiveMillis());
+        assertEquals(3, catalogue.leashTeleportFailures());
         assertEquals(3, catalogue.maxUnitsPerChunk());
         assertEquals(2.0, catalogue.wartimeMultiplier(), 0.001);
         assertEquals(5.0, catalogue.healthBonusPercentPerLevel(), 0.001);
 
         support.configs.get(ConfigFile.DEFENSE).set("placement.max-units-per-chunk", 1);
         assertEquals(1, catalogue.maxUnitsPerChunk());
+
+        // The budget is configurable in both terms, which is what makes SPEC 30.2 case 101
+        // reachable at all: nothing in the plugin can downgrade a Fortification level, so an
+        // operator lowering this is the only way a city ever ends up over capacity.
+        support.configs.get(ConfigFile.DEFENSE).set("capacity.base", 40);
+        support.configs.get(ConfigFile.DEFENSE).set("capacity.per-fortification-level", 5);
+        assertEquals(40, defense.capacity(city));
     }
 
     @Test
@@ -418,13 +443,13 @@ class DefenseServiceTest {
 
         assertFalse(catalogue.enabled());
         assertEquals("DEFENSE_DISABLED",
-                reasonOf(await(defense.purchase(mayor, city, type("watchman")))));
+                reasonOf(await(defense.purchase(mayor, city, type("city-guard")))));
     }
 
     @Test
     @DisplayName("a unit knows which chunk it stands in")
     void chunkMath() {
-        DefenseUnit unit = place("watchman", 8.0, 8.0);
+        DefenseUnit unit = place("city-guard", 8.0, 8.0);
 
         assertEquals(0, unit.chunkX());
         assertEquals(0, unit.chunkZ());
@@ -543,6 +568,106 @@ class DefenseServiceTest {
             registry.entityOf(unit.id()).orElseThrow().setHealth(5.0);
             assertEquals(1, materializer.checkpoint());
             assertEquals(5.0, registry.byId(unit.id()).orElseThrow().health(), 0.01);
+        }
+    }
+
+    // ==================================================================================
+    // SPEC 26.3, war aggression
+    // ==================================================================================
+
+    @Nested
+    @DisplayName("war aggression, SPEC 26.3")
+    class WarStates {
+
+        @BeforeEach
+        void giveThisClassAWorld() {
+            server.addSimpleWorld(WORLD);
+            materializer.useSpawn((unit, type, city, fortification) -> {
+                var loc = new org.bukkit.Location(server.getWorld(WORLD),
+                        unit.x(), unit.y(), unit.z());
+                var spawned = (org.bukkit.entity.LivingEntity) server.getWorld(WORLD)
+                        .spawnEntity(loc, type.mob());
+                spawned.getAttribute(org.bukkit.attribute.Attribute.MAX_HEALTH)
+                        .setBaseValue(type.health());
+                spawned.setHealth(type.health());
+                return java.util.Optional.of(spawned);
+            });
+        }
+
+        private DefenseUnit given() {
+            int id = await(support.daos.defenseUnits().insert(
+                    new dev.civitas.storage.row.DefenseUnitRow(0, city.id(), "city-guard",
+                            WORLD, 8.0, 64.0, 8.0, new BigDecimal("900.00"), true, null, null)));
+            DefenseUnit unit = new DefenseUnit(id, city.id(), "city-guard", WORLD,
+                    8.0, 64.0, 8.0, new BigDecimal("900.00"), true, null, null);
+            registry.put(unit);
+            return unit;
+        }
+
+        @Test
+        @DisplayName("SPEC 26.3: a unit standing up during a war is HOSTILE, not PASSIVE")
+        void materialisingIntoAWarIsHostile() {
+            // The gap an adversarial review found and no test had: nothing called
+            // UnitStates.hostile, so through an entire siege every unit sat at PASSIVE and
+            // TargetingRule cancelled every enemy with STATE_PASSIVE. A garrison inert in the
+            // one situation SPEC 27 built it for.
+            DefenseUnit unit = given();
+            materializer.useWars((cityId, world, chunkX, chunkZ) -> true);
+
+            assertTrue(materializer.materialize(unit, 1_000L));
+
+            assertEquals(UnitState.HOSTILE,
+                    materializer.states().stateOf(unit.id(), 1_000L));
+        }
+
+        @Test
+        @DisplayName("and PASSIVE when no war is running, which is the ordinary case")
+        void peacetimeIsPassive() {
+            DefenseUnit unit = given();
+
+            assertTrue(materializer.materialize(unit, 1_000L));
+
+            assertEquals(UnitState.PASSIVE,
+                    materializer.states().stateOf(unit.id(), 1_000L));
+        }
+
+        @Test
+        @DisplayName("a war starting around a standing garrison arms it on the next sweep")
+        void warStartingArmsAStandingGarrison() {
+            DefenseUnit unit = given();
+            materializer.materialize(unit, 1_000L);
+            assertEquals(UnitState.PASSIVE, materializer.states().stateOf(unit.id(), 1_000L));
+
+            materializer.useWars((cityId, world, chunkX, chunkZ) -> true);
+            materializer.sweep(2_000L);
+
+            assertEquals(UnitState.HOSTILE, materializer.states().stateOf(unit.id(), 2_000L));
+        }
+
+        @Test
+        @DisplayName("SPEC 30.2 case 96: the war ending reverts them to PASSIVE")
+        void warEndingReverts() {
+            DefenseUnit unit = given();
+            materializer.useWars((cityId, world, chunkX, chunkZ) -> true);
+            materializer.materialize(unit, 1_000L);
+            assertEquals(UnitState.HOSTILE, materializer.states().stateOf(unit.id(), 1_000L));
+
+            materializer.useWars((cityId, world, chunkX, chunkZ) -> false);
+            materializer.sweep(2_000L);
+
+            assertEquals(UnitState.PASSIVE, materializer.states().stateOf(unit.id(), 2_000L));
+        }
+
+        @Test
+        @DisplayName("an ALERTED unit is left alone, or every sweep would drop the alert")
+        void alertSurvivesTheSweep() {
+            DefenseUnit unit = given();
+            materializer.materialize(unit, 1_000L);
+            materializer.states().alert(unit.id(), mayor, 60_000L);
+
+            materializer.sweep(2_000L);
+
+            assertEquals(UnitState.ALERTED, materializer.states().stateOf(unit.id(), 2_000L));
         }
     }
 }

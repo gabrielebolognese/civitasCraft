@@ -93,6 +93,13 @@ public final class DefenseService {
         return spawner;
     }
 
+    /** SPEC 27.8's wartime placement window, read by the one targeting handler. */
+    public UnitCommissioning commissioning() {
+        return commissioning;
+    }
+
+    private final UnitCommissioning commissioning = new UnitCommissioning();
+
     // ==================================================================================
     // Buying
     // ==================================================================================
@@ -105,11 +112,39 @@ public final class DefenseService {
                 : base;
     }
 
-    /** SPEC 12.4: five active units, plus more per Fortification level. */
-    public int maxUnits(City city) {
-        return catalogue.baseMaxUnits()
-                + catalogue.unitsPerFortificationLevel()
-                        * upgrades.levelOf(city, UpgradeType.FORTIFICATION);
+    // ==================================================================================
+    // SPEC 25.5, Defense Capacity
+    // ==================================================================================
+
+    /** The budget rule, rebuilt per call so {@code /ca reload} takes effect. */
+    public DefenseCapacity capacityRule() {
+        return new DefenseCapacity(catalogue.baseCapacity(),
+                catalogue.capacityPerFortificationLevel(), UpgradeType.MAX_LEVEL);
+    }
+
+    /**
+     * How many points this city may field, SPEC 25.5.
+     *
+     * <p>This replaces {@code maxUnits}, and the replacement is the milestone: a count "permits
+     * fifteen Colossi", a budget does not.
+     */
+    public int capacity(City city) {
+        return capacityRule().capacityAt(upgrades.levelOf(city, UpgradeType.FORTIFICATION));
+    }
+
+    /** What its standing garrison already costs. */
+    public int pointsSpent(int cityId) {
+        return DefenseCapacity.spent(registry.standing(cityId, catalogue::pointsOf));
+    }
+
+    /** What is left, never below zero — a city over budget has no room, not negative room. */
+    public int pointsRemaining(City city) {
+        return Math.max(0, capacity(city) - pointsSpent(city.id()));
+    }
+
+    /** Whether one more of this unit fits, SPEC 25.5's table read inclusively. */
+    public boolean fits(City city, DefenseUnitType type) {
+        return DefenseCapacity.fits(pointsSpent(city.id()), type.points(), capacity(city));
     }
 
     /**
@@ -131,10 +166,8 @@ public final class DefenseService {
         if (city.isFrozen()) {
             return completed(Result.failure("CITY_FROZEN", "city.frozen"));
         }
-        int max = maxUnits(city);
-        if (registry.activeCount(city.id()) >= max) {
-            return completed(Result.failure("UNIT_LIMIT", "defense.limit",
-                    Map.of("limit", String.valueOf(max))));
+        if (!fits(city, type)) {
+            return completed(capacityFull(city));
         }
 
         BigDecimal cost = costFor(city, type);
@@ -218,10 +251,8 @@ public final class DefenseService {
             return Result.failure("NOT_YOUR_LAND", "defense.not-your-land");
         }
 
-        int max = maxUnits(city);
-        if (registry.activeCount(city.id()) >= max) {
-            return Result.failure("UNIT_LIMIT", "defense.limit",
-                    Map.of("limit", String.valueOf(max)));
+        if (!fits(city, type)) {
+            return capacityFull(city);
         }
 
         int perChunk = catalogue.maxUnitsPerChunk();
@@ -251,6 +282,13 @@ public final class DefenseService {
                     type.upkeepPerDay(), true, null, null));
         }).thenApply(result -> {
             if (result instanceof Result.Success<DefenseUnit>(DefenseUnit unit)) {
+                if (isCityAtWar(city)) {
+                    // SPEC 27.8's 60 seconds "before functioning". Started at placement rather
+                    // than at purchase, because SPEC 27.8 says "units placed" and because a city
+                    // that bought in PREP and placed mid-fight has still reinforced mid-fight.
+                    commissioning.commission(unit.id(),
+                            System.currentTimeMillis() + catalogue.warPurchaseInactiveMillis());
+                }
                 scheduler.runOnMain(() -> {
                     registry.put(unit);
                     spawnNow(unit, type, city);
@@ -282,6 +320,7 @@ public final class DefenseService {
     public CompletableFuture<Integer> onDeath(DefenseUnit unit, UUID entity) {
         registry.remove(unit.id());
         registry.unlink(entity);
+        commissioning.forget(unit.id());
         return units.delete(unit.id());
     }
 
@@ -297,6 +336,7 @@ public final class DefenseService {
         }
 
         return units.delete(unit.id()).thenApply(deleted -> {
+            commissioning.forget(unit.id());
             scheduler.runOnMain(() -> {
                 despawn(unit);
                 registry.remove(unit.id());
@@ -316,8 +356,17 @@ public final class DefenseService {
      * reactivate when upkeep is paid." The row surviving is the point. A city that falls
      * behind for a day and catches up gets its army back rather than having to buy it again,
      * which would turn one missed payment into a second bill of hundreds of thousands.
+     *
+     * <h2>Reactivation goes through the budget, not around it</h2>
+     * A blanket "everything back on" is exactly wrong once SPEC 30.2 case 101 exists: a city
+     * whose newest units were suspended for being over budget, that then fell behind on upkeep
+     * and caught up, would get every one of them back and stand silently over capacity. So when
+     * the reconciler is wired, it owns the decision about what stands.
      */
     public CompletableFuture<Integer> setActive(City city, boolean active) {
+        if (active && capacityReconciler != null) {
+            return capacityReconciler.reconcile(city);
+        }
         return units.setActiveByCity(city.id(), active).thenApply(changed -> {
             scheduler.runOnMain(() -> {
                 for (DefenseUnit unit : registry.of(city.id())) {
@@ -378,9 +427,28 @@ public final class DefenseService {
 
     private dev.civitas.core.war.WarRegistry wars;
 
-    /** SPEC 12.4's wartime price, wired by M19. */
+    /** SPEC 27.8's wartime price, wired by M19. */
     public void useWars(dev.civitas.core.war.WarRegistry registry) {
         this.wars = registry;
+    }
+
+    private CapacityReconciler capacityReconciler;
+
+    /** SPEC 30.2 case 101's sweep, which also owns what stands after a debt clears. */
+    public void useCapacity(CapacityReconciler reconciler) {
+        this.capacityReconciler = Objects.requireNonNull(reconciler, "reconciler");
+    }
+
+    /**
+     * SPEC 30.4's {@code defense.capacity_full}, spelled the way this codebase spells lang keys.
+     *
+     * <p>The figures are in the message on purpose: "Defense capacity full: {used}/{total}" is
+     * actionable where "you cannot do that" is not, which is SPEC 23.1's fifth principle.
+     */
+    private <T> Result<T> capacityFull(City city) {
+        return Result.failure("CAPACITY_FULL", "defense.capacity-full",
+                Map.of("used", String.valueOf(pointsSpent(city.id())),
+                        "total", String.valueOf(capacity(city))));
     }
 
     private NamespacedKey cityKey() {
@@ -388,15 +456,21 @@ public final class DefenseService {
     }
 
     /**
-     * Which spawn egg represents a unit.
+     * Which item represents a unit, in the shop and in the hand.
      *
-     * <p>The matching vanilla egg where one exists, so a Warhound is a wolf egg and reads as
-     * one in the inventory. A mob with no egg falls back to a zombie egg rather than failing
-     * the purchase.
+     * <p>The matching vanilla egg where one exists, so a Warhound is a wolf egg and reads as one
+     * in the inventory; otherwise the unit's own {@code icon}, which is why SPEC 27.3's
+     * Watchtower Keeper carries a spyglass. This is a static method on purpose so the menu and
+     * the purchase cannot answer differently — before M12d they did, the menu falling back to an
+     * iron golem egg and the purchase to a zombie egg, so an armour stand unit was drawn as one
+     * thing and delivered as another.
      */
-    private static Material eggMaterialFor(DefenseUnitType type) {
+    public static Material eggMaterialFor(DefenseUnitType type) {
         Material egg = Material.matchMaterial(type.mob().name() + "_SPAWN_EGG");
-        return egg == null ? Material.ZOMBIE_SPAWN_EGG : egg;
+        if (egg != null) {
+            return egg;
+        }
+        return type.icon().orElse(Material.ZOMBIE_SPAWN_EGG);
     }
 
     private static <T> CompletableFuture<Result<T>> completed(Result<T> result) {

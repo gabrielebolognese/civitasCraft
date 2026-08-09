@@ -52,11 +52,23 @@ public final class TargetingRule {
             double distance) {
     }
 
-    /** Everything the rule needs to know about the unit doing the looking. */
-    public record Unit(UnitState state, UUID alertedTarget, double range) {
+    /**
+     * Everything the rule needs to know about the unit doing the looking.
+     *
+     * @param commissioned SPEC 27.8's 60-second window after a wartime placement has passed. An
+     *                     uncommissioned unit is "before functioning" and targets nothing at all,
+     *                     which is why it cancels above the hostile-mob branch rather than beside
+     *                     the state check
+     */
+    public record Unit(UnitState state, UUID alertedTarget, double range, boolean commissioned) {
 
         public Unit {
             Objects.requireNonNull(state, "state");
+        }
+
+        /** A unit past its commissioning window, which is every unit placed in peacetime. */
+        public Unit(UnitState state, UUID alertedTarget, double range) {
+            this(state, alertedTarget, range, true);
         }
     }
 
@@ -72,6 +84,14 @@ public final class TargetingRule {
         // produces unwatchable clumps of AI and lets wars resolve with no players present.
         if (candidate.isDefenseUnit()) {
             return Decision.cancel("UNITS_NEVER_FIGHT_UNITS");
+        }
+
+        // SPEC 27.8: a unit placed during an ACTIVE war "enter[s] a 60-second inactive period
+        // before functioning". Before functioning means before anything, so this sits above the
+        // hostile-mob branch rather than beside the state check: a Colossus dropped into a melee
+        // does not get to swing at a creeper either.
+        if (!unit.commissioned()) {
+            return Decision.cancel("COMMISSIONING");
         }
 
         // "if candidate is not a Player -> allow only if hostile mob and unit is PASSIVE"

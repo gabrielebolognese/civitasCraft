@@ -32,17 +32,10 @@ public final class DefenseBehaviour {
         this.cities = Objects.requireNonNull(cities, "cities");
     }
 
-    /** What a unit may do about something it can see. */
-    public enum Reaction {
-        /** Leave it alone. */
-        IGNORE,
-        /** Attack it. */
-        ATTACK
-    }
-
-    // ==================================================================================
-    // Players
-    // ==================================================================================
+    // The Reaction enum that used to sit here went with the decision. It was the return type of
+    // this class's own targeting table, which SPEC 30.1 replaced with a single handler, and it
+    // has been referenced by nothing since M12b. A dead type beside a live one reads as an
+    // alternative somebody might reach for.
 
     // ==================================================================================
     // The leash, SPEC 12.3
@@ -51,14 +44,16 @@ public final class DefenseBehaviour {
     /**
      * Whether a unit has wandered too far and should be put back.
      *
-     * <p>SPEC 12.3 measures from the claim border rather than from where the unit was placed,
-     * so a guard may chase a creeper across its own city without being yanked home, and may
-     * not follow a player out into the wilderness.
+     * <p>SPEC 27.8 measures from the chunk the unit was <em>placed</em> in, which reverses Part I
+     * 12.3's claim-border rule that used to be argued for here: "A unit is bound to the chunk it
+     * is placed in. It may move up to {@code defense.leash-blocks} (default 8) past that chunk's
+     * border." SPEC 25 supersedes Part I Section 12 in full. {@link DefenseLeash} carries the
+     * reasoning and does the measuring; this is only the threshold.
      *
-     * @param blocksOutsideClaim how far past its city's land it currently is
+     * @param blocksOutsidePost how far past its own chunk's border it currently is
      */
-    public boolean shouldReturn(double blocksOutsideClaim) {
-        return blocksOutsideClaim > catalogue.leashDistance();
+    public boolean shouldReturn(double blocksOutsidePost) {
+        return blocksOutsidePost > catalogue.leashDistance();
     }
 
     /** Whether a unit's name should be readable from here, SPEC 12.5. */

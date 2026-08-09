@@ -358,21 +358,28 @@ class ConfigDefaultsTest {
 
     // --- SPEC 12, defense.yml --------------------------------------------------------
 
+    /**
+     * SPEC 27.1's roster.
+     *
+     * <p>These rows replaced the SPEC 12.2 eight that SPEC 25.1 retired — watchman 40/8000/400,
+     * city-guard at 100 health, elite-guard, sharpshooter, siege-golem, sentry. They are named
+     * here rather than silently dropped because SPEC 25.1's reason is worth keeping in view:
+     * "Five of eight entries performed two jobs, and the only decision a player made was how
+     * much to spend."
+     */
     static Stream<org.junit.jupiter.params.provider.Arguments> defenseUnits() {
         return Stream.of(
-                org.junit.jupiter.params.provider.Arguments.of("watchman", "ZOMBIE", 40, 8000, 400),
-                org.junit.jupiter.params.provider.Arguments.of("city-guard", "ZOMBIE", 100, 20000, 900),
-                org.junit.jupiter.params.provider.Arguments.of("elite-guard", "ZOMBIE", 160, 45000, 2000),
-                org.junit.jupiter.params.provider.Arguments.of("archer", "SKELETON", 60, 15000, 700),
-                org.junit.jupiter.params.provider.Arguments.of("sharpshooter", "SKELETON", 90, 32000, 1400),
+                org.junit.jupiter.params.provider.Arguments.of("frost-sentry", "SNOW_GOLEM", 30, 6000, 300),
+                org.junit.jupiter.params.provider.Arguments.of("watchtower-keeper", "ARMOR_STAND", 40, 9000, 350),
                 org.junit.jupiter.params.provider.Arguments.of("warhound", "WOLF", 45, 10000, 500),
-                org.junit.jupiter.params.provider.Arguments.of("siege-golem", "IRON_GOLEM", 250, 60000, 3000),
-                org.junit.jupiter.params.provider.Arguments.of("sentry", "SNOW_GOLEM", 30, 6000, 300));
+                org.junit.jupiter.params.provider.Arguments.of("archer", "SKELETON", 55, 16000, 700),
+                org.junit.jupiter.params.provider.Arguments.of("city-guard", "ZOMBIE", 90, 20000, 900),
+                org.junit.jupiter.params.provider.Arguments.of("colossus", "IRON_GOLEM", 220, 55000, 2600));
     }
 
     @ParameterizedTest(name = "{0}")
     @MethodSource("defenseUnits")
-    @DisplayName("the SPEC 12.2 unit catalogue is present with its documented stats")
+    @DisplayName("the SPEC 27.1 roster is present with its documented stats")
     void defenseUnitCatalogue(String key, String mob, int health, int cost, int upkeep) {
         FileConfiguration config = load(ConfigFile.DEFENSE);
         String path = "units." + key;
@@ -384,17 +391,95 @@ class ConfigDefaultsTest {
     }
 
     @Test
+    @DisplayName("SPEC 27.2 to 27.7's ability numbers are shipped, not hardcoded")
+    void defenseAbilities() {
+        FileConfiguration config = load(ConfigFile.DEFENSE);
+
+        // SPEC 27.2
+        assertEquals(2, config.getInt("units.frost-sentry.slowness-level"));
+        assertEquals(3, config.getInt("units.frost-sentry.slowness-seconds"));
+        assertEquals(1, config.getInt("units.frost-sentry.mining-fatigue-level"));
+        assertEquals(2, config.getInt("units.frost-sentry.mining-fatigue-seconds"));
+        assertEquals(16, config.getInt("units.frost-sentry.range"));
+
+        // SPEC 27.3
+        assertEquals(32, config.getInt("units.watchtower-keeper.range"));
+        assertEquals(5, config.getInt("units.watchtower-keeper.chat-alert-cooldown-minutes"));
+        assertTrue(config.getBoolean("units.watchtower-keeper.invulnerable-outside-war"));
+
+        // SPEC 27.4
+        assertEquals(24, config.getInt("units.warhound.range"));
+        assertEquals(0.42, config.getDouble("units.warhound.speed"), 1e-9);
+        assertEquals("LOWEST_HEALTH", config.getString("units.warhound.target-priority"));
+
+        // SPEC 27.5
+        assertEquals(20, config.getInt("units.archer.range"));
+        assertEquals(0.5, config.getDouble("units.archer.melee-firerate-penalty"), 1e-9);
+        assertEquals(5, config.getInt("units.archer.melee-firerate-radius"));
+
+        // SPEC 27.6
+        assertEquals(8, config.getInt("units.city-guard.armor"));
+        assertEquals(2, config.getInt("units.city-guard.toughness"));
+        assertEquals(3, config.getInt("units.city-guard.alert-network-chunks"));
+        assertEquals(20, config.getInt("units.city-guard.alert-network-seconds"));
+
+        // SPEC 27.7, whose threshold is a whole counterplay.
+        assertEquals(1.8, config.getDouble("units.colossus.scale"), 1e-9);
+        assertEquals(1.0, config.getDouble("units.colossus.knockback-resistance"), 1e-9);
+        assertEquals(3, config.getInt("units.colossus.slam-radius"));
+        assertEquals(4, config.getInt("units.colossus.slam-damage"));
+        assertEquals(8, config.getInt("units.colossus.arrow-resist-threshold"));
+        assertEquals(80, config.getInt("units.colossus.arrow-resist-percent"));
+    }
+
+    @Test
+    @DisplayName("SPEC 30.2 case 112's two numbers have a home")
+    void defenseSurvival() {
+        FileConfiguration config = load(ConfigFile.DEFENSE);
+
+        // Neither is in SPEC 30.3's block; both are stated in case 112 itself.
+        assertEquals(20, config.getInt("survival.death-save-health-percent"));
+        assertEquals(60, config.getInt("survival.death-save-cooldown-minutes"));
+    }
+
+    @Test
     @DisplayName("defense.yml carries the SPEC 12.3 and 12.4 placement rules")
     void defensePlacementRules() {
         FileConfiguration config = load(ConfigFile.DEFENSE);
 
-        assertEquals(5, config.getInt("placement.base-max-active-units"));
-        assertEquals(2, config.getInt("placement.units-per-fortification-level"));
+        // SPEC 25.5's points budget, which replaces the two keys that used to be asserted here
+        // (placement.base-max-active-units and placement.units-per-fortification-level). They
+        // were the Part I 12.4 unit count SPEC 25.5 retires: "A count permits fifteen Colossi.
+        // A points budget does not."
+        assertEquals(100, config.getInt("capacity.base"));
+        assertEquals(25, config.getInt("capacity.per-fortification-level"));
         assertEquals(3, config.getInt("placement.max-units-per-chunk"));
         assertEquals(2.0, config.getDouble("placement.wartime-purchase-multiplier"), 1e-9);
+        assertEquals(60, config.getInt("placement.war-purchase-inactive-seconds"));
+        assertEquals(3, config.getInt("placement.leash-teleport-failures"));
         assertEquals(24, config.getInt("behaviour.war-target-range"));
         assertEquals(8, config.getInt("behaviour.leash-distance-blocks"));
         assertEquals(16, config.getInt("behaviour.name-visible-range"));
+    }
+
+    @Test
+    @DisplayName("SPEC 25.5 prices every unit in Defense Capacity points")
+    void defenseCapacityPoints() {
+        FileConfiguration config = load(ConfigFile.DEFENSE);
+
+        // SPEC 25.5's table and SPEC 27.1's roster row agree on all six, which is rarer in this
+        // specification than it sounds. A missing value is a startup refusal to sell that unit,
+        // so these are the numbers a server actually gets rather than a default.
+        Map<String, Integer> points = Map.of(
+                "frost-sentry", 8,
+                "watchtower-keeper", 10,
+                "warhound", 12,
+                "archer", 18,
+                "city-guard", 20,
+                "colossus", 45);
+
+        points.forEach((key, expected) -> assertEquals(expected,
+                config.getInt("units." + key + ".points"), key + " points"));
     }
 
     // --- SPEC 13, events.yml ---------------------------------------------------------
