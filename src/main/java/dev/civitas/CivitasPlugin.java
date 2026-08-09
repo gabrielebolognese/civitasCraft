@@ -596,6 +596,26 @@ public final class CivitasPlugin extends JavaPlugin {
                 loadedDaos.defenseUnits(), defenseRegistry, defenseCatalogue, defenseSpawner,
                 cityRegistry, claimRegistry, treasuryService, upgradeService, lang, scheduler);
         DefenseBehaviour defenseBehaviour = new DefenseBehaviour(defenseCatalogue, cityRegistry);
+
+        // SPEC 25.4's materialisation. Replaces the chunk-load respawn that used to be the
+        // only trigger, which had no despawn path at all.
+        dev.civitas.core.defense.UnitMaterializer materializer =
+                new dev.civitas.core.defense.UnitMaterializer(configs, loadedDaos.defenseUnits(),
+                        defenseRegistry, defenseCatalogue, defenseSpawner, cityRegistry,
+                        getLogger());
+        materializer.useUpgrades(city -> upgradeService.levelOf(city,
+                dev.civitas.core.upgrade.UpgradeType.FORTIFICATION));
+        // SPEC 31 case 87: everything is dormant on startup, whatever the server was doing
+        // when it died. Clearing it is what stops a week of downtime healing every unit.
+        materializer.onStartup(System.currentTimeMillis());
+        if (materializer.enabled()) {
+            getServer().getScheduler().runTaskTimer(this,
+                    () -> materializer.sweep(System.currentTimeMillis()),
+                    100L, materializer.sweepIntervalTicks());
+            getServer().getScheduler().runTaskTimer(this, materializer::checkpoint,
+                    materializer.checkpointIntervalTicks(),
+                    materializer.checkpointIntervalTicks());
+        }
         upkeepTask.useDefense(defenseRegistry, defenseService);
         // Registered on the same hook rather than left to the next milestone: a disbanded
         // city that keeps its units and its bought upgrade levels would hand them back to

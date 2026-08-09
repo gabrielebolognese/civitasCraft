@@ -225,22 +225,24 @@ public final class DefenseListener implements Listener {
      * <p>A unit can be lost to {@code /kill}, to chunk corruption, or to a world edit, and a
      * city that paid 60,000 C for it should not have to notice.
      */
+    /**
+     * Relinks entities a chunk brings back, SPEC 12.5.
+     *
+     * <p>What this no longer does is <b>respawn</b>. The superseded M12 treated a chunk loading
+     * as the signal to bring a unit up, which is coarser than it looks — a chunk stays loaded
+     * for a player two hundred blocks away, and spawn chunks never unload — and it had no
+     * despawn path at all, so a garrison stayed standing until a restart. SPEC 25.4's sweep
+     * owns that decision now, and it decides by distance rather than by chunk residency.
+     *
+     * <p>The relinking is still needed: an entity that survives a chunk round trip is the same
+     * unit, and losing the link would leave the sweep thinking it had dematerialised while a
+     * mob stood there.
+     */
     @EventHandler(priority = EventPriority.MONITOR)
     public void onChunkLoad(ChunkLoadEvent event) {
-        String world = event.getWorld().getName();
-
         for (Entity entity : event.getChunk().getEntities()) {
             defense.spawner().unitIdOf(entity).ifPresent(id ->
                     defense.registry().link(entity.getUniqueId(), id));
-        }
-
-        for (DefenseUnit unit : defense.registry()
-                .unlinkedIn(world, event.getChunk().getX(), event.getChunk().getZ())) {
-            cities.city(unit.cityId()).ifPresent(city ->
-                    defense.catalogue().byKey(unit.type()).ifPresent(type -> {
-                        logger.fine(() -> "Respawning missing defense unit " + unit.id());
-                        defense.spawnNow(unit, type, city);
-                    }));
         }
     }
 

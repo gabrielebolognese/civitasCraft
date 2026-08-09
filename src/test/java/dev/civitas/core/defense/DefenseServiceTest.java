@@ -5,6 +5,7 @@ import static dev.civitas.core.city.CityTestSupport.reasonOf;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.math.BigDecimal;
@@ -49,6 +50,7 @@ class DefenseServiceTest {
     Path directory;
 
     private ServerMock server;
+    private UnitMaterializer materializer;
     private CityTestSupport support;
     private DefenseCatalogue catalogue;
     private DefenseRegistry registry;
@@ -72,6 +74,11 @@ class DefenseServiceTest {
                 catalogue, new DefenseSpawner(plugin, catalogue, langOf(plugin)),
                 support.registry, support.claimRegistry, support.treasury, upgrades,
                 langOf(plugin), Scheduler.direct());
+
+        materializer = new UnitMaterializer(support.configs, support.daos.defenseUnits(),
+                registry, catalogue, new DefenseSpawner(plugin, catalogue, langOf(plugin)),
+                support.registry, CityTestSupport.quietLogger());
+        materializer.useUpgrades(target -> upgrades.levelOf(target, UpgradeType.FORTIFICATION));
 
         mayor = support.givenEligiblePlayer("Romulus");
         city = support.givenCity(mayor, "Roma", 0, 0);
@@ -422,5 +429,105 @@ class DefenseServiceTest {
         assertEquals(0, unit.chunkX());
         assertEquals(0, unit.chunkZ());
         assertNotNull(unit.toRow());
+    }
+
+    // ==================================================================================
+    // SPEC 25.4, materialisation
+    // ==================================================================================
+
+    @Nested
+    @DisplayName("materialisation, SPEC 25.4")
+    class Materialising {
+
+        @BeforeEach
+        void giveThisClassAWorld() {
+            // Scoped to these tests deliberately. DefenseService.place() spawns its entity
+            // from the database thread, and under Scheduler.direct() that thread is not the
+            // main one, so MockBukkit refuses with "Asynchronous entity add!". Every defense
+            // test written before this milestone passed partly BECAUSE no world existed and
+            // the spawn silently did nothing — which is also why DefenseSpawner had never
+            // actually run under test. These tests call the materializer directly, on the
+            // test thread, so they can have one.
+            server.addSimpleWorld(WORLD);
+        }
+
+        /** A unit row, written straight to storage so no spawn happens on the wrong thread. */
+        private DefenseUnit given() {
+            int id = await(support.daos.defenseUnits().insert(
+                    new dev.civitas.storage.row.DefenseUnitRow(0, city.id(), "city-guard",
+                            WORLD, 8.0, 64.0, 8.0, new BigDecimal("900.00"), true, null, null)));
+            DefenseUnit unit = new DefenseUnit(id, city.id(), "city-guard", WORLD,
+                    8.0, 64.0, 8.0, new BigDecimal("900.00"), true, null, null);
+            registry.put(unit);
+            return unit;
+        }
+
+        @Test
+        @DisplayName("SPEC 25.4: 40% out is 40% back")
+        void healthSurvivesTheRoundTrip() {
+            DefenseUnit unit = given();
+            long now = 1_700_000_000_000L;
+
+            assertTrue(materializer.materialize(unit, now), "it should come up");
+            org.bukkit.entity.LivingEntity entity = registry.entityOf(unit.id()).orElseThrow();
+            double maximum = entity.getAttribute(org.bukkit.attribute.Attribute.MAX_HEALTH)
+                    .getValue();
+            entity.setHealth(maximum * 0.4);
+
+            assertTrue(materializer.dematerialize(registry.byId(unit.id()).orElseThrow(), now));
+
+            DefenseUnit down = registry.byId(unit.id()).orElseThrow();
+            assertNotNull(down.health(), "health must be written on the way down");
+            assertEquals(maximum * 0.4, down.health(), 0.01,
+                    "before this milestone, despawning a unit was a free full heal");
+            assertNotNull(down.dormantSince(), "and it is dormant from now");
+        }
+
+        @Test
+        @DisplayName("it heals while dormant, and comes back with the healing applied")
+        void dormantRegeneration() {
+            DefenseUnit unit = given();
+            long placed = 1_700_000_000_000L;
+            assertTrue(materializer.materialize(unit, placed));
+
+            org.bukkit.entity.LivingEntity entity = registry.entityOf(unit.id()).orElseThrow();
+            double maximum = entity.getAttribute(org.bukkit.attribute.Attribute.MAX_HEALTH)
+                    .getValue();
+            entity.setHealth(maximum * 0.4);
+            materializer.dematerialize(registry.byId(unit.id()).orElseThrow(), placed);
+
+            // Two hours later at 10% an hour: 40% plus 20%.
+            long later = placed + 2 * 3_600_000L;
+            assertTrue(materializer.materialize(registry.byId(unit.id()).orElseThrow(), later));
+
+            DefenseUnit up = registry.byId(unit.id()).orElseThrow();
+            assertEquals(maximum * 0.6, up.health(), maximum * 0.02);
+            assertNull(up.dormantSince(),
+                    "standing up ends dormancy, or it would be paid for those hours twice");
+        }
+
+        @Test
+        @DisplayName("a unit that has never materialised is at full health, not at zero")
+        void neverMaterializedIsFull() {
+            // The V22 upgrade adds the column to rows that already exist. Read as zero, it
+            // would kill every unit on the server the moment an operator upgraded.
+            DefenseUnit unit = given();
+            assertNull(unit.health());
+            assertEquals(100.0, unit.healthOr(100.0), 0.001);
+        }
+
+        @Test
+        @DisplayName("the checkpoint writes only what changed")
+        void checkpointIsSparse() {
+            DefenseUnit unit = given();
+            materializer.materialize(unit, 1_700_000_000_000L);
+
+            assertEquals(0, materializer.checkpoint(),
+                    "nothing has taken damage, so nothing needs writing");
+
+            registry.entityOf(unit.id()).orElseThrow().setHealth(5.0);
+            assertEquals(1, materializer.checkpoint());
+            assertEquals(5.0, registry.byId(unit.id()).orElseThrow().health(), 0.01);
+        }
     }
 }

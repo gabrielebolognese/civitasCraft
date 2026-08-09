@@ -54,6 +54,34 @@ public final class DefenseRegistry {
         return Optional.ofNullable(byId.get(id));
     }
 
+    /** Every unit on the server, for SPEC 25.4's materialisation sweep. */
+    public java.util.Collection<DefenseUnit> all() {
+        return byId.values();
+    }
+
+    /** Whether this unit currently exists as an entity, SPEC 25.4. */
+    public boolean isMaterialized(int id) {
+        return byEntity.containsValue(id);
+    }
+
+    /**
+     * The live entity for a unit, if it has one.
+     *
+     * <p>Resolved through Bukkit rather than cached, because an entity reference held across a
+     * chunk unload is a reference to something the server has already forgotten.
+     */
+    public Optional<org.bukkit.entity.LivingEntity> entityOf(int id) {
+        for (Map.Entry<UUID, Integer> entry : byEntity.entrySet()) {
+            if (entry.getValue() == id) {
+                org.bukkit.entity.Entity found = org.bukkit.Bukkit.getEntity(entry.getKey());
+                if (found instanceof org.bukkit.entity.LivingEntity living) {
+                    return Optional.of(living);
+                }
+            }
+        }
+        return Optional.empty();
+    }
+
     /** The unit a live entity belongs to, if it is one of ours. */
     public Optional<DefenseUnit> byEntity(UUID entity) {
         Integer id = byEntity.get(entity);

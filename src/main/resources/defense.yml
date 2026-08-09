@@ -1,3 +1,24 @@
+# SPEC 25.4. A unit is a row that becomes an entity only while somebody is near it, and goes
+# back to being a row when they leave. SPEC 25.4 opens by calling this "an architectural
+# requirement, not an optimisation": two hundred cities times twelve units is 2,400 permanently
+# loaded entities, which destroys tick rate long before the plugin is finished.
+materialization:
+  enabled: true
+  radius-blocks: 48
+  dematerialize-delay-seconds: 30
+  # SPEC 31 case 113: "no more than 60 materialized units server-wide at 40 players". A radius
+  # alone cannot deliver that -- forty players each inside a twelve-unit garrison are near four
+  # hundred units -- so this is a fleet budget and units compete for seats. War-zone units are
+  # seated first and never lose their place. Raising it costs tick rate; setting it to 0 means
+  # no ceiling at all.
+  max-materialized: 60
+  sweep-interval-ticks: 40
+  health-checkpoint-seconds: 30
+  # Healing while nobody is watching, capped at full. Disabled during a war whatever this says,
+  # so damage dealt in a war sticks: a city that could heal its garrison by keeping players
+  # away from it would have found the cheapest possible defence against a siege.
+  dormant-regen-percent-per-hour: 10
+
 # City defense units.
 # SPEC.md Section 12, exposed as config per SPEC 16.4.
 
