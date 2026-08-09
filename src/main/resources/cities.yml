@@ -174,9 +174,18 @@ waystations:
   distance-reference-blocks: 1000
   base-upkeep-per-chunk-per-day: 1500
   # Flat, unlike the outpost fare. A fee that rose with depth would tax the deep mining these
-  # worlds exist for, on every trip.
+  # worlds exist for, on every trip. Warmup and cooldown match an outpost's: a waystation is
+  # somewhere a player would otherwise have to walk to.
   teleport-cost: 200
+  teleport-warmup-seconds: 8
+  teleport-cooldown-seconds: 180
+  # SPEC 39.10's table names no refund. Half is chosen to match what SPEC 39.5 gives an outpost
+  # and SPEC 6.4 gives city land, on the grounds that a rule differing from both its neighbours
+  # would need a reason SPEC does not supply. See OPEN_QUESTIONS.md.
   refund-percent: 50
+  # SPEC 39.10: resource worlds only. Empty falls back to world.yml's own names, so an operator
+  # who renamed their resource worlds does not have to say so twice.
+  worlds: [resource, resource_nether]
 
 # Default ranks created with every new city, SPEC 5.4.
 # Permission flag names must match the CityPermission enum.

@@ -710,6 +710,24 @@ challenge:
   city-market: "<white>Vendete <target> C di merce al mercato insieme"
   city-mine: "<white>Estraete <target> minerali insieme"
 
+waystation:
+  disabled: "<red>Le stazioni di transito sono disattivate su questo server."
+  wrong-world: "<red>Le stazioni di transito si costruiscono solo nei mondi risorsa. <gray>Usa /rtp resource per arrivarci."
+  already-here: "<red>La tua citta ha gia una stazione in <white><world></white>. <gray>Il limite e una per mondo."
+  none-here: "<red>La tua citta non ha una stazione in <white><world></white>."
+  chunk-taken: "<red>La stazione di un'altra citta occupa gia questo chunk."
+  mining-claim-here: "<red>La miniera di qualcuno occupa gia questo chunk."
+  full: "<red>Una stazione puo avere al massimo <white><max></white> chunk."
+  not-adjacent: "<red>Quel chunk non confina con la tua stazione. <gray>I due chunk devono condividere un lato."
+  world-missing: "<red>Il mondo di quella stazione non e caricato."
+  destination-label: "la tua stazione di transito"
+  created: "<green>Stazione di transito fondata in <white><world></white>. <gray>Mantenimento: <white><upkeep></white> al giorno.</gray>"
+  chunk-claimed: "<green>Chunk aggiunto alla stazione in <white><world></white>. <gray>Ora <white><chunks></white> di <white><max></white> chunk.</gray>"
+  deleted: "<gray>Stazione in <white><world></white> rimossa. <dark_gray>Meta di quanto e costata e tornata nel tesoro.</dark_gray>"
+  list-empty: "<gray>La tua citta non ha stazioni. <dark_gray>Vai in un mondo risorsa e usa /city waystation create.</dark_gray>"
+  list-header: "<gold>Stazioni di transito <gray>(<white><count></white>)"
+  list-entry: "<gray>  <white><world></white> <dark_gray>-</dark_gray> <white><chunks></white>/<white><max></white> chunk <dark_gray>-</dark_gray> <white><upkeep></white> al giorno"
+
 outpost:
   name-invalid: "<red>Il nome di un avamposto e da 1 a 24 tra lettere, numeri o trattini bassi."
   name-taken: "<red>La tua citta ha gia un avamposto chiamato <white><name></white>."

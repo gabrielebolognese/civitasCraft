@@ -379,7 +379,8 @@ public final class UpkeepTask implements Runnable {
         BigDecimal landValue = ClaimCostEngine.landValue(claims.registry().claimsOf(city.id()));
         // Defense units are M12 and read zero until then. Passing every term explicitly keeps
         // the formula honest about what it is not yet counting.
-        BigDecimal standard = calculator.dailyUpkeep(landValue, outpostUpkeep(city),
+        BigDecimal standard = calculator.dailyUpkeep(landValue,
+                outpostUpkeep(city).add(waystationUpkeep(city)),
                 defenseUpkeep(city), treasuryInterestLevel(city));
 
         // SPEC 9.4.2's per-city override, applied last. An admin who halved a returning
@@ -419,6 +420,25 @@ public final class UpkeepTask implements Runnable {
     }
 
     private dev.civitas.core.outpost.OutpostService outposts;
+
+    /**
+     * SPEC 39.10: a waystation costs {@code 1500 * W(d)} per chunk per day.
+     *
+     * <p>Added to the outpost figure rather than given a term of its own, because both are the
+     * same thing to a treasury: remote holdings priced by how far out they are. They are kept
+     * apart everywhere a player can see them, and summed at the one point where the city simply
+     * owes money.
+     */
+    private BigDecimal waystationUpkeep(City city) {
+        return waystations == null ? SqlDialect.zero() : waystations.upkeepFor(city);
+    }
+
+    private dev.civitas.core.waystation.WaystationService waystations;
+
+    /** Told about waystations once they exist, in the same shape as outposts. */
+    public void useWaystations(dev.civitas.core.waystation.WaystationService service) {
+        this.waystations = service;
+    }
 
     /** SPEC 12.2: every standing unit costs its city a flat fee a day. */
     private BigDecimal defenseUpkeep(City city) {

@@ -83,6 +83,16 @@ public final class ProtectionService {
                         : ProtectionDecision.deny("MINING_CLAIM", "mine.protected",
                                 Map.of("owner", String.valueOf(mine.get().uuid())));
             }
+            // SPEC 39.10's waystations, the other thing that can own ground in a resource
+            // world. Checked here rather than after this branch, because the fallthrough
+            // below returns ALLOWED for everything and would leave a waystation undefended
+            // while SPEC 39.10 promises it "full protection, identical to city claims".
+            Optional<ProtectionDecision> station =
+                    waystationDecision(player, action, world, chunkX, chunkZ);
+            if (station.isPresent()) {
+                return station.get();
+            }
+
             // An unclaimed chunk in a resource world is unprotected, which SPEC 32.5 says
             // outright: everything outside a mining claim there can be built on by anyone.
             return ProtectionDecision.ALLOWED;
@@ -302,6 +312,61 @@ public final class ProtectionService {
     /** Hands the service SPEC 32.6's mining claims. */
     public void useMiningClaims(MiningAccess access) {
         this.mining = java.util.Objects.requireNonNull(access, "access");
+    }
+
+    /**
+     * SPEC 39.10's waystations, injected for the same reason mining claims are.
+     *
+     * <p>Null means no waystations, which is what every test written before M10a constructs.
+     */
+    private dev.civitas.core.waystation.WaystationRegistry waystations;
+
+    /** Hands the service SPEC 39.10's waystations. */
+    public void useWaystations(dev.civitas.core.waystation.WaystationRegistry registry) {
+        this.waystations = java.util.Objects.requireNonNull(registry, "registry");
+    }
+
+    /**
+     * Whether a waystation owns this chunk, and if so what the actor may do in it.
+     *
+     * <p>SPEC 39.10 gives a waystation "full protection, identical to city claims", so this
+     * answers with the city's own membership and rank rules rather than a second scheme. A
+     * waystation is never a war target (SPEC 39.10), so unlike a city claim there is no
+     * grief-permitted branch: the war rules are simply not consulted.
+     *
+     * @return empty when no waystation is here, so the caller falls through
+     */
+    private Optional<ProtectionDecision> waystationDecision(
+            UUID player, ProtectionAction action, String world, int chunkX, int chunkZ) {
+        if (waystations == null) {
+            return Optional.empty();
+        }
+        Optional<dev.civitas.core.waystation.Waystation> here =
+                waystations.at(world, chunkX, chunkZ);
+        if (here.isEmpty()) {
+            return Optional.empty();
+        }
+        Optional<City> owner = cities.city(here.get().cityId());
+        if (owner.isEmpty()) {
+            // A waystation whose city is gone, which the disband hook makes corruption rather
+            // than a state the game produces. Same choice as an orphaned claim above: readable
+            // rather than frozen forever.
+            return Optional.of(ProtectionDecision.ALLOWED);
+        }
+
+        City city = owner.get();
+        if (!city.isMember(player)) {
+            return Optional.of(ProtectionDecision.deny("NOT_A_MEMBER", action.messageKey(),
+                    Map.of("city", city.name())));
+        }
+        for (CityPermission permission : action.anyOf()) {
+            if (city.hasPermission(player, permission)) {
+                return Optional.of(ProtectionDecision.ALLOWED);
+            }
+        }
+        return Optional.of(ProtectionDecision.deny("NO_CITY_PERMISSION", action.messageKey(),
+                Map.of("city", city.name(),
+                        "permission", action.anyOf().iterator().next().name())));
     }
 
     /** Exposed so a listener can answer "who owns this" without reaching past the service. */

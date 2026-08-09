@@ -72,6 +72,41 @@ public enum TravelKind {
         public String warmupKey() {
             return configPath() + ".warmup-seconds";
         }
+    },
+
+    /**
+     * A city waystation, SPEC 39.10. 200 C, 8s warmup, 3 min cooldown.
+     *
+     * <p>The fare is <b>flat</b>, unlike the outpost's. SPEC 39.10 gives one number and no
+     * multiplier, and the reasoning it gives for the gentler distance curve applies with more
+     * force to a fee paid every trip: a fare that rose with depth would tax exactly the deep
+     * mining these worlds exist for.
+     */
+    WAYSTATION_TP("waystation-tp") {
+        @Override
+        public ConfigFile configFile() {
+            return ConfigFile.CITIES;
+        }
+
+        @Override
+        public String configPath() {
+            return "waystations";
+        }
+
+        @Override
+        public String costKey() {
+            return configPath() + ".teleport-cost";
+        }
+
+        @Override
+        public String cooldownKey() {
+            return configPath() + ".teleport-cooldown-seconds";
+        }
+
+        @Override
+        public String warmupKey() {
+            return configPath() + ".teleport-warmup-seconds";
+        }
     };
 
     private final String key;

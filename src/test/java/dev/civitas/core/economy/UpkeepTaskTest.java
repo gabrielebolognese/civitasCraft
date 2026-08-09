@@ -318,6 +318,36 @@ class UpkeepTaskTest {
         }
 
         @Test
+        @DisplayName("SPEC 39.10: a waystation's upkeep reaches the daily charge")
+        void waystationUpkeepIsCharged() {
+            // The failure this guards against is a figure computed correctly and then never
+            // added to anything, which no test of the cost engine can see.
+            BigDecimal before = owed();
+
+            dev.civitas.core.waystation.WaystationRegistry waystationRegistry =
+                    new dev.civitas.core.waystation.WaystationRegistry(
+                            support.daos.waystations());
+            dev.civitas.core.waystation.WaystationService waystations =
+                    new dev.civitas.core.waystation.WaystationService(support.db, support.daos,
+                            waystationRegistry, support.treasury,
+                            new dev.civitas.core.mining.MiningClaimRegistry(
+                                    support.daos.miningClaims(),
+                                    CityTestSupport.quietLogger()),
+                            support.configs, Scheduler.direct());
+            task.useWaystations(waystations);
+
+            fundTreasury("10000000.00");
+            assertTrue(await(waystations.create(mayor, city, "resource", 100, 100,
+                    1608, 64, 1608, 0f, 0f)).isSuccess());
+
+            assertTrue(owed().compareTo(before) > 0,
+                    "founding a waystation should raise what the city owes each day");
+            assertEquals(0, owed().subtract(before)
+                    .compareTo(waystations.upkeepFor(city)),
+                    "by exactly its own upkeep, and nothing else");
+        }
+
+        @Test
         @DisplayName("SPEC 39.5: outposts go before city chunks, furthest first")
         void outpostsGoFirst() {
             // "A city should lose its frontier before it loses its home."

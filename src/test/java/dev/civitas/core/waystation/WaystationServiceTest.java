@@ -382,4 +382,107 @@ class WaystationServiceTest {
             assertTrue(registry.at(RESOURCE, 900, 900).isEmpty());
         }
     }
+
+    // ==================================================================================
+    // Protection, SPEC 39.10: "full, identical to city claims"
+    // ==================================================================================
+
+    @Nested
+    @DisplayName("protection, SPEC 39.10")
+    class Protection {
+
+        private dev.civitas.core.protection.ProtectionService protection;
+
+        @BeforeEach
+        void setUp() {
+            protection = new dev.civitas.core.protection.ProtectionService(
+                    support.claimRegistry, support.registry, support.configs);
+            protection.useMiningClaims(
+                    new dev.civitas.core.protection.ProtectionService.MiningAccess() {
+                        @Override
+                        public boolean claimableWorld(String world) {
+                            return new dev.civitas.core.world.WorldRegistry(support.configs)
+                                    .allowsMiningClaims(world);
+                        }
+
+                        @Override
+                        public dev.civitas.core.mining.MiningClaimRegistry registry() {
+                            return mining;
+                        }
+                    });
+            protection.useWaystations(registry);
+            create(RESOURCE, 100, 100);
+        }
+
+        private boolean mayBuild(UUID player) {
+            return protection.check(player, false, RESOURCE, 100, 100,
+                    dev.civitas.core.protection.ProtectionAction.BUILD).allowed();
+        }
+
+        @Test
+        @DisplayName("a member of the owning city may build")
+        void memberMayBuild() {
+            assertTrue(mayBuild(mayor));
+        }
+
+        @Test
+        @DisplayName("a stranger may not")
+        void strangerMayNot() {
+            assertFalse(mayBuild(support.givenEligiblePlayer("Stranger")));
+        }
+
+        @Test
+        @DisplayName("the chunk next door is still open ground, SPEC 32.5")
+        void neighbouringChunkStaysOpen() {
+            // A waystation protects its own chunks and changes nothing about the rest of the
+            // resource world, which SPEC 32.5 leaves unprotected on purpose.
+            assertTrue(protection.check(support.givenEligiblePlayer("Stranger"), false,
+                    RESOURCE, 101, 100,
+                    dev.civitas.core.protection.ProtectionAction.BUILD).allowed());
+        }
+
+        @Test
+        @DisplayName("without the seam wired, nothing changes for anyone")
+        void seamIsOptional() {
+            // Every test written before this milestone constructs a ProtectionService with no
+            // waystations, and must keep answering exactly as it did.
+            dev.civitas.core.protection.ProtectionService bare =
+                    new dev.civitas.core.protection.ProtectionService(
+                            support.claimRegistry, support.registry, support.configs);
+
+            assertTrue(bare.check(support.givenEligiblePlayer("Stranger"), false,
+                    RESOURCE, 100, 100,
+                    dev.civitas.core.protection.ProtectionAction.BUILD).allowed());
+        }
+    }
+
+    // ==================================================================================
+    // The travel table
+    // ==================================================================================
+
+    @Nested
+    @DisplayName("the teleport, SPEC 39.10")
+    class Travel {
+
+        @Test
+        @DisplayName("its numbers resolve from cities.yml, not from a plausible default")
+        void readsItsOwnKeys() {
+            // The check the M10 fold added for outposts, for the same reason: a missing key
+            // returns the caller's fallback, which is indistinguishable from a configured
+            // value of the same number.
+            dev.civitas.core.travel.TravelKind kind =
+                    dev.civitas.core.travel.TravelKind.WAYSTATION_TP;
+
+            assertTrue(support.configs.get(kind.configFile()).contains(kind.costKey()));
+            assertTrue(support.configs.get(kind.configFile()).contains(kind.cooldownKey()));
+            assertTrue(support.configs.get(kind.configFile()).contains(kind.warmupKey()));
+
+            dev.civitas.core.travel.TeleportService teleports =
+                    new dev.civitas.core.travel.TeleportService(null, support.configs,
+                            support.economy, support.lang(), CityTestSupport.quietLogger());
+            assertEquals(0, teleports.cost(kind).compareTo(new BigDecimal("200")));
+            assertEquals(8, teleports.warmupSeconds(kind));
+            assertEquals(180, teleports.cooldownSeconds(kind));
+        }
+    }
 }

@@ -710,6 +710,24 @@ challenge:
   city-market: "<white>Sell <target> C worth to the market together"
   city-mine: "<white>Mine <target> ore together"
 
+waystation:
+  disabled: "<red>Waystations are switched off on this server."
+  wrong-world: "<red>Waystations only go up in the resource worlds. <gray>Use /rtp resource to get there."
+  already-here: "<red>Your city already has a waystation in <white><world></white>. <gray>One per world is the limit."
+  none-here: "<red>Your city has no waystation in <white><world></white>."
+  chunk-taken: "<red>Another city's waystation already holds this chunk."
+  mining-claim-here: "<red>Somebody's mining claim already holds this chunk."
+  full: "<red>A waystation can hold at most <white><max></white> chunks."
+  not-adjacent: "<red>That chunk does not border your waystation. <gray>The two chunks must share an edge."
+  world-missing: "<red>That waystation's world is not loaded."
+  destination-label: "your waystation"
+  created: "<green>Waystation established in <white><world></white>. <gray>Upkeep: <white><upkeep></white> a day.</gray>"
+  chunk-claimed: "<green>Added a chunk to your <white><world></white> waystation. <gray>Now <white><chunks></white> of <white><max></white> chunks.</gray>"
+  deleted: "<gray>Waystation in <white><world></white> removed. <dark_gray>Half of what it cost has gone back to the treasury.</dark_gray>"
+  list-empty: "<gray>Your city has no waystations. <dark_gray>Stand in a resource world and use /city waystation create.</dark_gray>"
+  list-header: "<gold>Waystations <gray>(<white><count></white>)"
+  list-entry: "<gray>  <white><world></white> <dark_gray>-</dark_gray> <white><chunks></white>/<white><max></white> chunks <dark_gray>-</dark_gray> <white><upkeep></white> a day"
+
 outpost:
   name-invalid: "<red>An outpost name is 1 to 24 letters, numbers or underscores."
   name-taken: "<red>Your city already has an outpost called <white><name></white>."

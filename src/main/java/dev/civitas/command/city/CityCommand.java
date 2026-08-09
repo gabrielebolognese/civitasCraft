@@ -143,6 +143,7 @@ public final class CityCommand {
                 .then(deposit())
                 .then(withdraw())
                 .then(new OutpostCommands(services, lang, scheduler, logger).build())
+                .then(new WaystationCommands(services, lang, scheduler, logger).build())
                 .then(upgradeCommands().upgrade())
                 .then(upgradeCommands().vault())
                 .then(new DefenseCommands(services, lang, scheduler, logger).build())

@@ -90,6 +90,7 @@ public record CivitasServices(
         dev.civitas.core.travel.RandomTeleport randomTeleport,
         dev.civitas.core.travel.WarpService warps,
         dev.civitas.core.mining.MiningClaimService miningClaims,
+        dev.civitas.core.waystation.WaystationService waystations,
         PlayerShopService shops,
         QuestService quests,
         ChallengeService challenges,

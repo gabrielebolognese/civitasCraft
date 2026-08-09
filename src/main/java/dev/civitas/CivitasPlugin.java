@@ -753,6 +753,18 @@ public final class CivitasPlugin extends JavaPlugin {
         // SPEC 33.1's table puts PvP off inside a mining claim, which M4a left as a seam.
         pvpPolicy.useMiningClaims(miningRegistry::isClaimed);
 
+        // SPEC 39.10's waystations, the other thing that can own ground in a resource world.
+        dev.civitas.core.waystation.WaystationRegistry waystationRegistry =
+                new dev.civitas.core.waystation.WaystationRegistry(loadedDaos.waystations());
+        dev.civitas.core.waystation.WaystationService waystationService =
+                new dev.civitas.core.waystation.WaystationService(manager, loadedDaos,
+                        waystationRegistry, treasuryService, miningRegistry, configs, scheduler);
+        waystationRegistry.loadAll().thenAccept(count ->
+                getLogger().info(() -> "Loaded " + count + " waystations."));
+        protection.useWaystations(waystationRegistry);
+        upkeepTask.useWaystations(waystationService);
+        cityService.onCityDisbanded(waystationService::removeCity);
+
         dev.civitas.core.travel.RandomTeleport randomTeleport =
                 new dev.civitas.core.travel.RandomTeleport(this, configs, claimRegistry);
         randomTeleport.useAdminProtection(adminProtection::isProtected);
@@ -776,6 +788,7 @@ public final class CivitasPlugin extends JavaPlugin {
                 upkeepCalculator,
                 upkeepTask, marketService, marketFilter, togglePreferences, messenger,
                 teleportService, randomTeleport, warpService, miningClaimService,
+                waystationService,
                 shopService, questService,
                 challengeService, leaderboardService, statsService, contestService,
                 eventService, warWiring.service(), warWiring.allies(), warWiring.peace(),
