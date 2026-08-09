@@ -118,6 +118,15 @@ class SchemaTest {
         schema.put("mining_claims", List.of("id", "uuid", "world", "chunk_x", "chunk_z",
                 "claimed_at", "cost_paid", "delinquent_since"));
         schema.put("mining_claim_trust", List.of("owner_uuid", "trusted_uuid", "granted_at"));
+        // V21, SPEC 39.10's city waystations: the other thing that can own ground in a
+        // resource world. Their own tables rather than rows in `claims`, because ClaimService
+        // structurally refuses to write a claim in a world that is not city-claimable. No name
+        // column: SPEC 39.11 addresses a waystation by world, which the one-per-city-per-world
+        // limit makes unambiguous.
+        schema.put("waystations", List.of("id", "city_id", "world", "created_at",
+                "warp_x", "warp_y", "warp_z", "warp_yaw", "warp_pitch"));
+        schema.put("waystation_chunks", List.of("id", "waystation_id", "world",
+                "chunk_x", "chunk_z", "claimed_at", "cost_paid"));
         // V5, SPEC 13.2: weekly challenges, which SPEC 3 lists no table for. Keyed by city
         // and week because progress is pooled across every member.
         schema.put("city_challenges", List.of("id", "city_id", "challenge_id", "progress",

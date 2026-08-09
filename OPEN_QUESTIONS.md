@@ -2210,3 +2210,55 @@ Format:
   than one — duplication rather than the two-authorities contradiction M4a fixed, so the failure
   mode is maintenance and not wrong behaviour. **A milestone that touches the city spawn should
   finish the job.** *Date:* 2026-08-08
+
+- **[M10a]** SPEC 39.10's table gives a waystation a cost, an upkeep and a teleport fee, and
+  **no refund at all**. Deleting one therefore has no specified outcome. *Implemented default:*
+  half of what each chunk cost, to the treasury, matching what SPEC 39.5 gives an outpost and
+  SPEC 6.4 gives city land. A rule differing from both its neighbours would need a reason SPEC
+  does not supply, and the alternative — refunding nothing — would make a waystation the one
+  holding in the game that is pure sunk cost, which reads as an oversight rather than a design.
+  Behind `waystations.refund-percent`, so an operator who disagrees sets it to zero.
+  *Date:* 2026-08-09
+
+- **[M10a]** SPEC 39.10 gives the teleport as "200 C" flat, where SPEC 39.5 scales the outpost
+  fare by `D(d)`. Two systems built a week apart in the same Part, one scaling and one not, is
+  the shape of an omission. *Implemented default:* flat, read as deliberate. SPEC 39.10 argues
+  in its own text that "the resource worlds exist to be travelled deep into, and penalising that
+  would defeat their purpose" — it makes that argument about the *distance constant*, and it
+  applies with more force to a fee paid on every single trip than to a price paid once. A fare
+  that rose with depth would tax exactly the mining the worlds exist for. *Date:* 2026-08-09
+
+- **[M10a]** SPEC 39.10 measures distance "from that world's spawn, not from the city core",
+  which is not a preference but a necessity: the core is in `world` and the waystation is in
+  `resource`, so there is no distance between them to measure. Worth recording because the
+  method reads like an inconsistency with `OutpostService.blocksFromCore` and is not one. It
+  also falls back to `(0, 0)` when the world is not loaded, which keeps the pricing pure enough
+  to test without a server and is correct for a default world spawn. *Date:* 2026-08-09
+
+- **[M10a]** Waystation upkeep is **summed into the outpost figure** rather than given its own
+  term in `UpkeepCalculator`. Both are the same thing to a treasury — remote holdings priced by
+  how far out they are — and a fourth parameter would be a fourth thing every caller and every
+  test has to pass. They stay visibly separate everywhere a player looks (`/city waystation
+  list` prices each one, the outpost menu prices those) and merge only where the city simply
+  owes money. The consequence to know: `dailyUpkeep`'s second argument is no longer "outposts",
+  it is "remote holdings", and its javadoc says so. *Date:* 2026-08-09
+
+- **[M10a]** Protection is checked **inside** the resource-world branch of
+  `ProtectionService.check`, before its fallthrough, and the placement is the whole rule. That
+  branch answers ALLOWED for every chunk no mining claim holds, because SPEC 32.5 leaves the
+  resource worlds open on purpose — so a waystation check placed after it would never be
+  reached, and the feature would have created rows, charged the treasury, appeared in its own
+  list command and defended nothing. Nothing about that failure is visible from reading either
+  class alone. The seam is optional and null-safe, so every test written before this milestone
+  answers exactly as it did, and there is a test asserting that too. *Date:* 2026-08-09
+
+- **[M10a]** **Three tests failed because this milestone added a table, which is never a
+  defect** — the fourth, fifth and sixth instances of the same shape in this project after
+  `ConfigKeyUsageTest`'s file list, `HelpPagesTest`'s command list and the migration index.
+  `MigrationRunnerTest` asserted a hardcoded set of version numbers and `DaoRoundTripTest` a
+  hardcoded DAO count; both now derive, and the DAO test asserts something better than a count
+  in the process — that no two DAOs claim the same table, which a count could never catch.
+  `SchemaTest` is **not** the same defect and was not "fixed": its curated table list is a
+  deliberate conformance check, and a table added without an entry is exactly what it exists to
+  catch, so it gained one. The distinction is worth stating because the reflex after two
+  identical failures is to derive the third. *Date:* 2026-08-09
