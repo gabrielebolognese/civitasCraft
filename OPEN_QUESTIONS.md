@@ -2262,3 +2262,42 @@ Format:
   deliberate conformance check, and a table added without an entry is exactly what it exists to
   catch, so it gained one. The distinction is worth stating because the reflex after two
   identical failures is to derive the third. *Date:* 2026-08-09
+
+- **[M10b]** SPEC 39.12 asks the detail screen for "a chunk layout diagram showing which of the
+  four chunks are owned" and specifies neither its size nor what it is anchored on. *Implemented
+  default:* a 3x2 window anchored on the **founding chunk**, not centred on the player. Centring
+  on the player would make the shape slide around while they walk through their own outpost,
+  which defeats the purpose — the diagram exists because SPEC 39.6 refuses an expansion that does
+  not border and an unclaim that would split, and both refusals are opaque without a still
+  picture of what is owned. The cost: a straight line of four chunks does not fit the window, and
+  the header's chunk count is what covers that case. *Date:* 2026-08-09
+
+- **[M10b]** SPEC 39.12 gives the list entry "click to open detail" and travel its own slot,
+  which retires the shift-click-to-delete gesture Part I's entry carried. *Implemented default:*
+  deleting moved onto the detail screen, where it is a labelled button behind a confirmation
+  rather than an undocumented modifier on a button that does something else. `confirmDelete` in
+  the parent menu lost its only caller in the same edit and was removed rather than left as
+  dead code the compiler does not warn about. *Date:* 2026-08-09
+
+- **[M10b]** SPEC 39.11's `/city outpost claim` requires a name and SPEC 39.12's slot 20 is a
+  button, which has nowhere to type one. *Implemented default:* the button **infers** the
+  outpost, and cannot be ambiguous: SPEC 39.6 keeps a city's outposts 24 chunks apart and caps
+  each at four, so no chunk can border two of them. When no outpost will take the chunk, the
+  button re-asks against the nearest one so the lore names the rule that actually failed rather
+  than a generic refusal — which is SPEC 39.12's "disabled with a reason" read literally.
+  *Date:* 2026-08-09
+
+- **[M10b]** SPEC 39.12's detail screen lists "view defense units", and SPEC 39.8 caps an outpost
+  at four of them. The roster is M12a to M12f, which PLAN orders after this milestone.
+  *Implemented default:* the entry renders through the framework's refusal path saying the system
+  is not on this server yet — the same choice M8 made for seven screens whose systems did not
+  exist, and for the same reason: an entry that silently showed zero units would be
+  indistinguishable from an outpost that has none. *Date:* 2026-08-09
+
+- **[M10b]** **Two of this milestone's twelve tests were mutation-checked before being trusted**,
+  and the reason is M6c: that milestone shipped a concurrency test that stayed green with the
+  lock removed, because SQLite serialises writers and handed it the property for free. A test
+  that passes on the first run is not evidence until it has been seen to fail. The diagram
+  assertion was broken deliberately (ownership forced false) and went red; the breakdown
+  assertion likewise. Worth recording as a practice rather than an incident — twelve green tests
+  on a first run is exactly the shape that hid M6c's defect. *Date:* 2026-08-09
