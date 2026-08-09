@@ -21,7 +21,8 @@ import dev.civitas.storage.row.DefenseUnitRow;
 public final class DefenseUnitDao extends Dao<DefenseUnitRow> {
 
     private static final String COLUMNS =
-            "id, city_id, type, world, spawn_x, spawn_y, spawn_z, upkeep, active";
+            "id, city_id, type, world, spawn_x, spawn_y, spawn_z, upkeep, active, "
+                    + "health, dormant_since";
 
     public DefenseUnitDao(DatabaseManager db) {
         super(db);
@@ -43,7 +44,49 @@ public final class DefenseUnitDao extends Dao<DefenseUnitRow> {
                 rs.getDouble("spawn_y"),
                 rs.getDouble("spawn_z"),
                 money(rs, "upkeep"),
-                rs.getBoolean("active"));
+                rs.getBoolean("active"),
+                nullableDouble(rs, "health"),
+                nullableLong(rs, "dormant_since"));
+    }
+
+    /** {@code null} and {@code 0.0} mean different things for health; getDouble conflates them. */
+    private static Double nullableDouble(ResultSet rs, String column) throws SQLException {
+        double value = rs.getDouble(column);
+        return rs.wasNull() ? null : value;
+    }
+
+
+    /**
+     * Writes health and dormancy back, SPEC 25.4.
+     *
+     * <p>Its own statement rather than a full row update: this runs on the 30-second combat
+     * checkpoint and again on every dematerialisation, and it must never be the thing that
+     * overwrites a position or an upkeep figure some other path just changed.
+     */
+    public CompletableFuture<Integer> saveState(int id, Double health, Long dormantSince) {
+        return db.call(connection -> updateSync(connection,
+                "UPDATE defense_units SET health = ?, dormant_since = ? WHERE id = ?",
+                health, dormantSince, id));
+    }
+
+    public int saveStateSync(Connection connection, int id, Double health, Long dormantSince)
+            throws SQLException {
+        return updateSync(connection,
+                "UPDATE defense_units SET health = ?, dormant_since = ? WHERE id = ?",
+                health, dormantSince, id);
+    }
+
+    /**
+     * SPEC 31 case 87: on startup every unit is dormant, whatever it was when the server died.
+     *
+     * <p>Clearing the column rather than leaving it is what stops a crash from paying out
+     * regeneration for the downtime: a server offline for a week would otherwise heal every
+     * damaged unit to full the moment it came back, which is exactly the healing SPEC 25.4
+     * disables during a war and would arrive for free after one.
+     */
+    public CompletableFuture<Integer> markAllDormant(long now) {
+        return db.call(connection -> updateSync(connection,
+                "UPDATE defense_units SET dormant_since = ? WHERE dormant_since IS NULL", now));
     }
 
     /** Every unit on the server, active or not, for the startup cache. */

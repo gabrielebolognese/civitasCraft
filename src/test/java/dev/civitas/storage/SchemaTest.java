@@ -142,8 +142,11 @@ class SchemaTest {
         schema.put("city_upgrades", List.of("city_id", "upgrade_key", "level"));
         // V6, SPEC 5.7 and 9.2: the shared city vault, which SPEC 3 lists no table for.
         schema.put("city_vault", List.of("city_id", "page", "contents", "updated_at"));
+        // V22, SPEC 25.4: health and dormancy, so a unit at 40% that dematerialises returns
+        // at 40% rather than healed. Before these two columns a unit's health lived only in
+        // the entity, which meant despawning it was a free full heal.
         schema.put("defense_units", List.of("id", "city_id", "type", "world", "spawn_x", "spawn_y",
-                "spawn_z", "upkeep", "active"));
+                "spawn_z", "upkeep", "active", "health", "dormant_since"));
         schema.put("audit_log", List.of("id", "timestamp", "actor_uuid", "action", "target",
                 "reason", "metadata"));
         // Added by V3: SPEC 4.8 needs circulation history that SPEC 3 does not define.

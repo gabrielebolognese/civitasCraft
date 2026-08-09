@@ -1,6 +1,7 @@
 package dev.civitas.storage.dao;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -776,11 +777,22 @@ class DaoRoundTripTest {
             int cityId = givenCity("Roma", ALICE, money("0.00"));
 
             int guard = await(daos.defenseUnits().insert(new DefenseUnitRow(0, cityId, "city-guard",
-                    "world", 10.5, 64.0, 20.5, money("900.00"), true)));
+                    "world", 10.5, 64.0, 20.5, money("900.00"), true, null, null)));
             await(daos.defenseUnits().insert(new DefenseUnitRow(0, cityId, "archer",
-                    "world", 12.5, 64.0, 22.5, money("700.00"), true)));
+                    "world", 12.5, 64.0, 22.5, money("700.00"), true, null, null)));
 
             assertEquals(0, money("1600.00").compareTo(await(daos.defenseUnits().totalUpkeep(cityId))));
+
+            // SPEC 25.4's state, V22. Null health reads as full rather than as zero, which is
+            // what stops the upgrade killing every unit already placed.
+            DefenseUnitRow fresh = await(daos.defenseUnits().findById(guard)).orElseThrow();
+            assertNull(fresh.health(), "a unit that has never materialised has no stored health");
+            assertEquals(100.0, fresh.healthOr(100.0), 0.001);
+
+            await(daos.defenseUnits().saveState(guard, 41.5, 1_700_000_000_000L));
+            DefenseUnitRow saved = await(daos.defenseUnits().findById(guard)).orElseThrow();
+            assertEquals(41.5, saved.health(), 0.001, "health must survive the round trip");
+            assertEquals(1_700_000_000_000L, saved.dormantSince());
 
             // SPEC 12.3: unpaid upkeep despawns a unit but keeps its row.
             await(daos.defenseUnits().setActive(guard, false));

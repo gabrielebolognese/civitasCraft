@@ -243,10 +243,12 @@ public final class DefenseService {
         }
 
         return db.transaction(connection -> {
+            // Health and dormancy start null: a unit just placed has taken no damage and has
+            // never been dormant, and SPEC 25.4 reads null health as full.
             int id = units.insert(connection, new DefenseUnitRow(0, city.id(), type.key(),
-                    world, x, y, z, type.upkeepPerDay(), true));
+                    world, x, y, z, type.upkeepPerDay(), true, null, null));
             return Result.success(new DefenseUnit(id, city.id(), type.key(), world, x, y, z,
-                    type.upkeepPerDay(), true));
+                    type.upkeepPerDay(), true, null, null));
         }).thenApply(result -> {
             if (result instanceof Result.Success<DefenseUnit>(DefenseUnit unit)) {
                 scheduler.runOnMain(() -> {

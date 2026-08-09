@@ -22,3 +22,4 @@ V18__player_toggles.sql
 V19__warps.sql
 V20__mining_claims.sql
 V21__waystations.sql
+V22__defense_unit_state.sql
