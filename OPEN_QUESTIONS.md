@@ -2301,3 +2301,53 @@ Format:
   assertion was broken deliberately (ownership forced false) and went red; the breakdown
   assertion likewise. Worth recording as a practice rather than an incident — twelve green tests
   on a first run is exactly the shape that hid M6c's defect. *Date:* 2026-08-09
+
+- **[M12a]** **I reported three tests as passing that had never executed, twice.** MockBukkit
+  raises `UnimplementedOperationException` for API it does not implement, and JUnit records that
+  as a **skip**, not a failure. My verification was a grep for `FAILED|BUILD`, and a skipped test
+  produces neither — so a suite in which the milestone's central assertion never ran printed
+  `BUILD SUCCESSFUL`. It was caught only by reading the skip counts in the result XML while
+  looking at something else. *The lesson is not "also grep for SKIPPED".* This project has spent
+  three milestones mutation-checking tests to prove they **can fail**; that is a different
+  question from whether they **ran**, and the second is both cheaper to get wrong and invisible
+  in the output I had been trusting. Test counts are now read from the XML rather than inferred
+  from the console. *Date:* 2026-08-09
+
+- **[M12a]** The call MockBukkit lacks is `setRemoveWhenFarAway`, which is exactly what SPEC 31
+  case 106 requires — "they must not [count toward the mob cap]. Exclude from spawn calculations
+  and set `setRemoveWhenFarAway(false)`" — and which `DefenseSpawner` therefore calls on every
+  spawn. So the one line SPEC mandates is the one that makes the spawner untestable.
+  *Implemented default:* a `Spawn` seam on `UnitMaterializer`, defaulting to the real spawner,
+  which the tests replace with the same mob minus that call. It exists for this reason rather
+  than for tidiness: without it SPEC 25.4's "a unit at 40% health that dematerializes returns at
+  40% health" — the whole promise of the milestone — could not be asserted at all. **Case 106
+  itself remains implemented and untested, and `DefenseSpawner` has never run under any test.
+  M12b to M12f all build on it.** *Date:* 2026-08-09
+
+- **[M12a]** SPEC 31 case 113's published ceiling of 60 **cannot be met by a radius rule**, and
+  the developer's instruction was that it is binding. Forty players each standing inside their
+  own twelve-unit garrison are within 48 blocks of four hundred units, and no per-player rule
+  makes forty players produce fewer than forty times what is in range of them; sixty implies
+  under two units per player. *Implemented default:* the cap is a **global fleet budget** —
+  which is what "server-wide" says — and units compete for seats. War-zone units are seated
+  first and never displaced, because a defender arriving to find their garrison missing while
+  forty strangers stood in other cities is the worst failure this system could produce; it has
+  its own test. **The cost is real and is not a tuning detail:** on a busy server a player can
+  walk up to their own garrison and find part of it absent because the seats are taken
+  elsewhere. `defense.materialization.max-materialized`, and 0 means no ceiling.
+  *Date:* 2026-08-09
+
+- **[M12a]** The superseded M12 was **worse than a coarse trigger**. It respawned units on
+  `ChunkLoadEvent` and had **no despawn path at all** — nothing anywhere took a unit down — so
+  every unit any player had ever walked past stayed loaded until the next restart. That is
+  precisely the 2,400 permanently loaded entities SPEC 25.4 opens by refusing, and it had been
+  shipped and passing its tests since M12. Recorded because the milestone's framing ("replace
+  the trigger") understated what was actually wrong. *Date:* 2026-08-09
+
+- **[M12a]** Null health reads as **full**, not zero. V22 adds the column to a table with rows
+  already in it, so every existing unit has `health = NULL`; read as zero, the migration would
+  kill every defense unit on the server the moment an operator upgraded. Likewise
+  `markAllDormant` **clears** dormancy at startup rather than trusting what is there: dormant
+  regeneration measures from that timestamp, so a server offline for a week would otherwise heal
+  every damaged unit to full on boot — the healing SPEC 25.4 disables during a war, arriving for
+  free just after one. *Date:* 2026-08-09
