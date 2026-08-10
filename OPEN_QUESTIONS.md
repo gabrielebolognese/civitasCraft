@@ -2714,3 +2714,50 @@ Format:
   after it. The agent checked `git show` rather than believing the brief, and said so. Worth noting
   as evidence for what adversarial verification is actually for: not only reviewing code, but
   disbelieving the premises it was handed. *Date:* 2026-08-09
+
+- **[M19b]** SPEC 33.8's tag **refreshes, it does not stack**, and stacking is the natural
+  implementation. SPEC argues the case itself: twenty arrows from one engagement would be a
+  ten-minute lockout, and "a harasser who lands one hit every four minutes can keep a target
+  tagged indefinitely". Both parties are tagged rather than only the victim, or an archer could
+  fire and teleport out — which is the escape the tag exists to close. A war tag never shortens
+  into a peacetime one while running: SPEC 33.9 case 115 extends the other direction, and the
+  reverse would be a way to cut a two-minute lockout to thirty seconds by having an ally poke you.
+  *Date:* 2026-08-10
+
+- **[M19b]** SPEC 33.4's war check has a fourth condition that is a **deliberate narrowing rather
+  than a reading**: a neutral city's claims are never a battleground, so two enemies meeting
+  inside an uninvolved city cannot fight there. SPEC 33.4 states the reason — "any city adjacent
+  to a war becomes collateral, and the anti-toxicity pillar does not survive that." A player with
+  no city is a bystander either way, per SPEC 17.4 case 41. *Date:* 2026-08-10
+
+- **[M19b]** `DeathPolicy` asserts a property about the whole plugin rather than about itself.
+  Items are lost to another player **only inside a war**; read together with SPEC 11.7's rule that
+  hand-looted container items are never restored by the rollback, that makes war the **only**
+  mechanism in the entire plugin by which a player permanently loses possessions to another
+  player. Everything else the plugin takes is money, ranking or reputation, and that is what makes
+  SPEC 1.2's "destruction is never permanent" true everywhere else. SPEC 33.9 case 127 has its own
+  test because it is the rule a city will dislike: a defense unit is a mob, not a war participant,
+  so killing a raider with a 55,000-coin Colossus does not hand the city their inventory.
+  *Date:* 2026-08-10
+
+- **[M19b]** The action-bar countdown uses `ToggleCategory.WAR`, which SPEC 23.6 locks on, rather
+  than `ACTIONBAR`, which a player may mute. SPEC 33.8 requires the countdown for a stated reason:
+  "A player must never be surprised that a teleport was refused." A mutable countdown turns a
+  working refusal into an unexplained failure, which is what players report as a bug.
+  *Date:* 2026-08-10
+
+- **[M19b]** **I shipped a twin lang key and the orphan sweep caught it**, not me:
+  `combat.tagged-teleport` when `TeleportService` already refuses with `travel.combat-tagged`.
+  Second twin in two days, both within hours of writing about the pattern — the config one at
+  M12b, this one in lang. Worth recording that `LangKeyUsageTest`'s orphan half catches the lang
+  case automatically (the unused one is orphaned), where `ConfigKeyUsageTest` **cannot** catch the
+  config case, because both keys are read and neither is dead. *Date:* 2026-08-10
+
+- **[M19b]** **Unverified surface, stated rather than left to be found.** `CombatTagListener` has
+  no tests: damage tagging, the countdown timer and the combat-logout kill are reviewed and
+  compiled only. The pure halves — `CombatTag` and `DeathPolicy`, 40 tests — are mutation-checked,
+  and the two blocks that had seams (teleports, vault) are wired through code that is tested. What
+  is missing is the event plumbing, which needs either MockBukkit coverage of
+  `EntityDamageByEntityEvent` or the live pass. **Peacetime PvP also remains disabled**, so SPEC
+  33.6's peacetime keepInventory row is built, configured and unreachable until a developer flips
+  `pvp.peacetime`. *Date:* 2026-08-10

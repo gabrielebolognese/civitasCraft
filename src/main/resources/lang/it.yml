@@ -1524,6 +1524,8 @@ toggle:
 
 # I rifiuti PvP di SPEC 33. Ognuno dice PERCHE', come richiede SPEC 23.1 regola 5.
 combat:
+  tag-countdown: "<gray>In combattimento: <white><time>"
+  tag-countdown-war: "<red>In combattimento: <white><time>"
   tagged-vault: "<red>Non puoi aprire il tesoro mentre sei in combattimento. <gray>Il tesoro e una cassaforte, non una tasca.</gray>"
   pvp-denied-peacetime: "<red>Il PvP e' disattivato al di fuori delle guerre dichiarate."
   pvp-denied-spawn: "<red>Il PvP e' disattivato allo spawn."

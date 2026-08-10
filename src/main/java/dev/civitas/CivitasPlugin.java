@@ -161,6 +161,7 @@ public final class CivitasPlugin extends JavaPlugin {
     private SpawnService spawns;
     private IncomeSystems income;
     private OutpostTravel outposts;
+    private dev.civitas.core.combat.DeathPolicy deaths;
     private dev.civitas.core.travel.TeleportService travel;
     private VaultView vaults;
 
@@ -957,6 +958,15 @@ public final class CivitasPlugin extends JavaPlugin {
                 configs.get(dev.civitas.config.ConfigFile.COMBAT)
                         .getLong("pvp.war-combat-tag-seconds", 120) * 1000L);
         teleportService.useCombatTag(uuid -> combatTag.isTagged(uuid, System.currentTimeMillis()));
+        var combatCfg = configs.get(dev.civitas.config.ConfigFile.COMBAT);
+        dev.civitas.core.combat.DeathPolicy deathPolicy =
+                new dev.civitas.core.combat.DeathPolicy(
+                        combatCfg.getLong("pvp.attribution-window-seconds", 30) * 1000L,
+                        combatCfg.getBoolean("pvp.keep-inventory-peacetime-pvp", true),
+                        combatCfg.getBoolean("pvp.keep-inventory-war-pvp", false),
+                        combatCfg.getBoolean("pvp.keep-inventory-environment", false),
+                        combatCfg.getBoolean("pvp.keep-inventory-mob", false));
+        this.deaths = deathPolicy;
         vaultView.useCombatTag(uuid -> combatTag.isTagged(uuid, System.currentTimeMillis()));
 
         pvpPolicy.useWarCheck((attacker, victim, world, chunkX, chunkZ) -> {
@@ -1009,6 +1019,17 @@ public final class CivitasPlugin extends JavaPlugin {
                 new dev.civitas.msg.TogglePreferences(loadedDaos.playerToggles(), getLogger());
         dev.civitas.msg.Messenger messenger =
                 new dev.civitas.msg.Messenger(lang, configs, togglePreferences);
+
+        // SPEC 33.8's tag: applied on damage, shown on the action bar, enforced at logout.
+        // Registered here rather than beside the other protection listeners because it needs
+        // both the tag and the messenger, and the messenger is built at this point.
+        dev.civitas.listener.CombatTagListener combatTagListener =
+                new dev.civitas.listener.CombatTagListener(combatTag, pvpPolicy, configs, lang,
+                        messenger, getLogger());
+        getServer().getPluginManager().registerEvents(combatTagListener, this);
+        getServer().getScheduler().runTaskTimer(this,
+                () -> combatTagListener.showCountdowns(getServer().getOnlinePlayers(),
+                        System.currentTimeMillis()), 20L, 20L);
 
         // SPEC 26.2's visible half, attached now that both the router it speaks through and
         // the audit log it records violations in exist.

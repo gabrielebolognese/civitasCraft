@@ -44,6 +44,34 @@ pvp:
   # which compounds a defeat into an economic collapse."
   resource-worlds: false
 
+  # SPEC 33.8's combat tag. Refreshes on each hit, never stacks: twenty arrows from one
+  # engagement must not be a ten-minute lockout.
+  #
+  # "120 seconds, not 300. Five minutes is long enough that a single arrow from an unseen
+  # archer locks a player out of teleporting for the length of a real activity."
+  combat-tag-seconds: 30
+  war-combat-tag-seconds: 120
+
+  # SPEC 33.8: the countdown is required, not decorative. "A player must never be surprised
+  # that a teleport was refused."
+  tag-actionbar: true
+
+  # SPEC 33.9 case 121: no near-miss grace. A rule with an edge to play for is one players
+  # will play for.
+  kill-on-combat-logout: true
+
+  # SPEC 33.6: how long after placing TNT, fire, lava or a crystal its author still answers
+  # for a death it causes. Outside the window it is an environmental death.
+  attribution-window-seconds: 30
+
+  # SPEC 33.6's table. keep-in-war false is what gives raiding real weight, and SPEC 33.6
+  # states the tradeoff honestly: it also means wealth converts into war power. SPEC 33.7's
+  # war graves are the intended remedy if that proves too punishing, not turning this back on.
+  keep-inventory-peacetime-pvp: true
+  keep-inventory-war-pvp: false
+  keep-inventory-environment: false
+  keep-inventory-mob: false
+
   # SPEC 37: a player cannot be attacked, and cannot attack, for this long after arriving.
   # Both directions, per SPEC 33.9 case 123: "Immunity is not a one-way shield."
   join-grace-seconds: 10
