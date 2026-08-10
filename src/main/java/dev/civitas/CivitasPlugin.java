@@ -950,6 +950,15 @@ public final class CivitasPlugin extends JavaPlugin {
         // inside a neutral city cannot fight there." Without it any city next to a war becomes
         // collateral, and the anti-toxicity pillar does not survive that. Wilderness is covered
         // because it has no owning city to be neutral.
+        // SPEC 33.8's combat tag, and the two things it blocks that already had seams.
+        dev.civitas.core.combat.CombatTag combatTag = new dev.civitas.core.combat.CombatTag(
+                configs.get(dev.civitas.config.ConfigFile.COMBAT)
+                        .getLong("pvp.combat-tag-seconds", 30) * 1000L,
+                configs.get(dev.civitas.config.ConfigFile.COMBAT)
+                        .getLong("pvp.war-combat-tag-seconds", 120) * 1000L);
+        teleportService.useCombatTag(uuid -> combatTag.isTagged(uuid, System.currentTimeMillis()));
+        vaultView.useCombatTag(uuid -> combatTag.isTagged(uuid, System.currentTimeMillis()));
+
         pvpPolicy.useWarCheck((attacker, victim, world, chunkX, chunkZ) -> {
             var theirs = cityRegistry.cityOf(attacker);
             var victims = cityRegistry.cityOf(victim);

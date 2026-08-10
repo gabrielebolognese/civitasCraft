@@ -1540,6 +1540,7 @@ toggle:
 # SPEC 33's PvP refusals. Each says WHY, per SPEC 23.1 rule 5: "Failure messages state the
 # reason and the remedy."
 combat:
+  tagged-vault: "<red>You cannot open the vault while in combat. <gray>The vault is a safe, not a pocket.</gray>"
   pvp-denied-peacetime: "<red>PvP is off outside of declared wars."
   pvp-denied-spawn: "<red>PvP is off at spawn."
   pvp-denied-admin: "<red>PvP is off in this admin-protected area."

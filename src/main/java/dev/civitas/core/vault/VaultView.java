@@ -53,6 +53,13 @@ public final class VaultView {
      * The load is async; the open happens on the server thread when it lands.
      */
     public void open(Player player, City city, int page) {
+        // SPEC 33.8: "City vault access — prevents banking loot mid-fight." A raider who could
+        // reach the vault while tagged would have a safe every few seconds, which is the whole
+        // reason the vault is war-immune in the first place (SPEC 11.7).
+        if (combatTag.isTagged(player.getUniqueId())) {
+            lang.send(player, "combat.tagged-vault");
+            return;
+        }
         String key = key(city.id(), page);
         Open existing = open.get(key);
         if (existing != null) {
@@ -153,6 +160,13 @@ public final class VaultView {
     }
 
     /** Whether a particular page is open, so a war or a disband can find out. */
+    /** SPEC 33.8's tag, injected because the war half arrived after this class. */
+    private dev.civitas.core.travel.TeleportService.CombatTag combatTag = player -> false;
+
+    public void useCombatTag(dev.civitas.core.travel.TeleportService.CombatTag tag) {
+        this.combatTag = java.util.Objects.requireNonNull(tag, "tag");
+    }
+
     public boolean isOpen(int cityId, int page) {
         return open.containsKey(key(cityId, page));
     }
