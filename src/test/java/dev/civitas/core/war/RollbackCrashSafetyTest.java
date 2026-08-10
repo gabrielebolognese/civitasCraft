@@ -73,7 +73,7 @@ class RollbackCrashSafetyTest {
         daos = new DaoRegistry(db);
 
         await(daos.wars().insert(new WarRow(0, 1, 2, 0L, 0L, 0L, "ROLLING_BACK", 0, 0, null,
-                BigDecimal.ZERO, null, null)));
+                BigDecimal.ZERO, null, null, 0)));
     }
 
     @AfterEach

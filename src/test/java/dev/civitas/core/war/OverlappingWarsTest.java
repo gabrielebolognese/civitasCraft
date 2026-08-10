@@ -136,7 +136,7 @@ class OverlappingWarsTest {
      */
     private War givenWar(long startsAt, long endsAt) {
         int id = await(daos.wars().insert(new WarRow(0, 1, 2, startsAt, startsAt, endsAt,
-                WarState.ACTIVE.key(), 0, 0, null, BigDecimal.ZERO, null, null)));
+                WarState.ACTIVE.key(), 0, 0, null, BigDecimal.ZERO, null, null, 0)));
         War war = new War(id, 1, 2, startsAt, startsAt, endsAt, WarState.ACTIVE,
                 BigDecimal.ZERO);
         war.zone(WarZone.of(List.of(new dev.civitas.core.claim.Claim(id, 1, WORLD, 1, 0,

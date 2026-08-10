@@ -245,7 +245,7 @@ class AdminProtectionTest {
         BigDecimal wager = new BigDecimal("50000.00");
         int id = await(support.daos.wars().insert(new WarRow(0, city.id(), enemy.id(),
                 NOW, NOW + 1000L, NOW + 2000L, WarState.ACTIVE.key(), 0, 0, null, wager,
-                null, null)));
+                null, null, 0)));
         War war = new War(id, city.id(), enemy.id(), NOW, NOW + 1000L, NOW + 2000L,
                 WarState.ACTIVE, wager);
         war.zone(WarZone.of(List.of(new dev.civitas.core.claim.Claim(1L, enemy.id(), "world",

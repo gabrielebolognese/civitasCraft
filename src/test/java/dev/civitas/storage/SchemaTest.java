@@ -66,7 +66,12 @@ class SchemaTest {
                 "city_id", "amount", "balance_after", "metadata"));
         schema.put("wars", List.of("id", "attacker_city_id", "defender_city_id", "declared_at",
                 "prep_ends_at", "war_ends_at", "state", "attacker_score", "defender_score",
-                "winner_city_id", "wager", "rollback_completed_at", "rollback_checkpoint_sequence"));
+                "winner_city_id", "wager", "rollback_completed_at", "rollback_checkpoint_sequence",
+                // V24, SPEC 29.2: "Siege Capacity is computed once, at war declaration, and
+                // frozen." It is a column rather than a lookup because a defender who bought a
+                // Fortification level mid-war would otherwise be handing their attacker a
+                // larger army.
+                "siege_capacity"));
         schema.put("war_block_log", List.of("id", "war_id", "sequence", "world", "x", "y", "z",
                 "old_block_data", "new_block_data", "old_nbt", "actor_uuid", "timestamp"));
         schema.put("war_container_log", List.of("id", "war_id", "world", "x", "y", "z", "actor_uuid",
@@ -194,6 +199,11 @@ class SchemaTest {
         // calls it temporary and because an absent row is cheaper than a column of 1.0.
         schema.put("city_upkeep_multipliers", List.of("city_id", "multiplier", "set_by",
                 "set_at", "expires_at", "reason"));
+        // V24, SPEC 29.5: the attacker's staging point. Health lives on the row rather than on
+        // the block because SPEC calls the camp "a block-entity" with 200 HP and Bukkit has no
+        // such thing; the block in the world is a marker and this is the camp.
+        schema.put("siege_camps", List.of("id", "war_id", "city_id", "world", "x", "y", "z",
+                "health", "placed_at", "destroyed_at", "rebuilt"));
         return schema;
     }
 

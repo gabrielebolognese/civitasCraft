@@ -79,7 +79,7 @@ class WarPhaseTaskTest {
         long warEnds = prepEnds + 7 * DAY;
         int id = CityTestSupport.await(support.daos.wars().insert(
                 new dev.civitas.storage.row.WarRow(0, 1, 2, START, prepEnds, warEnds,
-                        state.key(), 0, 0, null, new BigDecimal("50000.00"), null, null)));
+                        state.key(), 0, 0, null, new BigDecimal("50000.00"), null, null, 0)));
         War war = new War(id, 1, 2, START, prepEnds, warEnds, state, new BigDecimal("50000.00"));
         registry.remember(war);
         return war;

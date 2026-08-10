@@ -89,7 +89,7 @@ class WarEntitySnapshotsTest {
         java.math.BigDecimal wager = new java.math.BigDecimal("50000.00");
         warId = await(support.daos.wars().insert(new dev.civitas.storage.row.WarRow(0, 1, 2,
                 NOW, NOW + 1000L, NOW + 2000L, WarState.ACTIVE.key(), 0, 0, null, wager,
-                null, null)));
+                null, null, 0)));
         War created = new War(warId, 1, 2, NOW, NOW + 1000L, NOW + 2000L, WarState.ACTIVE, wager);
         created.zone(WarZone.of(List.of(new dev.civitas.core.claim.Claim(1L, 1, "world", 0, 0,
                 NOW, UUID.randomUUID(), java.math.BigDecimal.ZERO,

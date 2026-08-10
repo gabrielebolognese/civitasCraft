@@ -79,7 +79,7 @@ class RollbackEngineTest {
 
         // A war row to roll back, since the engine records its outcome against one.
         await(daos.wars().insert(new WarRow(0, 1, 2, 0L, 0L, 0L, "ROLLING_BACK", 0, 0, null,
-                BigDecimal.ZERO, null, null)));
+                BigDecimal.ZERO, null, null, 0)));
 
         engine = newEngine();
     }
@@ -377,7 +377,7 @@ class RollbackEngineTest {
     void overlappingWars() {
         // SPEC 17.4 case 51 calls this "the most likely source of a corrupt restore".
         await(daos.wars().insert(new WarRow(0, 3, 4, 0L, 0L, 0L, "ROLLING_BACK", 0, 0, null,
-                BigDecimal.ZERO, null, null)));
+                BigDecimal.ZERO, null, null, 0)));
 
         block(30, 64, 30).setType(Material.STONE);
         // The same position damaged in both wars, logged separately by each.

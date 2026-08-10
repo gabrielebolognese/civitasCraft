@@ -504,7 +504,7 @@ class DaoRoundTripTest {
             int attacker = givenCity("Roma", ALICE, money("100000.00"));
             int defender = givenCity("Ostia", BOB, money("100000.00"));
             return await(daos.wars().insert(new WarRow(0, attacker, defender,
-                    1_000L, 2_000L, 3_000L, "PREP", 0, 0, null, money("50000.00"), null, null)));
+                    1_000L, 2_000L, 3_000L, "PREP", 0, 0, null, money("50000.00"), null, null, 0)));
         }
 
         @Test

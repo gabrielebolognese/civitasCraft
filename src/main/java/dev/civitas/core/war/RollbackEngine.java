@@ -420,7 +420,8 @@ public final class RollbackEngine {
                                                     war.prepEndsAt(), war.warEndsAt(),
                                                     "RESOLVED", war.attackerScore(),
                                                     war.defenderScore(), war.winnerCityId(),
-                                                    war.wager(), now, war.rollbackCheckpointSequence()))
+                                                    war.wager(), now, war.rollbackCheckpointSequence(),
+                                                    war.siegeCapacity()))
                                             .thenApply(updated -> found))
                                     .orElseGet(() -> CompletableFuture.completedFuture(found)));
                 });

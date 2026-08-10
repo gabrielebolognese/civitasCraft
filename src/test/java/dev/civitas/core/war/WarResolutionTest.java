@@ -85,7 +85,7 @@ class WarResolutionTest {
     /** A war already fought, with the wagers escrowed and the scores in. */
     private War givenFoughtWar(int attackerScore, int defenderScore) {
         int id = await(support.daos.wars().insert(new WarRow(0, attacker.id(), defender.id(),
-                NOW, NOW, NOW, WarState.ACTIVE.key(), 0, 0, null, WAGER, null, null)));
+                NOW, NOW, NOW, WarState.ACTIVE.key(), 0, 0, null, WAGER, null, null, 0)));
         War war = new War(id, attacker.id(), defender.id(), NOW, NOW, NOW, WarState.ACTIVE, WAGER);
         war.addScore(true, attackerScore);
         war.addScore(false, defenderScore);

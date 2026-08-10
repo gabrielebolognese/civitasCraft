@@ -24,3 +24,4 @@ V20__mining_claims.sql
 V21__waystations.sql
 V22__defense_unit_state.sql
 V23__city_warden.sql
+V24__siege.sql

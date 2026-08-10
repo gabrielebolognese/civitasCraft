@@ -367,3 +367,57 @@ siege:
   camp-health: 200
   camp-destroy-points: 40
   camp-rebuild-cost-percent: 50
+
+  # SPEC 29.3's roster. Four units against the defender's six, deliberately: "the attacker's real
+  # advantages are choosing the timing, having full player mobility, and being able to retreat."
+  #
+  # damage-vs-units and damage-vs-players are SPEC 29.3's key balance lever. The Breacher's 2.0
+  # and 0.6 exist so the attacker's mob budget is a tool against the defender's mob budget --
+  # "it exists to break a garrison, not to kill players" -- without turning wars into
+  # mob-versus-mob spectacles. Only a unit with damage-vs-units above 1.0 may engage a defense
+  # unit at all, which is the single carve-out from SPEC 26.4's "units never fight units".
+  units:
+    siege-beast:
+      display-name: "<red>Siege Beast"
+      mob: RAVAGER
+      health: 180
+      damage: 14
+      points: 40
+      cost: 40000
+      range: 20
+      damage-vs-units: 1.0
+      damage-vs-players: 1.0
+      buff-radius: 0
+    breacher:
+      display-name: "<gold>Breacher"
+      mob: VINDICATOR
+      health: 70
+      damage: 9
+      points: 20
+      cost: 18000
+      range: 16
+      damage-vs-units: 2.0
+      damage-vs-players: 0.6
+      buff-radius: 0
+    siege-archer:
+      display-name: "<yellow>Siege Archer"
+      mob: PILLAGER
+      health: 50
+      damage: 7
+      points: 16
+      cost: 15000
+      range: 22
+      damage-vs-units: 1.0
+      damage-vs-players: 1.0
+      buff-radius: 0
+    banner-bearer:
+      display-name: "<light_purple>Banner Bearer"
+      mob: PILLAGER
+      health: 60
+      damage: 0
+      points: 25
+      cost: 25000
+      range: 0
+      damage-vs-units: 0.0
+      damage-vs-players: 0.0
+      buff-radius: 12

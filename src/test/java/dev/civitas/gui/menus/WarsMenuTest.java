@@ -106,7 +106,7 @@ class WarsMenuTest {
         long prepEnds = now + java.util.concurrent.TimeUnit.HOURS.toMillis(48);
         long warEnds = prepEnds + java.util.concurrent.TimeUnit.DAYS.toMillis(7);
         int id = await(support.cities.daos.wars().insert(new WarRow(0, city.id(), enemy.id(),
-                now, prepEnds, warEnds, state.key(), 0, 0, null, WAGER, null, null)));
+                now, prepEnds, warEnds, state.key(), 0, 0, null, WAGER, null, null, 0)));
         War war = new War(id, city.id(), enemy.id(), now, prepEnds, warEnds, state, WAGER);
         support.wars.remember(war);
         return war;

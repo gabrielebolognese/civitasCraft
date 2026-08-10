@@ -492,7 +492,7 @@ class AntiAbuseTest {
             int winner = attackerScore >= defenderScore ? attacker : defender;
             await(support.daos.wars().insert(new WarRow(0, attacker, defender, NOON,
                     NOON + 1000, NOON + 2000, "RESOLVED", attackerScore, defenderScore,
-                    winner, new BigDecimal("50000.00"), NOON + 3000, null)));
+                    winner, new BigDecimal("50000.00"), NOON + 3000, null, 0)));
         }
     }
 

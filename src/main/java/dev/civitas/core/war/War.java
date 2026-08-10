@@ -71,7 +71,25 @@ public final class War {
     public WarRow toRow(Long rollbackCompletedAt, Long checkpoint) {
         return new WarRow(id, attackerCityId, defenderCityId, declaredAt, prepEndsAt, warEndsAt,
                 state.key(), attackerScore, defenderScore, winnerCityId, wager,
-                rollbackCompletedAt, checkpoint);
+                rollbackCompletedAt, checkpoint, siegeCapacity);
+    }
+
+    /**
+     * SPEC 29.2's siege budget, fixed when this war was declared.
+     *
+     * <p>Stored rather than derived. It comes from the defender's Fortification level, and
+     * recomputing it would let a defender hand their attacker a larger army mid-war by buying an
+     * upgrade — or shrink the attack after it was planned by selling one.
+     */
+    private int siegeCapacity;
+
+    public int siegeCapacity() {
+        return siegeCapacity;
+    }
+
+    /** Set once, at declaration. */
+    public void freezeSiegeCapacity(int capacity) {
+        this.siegeCapacity = Math.max(0, capacity);
     }
 
     public int id() {

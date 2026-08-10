@@ -111,7 +111,7 @@ public final class WarService {
 
             int id = daos.wars().insert(connection, new WarRow(0, attacker.id(), defender.id(),
                     now, prepEnds, warEnds, WarState.DECLARED.key(), 0, 0, null, amount,
-                    null, null));
+                    null, null, siegeCapacityFor(defender)));
 
             return Result.success(new War(id, attacker.id(), defender.id(), now, prepEnds,
                     warEnds, WarState.DECLARED, amount));
@@ -468,7 +468,8 @@ public final class WarService {
                                         WarState.ROLLING_BACK.key(), existing.attackerScore(),
                                         existing.defenderScore(), war.winnerCityId(),
                                         existing.wager(), null,
-                                        existing.rollbackCheckpointSequence()))
+                                        existing.rollbackCheckpointSequence(),
+                                        existing.siegeCapacity()))
                                 .thenApply(updated -> Result.success(war)))
                         .orElseGet(() -> completed(Result.failure("NO_SUCH_WAR", "war.unknown"))));
     }
@@ -491,7 +492,8 @@ public final class WarService {
                                         existing.warEndsAt() + extraMillis, existing.state(),
                                         existing.attackerScore(), existing.defenderScore(),
                                         existing.winnerCityId(), existing.wager(), null,
-                                        existing.rollbackCheckpointSequence()))
+                                        existing.rollbackCheckpointSequence(),
+                                        existing.siegeCapacity()))
                                 .thenApply(updated -> {
                                     // War.warEndsAt is final, so extending means replacing the
                                     // cached object. Everything else about it is carried over,
@@ -568,5 +570,23 @@ public final class WarService {
 
     private static <T> CompletableFuture<Result<T>> completed(Result<T> result) {
         return CompletableFuture.completedFuture(result);
+    }
+
+    /**
+     * SPEC 29.2's budget, computed once here and never again.
+     *
+     * <p>Zero until the siege milestone wires the calculator, which is the conservative
+     * direction: an attacker with no budget fields no siege, where a wrong default would field
+     * an army nobody sized.
+     */
+    private int siegeCapacityFor(City defender) {
+        return siege == null ? 0 : siege.applyAsInt(defender.id());
+    }
+
+    private java.util.function.IntUnaryOperator siege;
+
+    /** Hands the service SPEC 29.2's calculator. M19a's only touchpoint here. */
+    public void useSiegeCapacity(java.util.function.IntUnaryOperator calculator) {
+        this.siege = java.util.Objects.requireNonNull(calculator, "calculator");
     }
 }

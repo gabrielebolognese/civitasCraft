@@ -24,5 +24,6 @@ public record WarRow(
         Integer winnerCityId,
         BigDecimal wager,
         Long rollbackCompletedAt,
-        Long rollbackCheckpointSequence) {
+        Long rollbackCheckpointSequence,
+        int siegeCapacity) {
 }

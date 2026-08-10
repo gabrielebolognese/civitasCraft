@@ -19,12 +19,12 @@ public final class WarDao extends Dao<WarRow> {
     private static final String COLUMNS =
             "id, attacker_city_id, defender_city_id, declared_at, prep_ends_at, war_ends_at, "
                     + "state, attacker_score, defender_score, winner_city_id, wager, "
-                    + "rollback_completed_at, rollback_checkpoint_sequence";
+                    + "rollback_completed_at, rollback_checkpoint_sequence, siege_capacity";
 
     private static final String INSERT_COLUMNS =
             "attacker_city_id, defender_city_id, declared_at, prep_ends_at, war_ends_at, "
                     + "state, attacker_score, defender_score, winner_city_id, wager, "
-                    + "rollback_completed_at, rollback_checkpoint_sequence";
+                    + "rollback_completed_at, rollback_checkpoint_sequence, siege_capacity";
 
     public WarDao(DatabaseManager db) {
         super(db);
@@ -50,7 +50,8 @@ public final class WarDao extends Dao<WarRow> {
                 nullableInt(rs, "winner_city_id"),
                 money(rs, "wager"),
                 nullableLong(rs, "rollback_completed_at"),
-                nullableLong(rs, "rollback_checkpoint_sequence"));
+                nullableLong(rs, "rollback_checkpoint_sequence"),
+                rs.getInt("siege_capacity"));
     }
 
     public CompletableFuture<Optional<WarRow>> findById(int id) {
@@ -91,11 +92,11 @@ public final class WarDao extends Dao<WarRow> {
     /** @return the generated war id */
     public int insert(Connection connection, WarRow row) throws SQLException {
         long id = insertSync(connection,
-                "INSERT INTO wars (" + INSERT_COLUMNS + ") VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                "INSERT INTO wars (" + INSERT_COLUMNS + ") VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
                 row.attackerCityId(), row.defenderCityId(), row.declaredAt(), row.prepEndsAt(),
                 row.warEndsAt(), row.state(), row.attackerScore(), row.defenderScore(),
                 row.winnerCityId(), row.wager(), row.rollbackCompletedAt(),
-                row.rollbackCheckpointSequence());
+                row.rollbackCheckpointSequence(), row.siegeCapacity());
         return Math.toIntExact(id);
     }
 
@@ -108,11 +109,11 @@ public final class WarDao extends Dao<WarRow> {
                 "UPDATE wars SET attacker_city_id = ?, defender_city_id = ?, declared_at = ?, "
                         + "prep_ends_at = ?, war_ends_at = ?, state = ?, attacker_score = ?, "
                         + "defender_score = ?, winner_city_id = ?, wager = ?, "
-                        + "rollback_completed_at = ?, rollback_checkpoint_sequence = ? WHERE id = ?",
+                        + "rollback_completed_at = ?, rollback_checkpoint_sequence = ?, siege_capacity = ? WHERE id = ?",
                 row.attackerCityId(), row.defenderCityId(), row.declaredAt(), row.prepEndsAt(),
                 row.warEndsAt(), row.state(), row.attackerScore(), row.defenderScore(),
                 row.winnerCityId(), row.wager(), row.rollbackCompletedAt(),
-                row.rollbackCheckpointSequence(), row.id());
+                row.rollbackCheckpointSequence(), row.siegeCapacity(), row.id());
     }
 
     public CompletableFuture<Integer> updateState(int warId, String state) {

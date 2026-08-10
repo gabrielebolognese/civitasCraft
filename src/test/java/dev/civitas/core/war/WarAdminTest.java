@@ -86,7 +86,7 @@ class WarAdminTest {
     /** A war already escrowed, which is the state every one of these commands acts on. */
     private War givenWar(WarState state) {
         int id = await(support.daos.wars().insert(new WarRow(0, attacker.id(), defender.id(),
-                NOW, NOW + 1000L, NOW + 2000L, state.key(), 0, 0, null, WAGER, null, null)));
+                NOW, NOW + 1000L, NOW + 2000L, state.key(), 0, 0, null, WAGER, null, null, 0)));
         War war = new War(id, attacker.id(), defender.id(), NOW, NOW + 1000L, NOW + 2000L,
                 state, WAGER);
         registry.remember(war);
