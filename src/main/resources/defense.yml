@@ -352,3 +352,18 @@ warden:
   # 28.6 spends a paragraph refusing. Changing either is refused with a warning at startup.
   killable-in-peacetime: false
   killable-in-war: true
+
+# SPEC 29, the attacker's side. Siege Capacity is derived from the DEFENDER's capacity, not from
+# the attacker's wealth, and SPEC 29.2 says what that is for: "the more a city fortifies, the more
+# siege its attacker is permitted to field. A city cannot outbuild the counter, it can only make
+# the war more expensive for both sides."
+#
+# 0.70 rather than 1.0 so fortifying still pays: the attacker's share never catches the defender's
+# whole capacity, and the gap widens with every level. Computed once at declaration and frozen --
+# a defender who could raise it mid-war would be handing their attacker a larger army.
+siege:
+  budget-ratio: 0.70
+  max-camp-distance-chunks: 12
+  camp-health: 200
+  camp-destroy-points: 40
+  camp-rebuild-cost-percent: 50
