@@ -2,10 +2,13 @@
 
 ## 2026-08-10
 
-Four commits, 12 files, +959/−2. One arc: SPEC 33's war PvP and death, filling the seam M4a left
-empty in April. It ended with a milestone I had to reopen after closing — I shipped three of the
-four parts I had listed and marked the row DONE — and the fourth turned out to be unbuildable,
-which is a different problem from being unfinished.
+Six commits and a working tree: 37 files +1,105/−33 committed, 17 more +425/−10 uncommitted at the
+time of writing. Two arcs. SPEC 33's war PvP and death, filling the seam M4a left empty in April;
+then SPEC 29's siege, which is the attacker's half of a war and the reason a fortified city is
+expensive rather than unattackable. The first ended with a milestone I had to reopen after closing
+— I shipped three of the four parts I had listed and marked the row DONE — and the fourth turned
+out to be unbuildable, which is a different problem from being unfinished. The second is the first
+milestone where SPEC's own published table contradicts SPEC's own formula, and the table won.
 
 ### War PvP, death and the combat tag
 
@@ -61,6 +64,101 @@ Not verified: `CombatTagListener` has no tests. The pure halves (`CombatTag`, `D
 tests) are mutation-checked; the damage tagging, countdown timer and combat-logout kill are reviewed
 and compiled only. Peacetime PvP also remains disabled, so SPEC 33.6's peacetime keepInventory row
 is built, configured and unreachable until `pvp.peacetime` is flipped.
+
+### Siege: the attacker's half of a war
+
+- SPEC 29.2's Siege Capacity comes from the **defender's** defence capacity, not from the
+  attacker's wealth or size. 70% of it, frozen at declaration.
+  - Number: 100/150/225 defensive points at Fortification 0/2/5 becomes 70/105/157 of siege.
+  - Hard part: the test worth having asserts the *property*, not the arithmetic. Fortifying must
+    always raise the counter (a city cannot outbuild the attack) and must always still pay (the
+    attacker's share never catches the defender's whole capacity, and the gap widens per level).
+    Both are loops over every level rather than three magic numbers, so a future retune of the
+    ratio either keeps the design intact or fails loudly.
+- **SPEC 29.2's formula and SPEC 29.2's own table disagree, and I got it wrong first.** The formula
+  says `round(defender_capacity * 0.70)`. At Fortification 5 that is `round(225 * 0.70)`, and
+  225 × 0.70 is exactly 157.5, which rounds to 158 under any half-up convention. The published
+  table says **157**. My first implementation used `Math.round` and produced 158.
+  - Hard part: which side to believe is not obvious in the abstract, and the answer came from
+    precedent rather than argument. SPEC 39.3's ambiguous `n` was settled the same way at M10 —
+    against the tables, because the table is what a player is promised and the formula is a
+    description of it. Truncation matches all three published rows; half-up matches two of three.
+    It is also the conservative direction: the attacker never gets more siege than the exact share.
+- The frozen capacity is a **column on `wars`** (V24), not a lookup.
+  - Hard part: derived, it would be recomputed from the *current* Fortification level after any
+    restart. A defender could then hand their attacker a larger army mid-war by buying an upgrade,
+    or shrink an attack already planned by selling one. Neither is a decision a war should contain,
+    and neither is visible until somebody does it.
+- The Breacher's carve-out lives in `TargetingRule`, not in the siege package.
+  - Number: 6 tests, 4 of them about what the exception does *not* reach.
+  - Hard part: SPEC 30.1 forbids "unit-specific targeting logic anywhere else" and SPEC 29.4 needs
+    exactly one exception to SPEC 26.4's "units never fight units". Those pull against each other,
+    and the obvious implementation — write the exception next to the code that spawns Breachers —
+    is the one SPEC forbids, because it becomes a second place deciding what may be attacked. Put
+    in the rule, the prohibition and its one hole are a single readable statement. The test that
+    matters most is `neverItsOwnSide`: SPEC 11.4 puts **both** cities' claims in the war zone, so
+    an attacker's own guards are standing in it, and a Breacher without that check would eat the
+    garrison of the city that bought it.
+- Siege units get their own table (V25) even though SPEC 3 defines none and SPEC 29 asks for none.
+  - Hard part: two independent reasons, and I nearly kept them in memory. The entities carry SPEC
+    12.5's persistence flags, so they survive a restart — an in-memory budget would reset and hand
+    an attacker a fresh 70 points while their existing army was still standing in the world. And
+    SPEC 29.4's war-end despawn needs a *list*: scanning the world for tagged mobs finds only the
+    ones in loaded chunks. Deliberately not folded into `defense_units`, which would have meant an
+    exception in every reader — siege has no upkeep, no materialisation, no city cap, no life past
+    its war.
+- A dead siege unit's row is kept and still counts against the budget.
+  - Hard part: summing only the living turns SPEC 29.2's cap into a rate limit. The cap is meant to
+    be a commitment for the whole war, not a standing army size.
+
+### What SPEC does not say about a siege camp
+
+- SPEC 29.5 gives the camp "200 HP as a **block-entity**", and Bukkit has no such thing: a block is
+  not damageable and carries no health.
+  - Hard part: so the banner in the world is a **marker** and the camp is its row. Two consequences
+    follow that are easy to get backwards. Mining the marker is refused outright — a 200 HP
+    objective a diamond pickaxe removes in a second is not an objective, and SPEC 29.5 calls it "a
+    real secondary objective". And *hitting* it is what does damage, which means inventing both a
+    per-blow figure and a debounce, neither of which SPEC gives. Both are config keys that say in
+    the file that they are mine.
+- SPEC 29.5 says a camp "can be rebuilt once per war at half cost" and **never says what the whole
+  cost is**. `camp-rebuild-cost-percent: 50` ships in SPEC 30.3; no camp price exists anywhere.
+  - Hard part: a free camp would make SPEC's own percentage inert — half of nothing is nothing —
+    which is exactly the dead-key defect the config sweep found nineteen of. So `siege.camp-cost`
+    ships at 20,000, stated in the file as mine, sitting between the Siege Archer's 15,000 and the
+    Siege Beast's 40,000.
+- SPEC 29 describes camps and units in full and defines **no command and no GUI for either**. Not
+  in SPEC 9.3's `/war` tree, not in SPEC 8.8's Wars menu.
+  - Hard part: same call as `/ca warp set` at M3b and `/toggle` at M7a. A system with no way to
+    drive it is inert configuration wearing a different hat, so `/war siege` ships and is recorded
+    as beyond SPEC rather than slipped in.
+- The camp's map tile sits **above** every ownership tile rather than beside them.
+  - Hard part: SPEC 29.5 permits a camp in the attacker's own claims, so an ownership-first tile
+    would render it as their territory — invisible to the people it is aimed at. Which is the exact
+    failure SPEC's own sentence names: "a siege the defender cannot see is not a siege, it is an
+    ambush."
+
+### The build found three things review did not
+
+- `siege.units-expired` was written into both language files and sent by nothing. SPEC 30.4 lists
+  it; I shipped it and never wired it. `LangKeyUsageTest`'s orphan half caught it.
+  - Hard part: third time that test has caught a *feature that lost a wire* rather than dead text —
+    after M3c's silent mining-claim release and M10's fare regression. It reads like a tidiness
+    check and it is not.
+- Three lang keys I invented in `SiegeCommands` (`command.players-only`, `storage.not-ready`,
+  `city.not-in-city`) when the plugin already had `command.player-only`, `plugin.starting` and
+  `city.none`. Caught by the same sweep's other half.
+- `SchemaTest` failed for the two new tables, which is never a defect — it is a deliberate
+  conformance list and a new table earns an entry. Seventh instance of that shape, and again not
+  "fixed" by deriving it: catching an undeclared table is the whole point of the test.
+
+Not verified: `SiegeListener`, `SiegeSpawner` and `SiegeTick` have no tests. Camp damage, the
+Breacher's damage rewrite, the no-drops rule on a siege death, the Banner Bearer's aura and the
+spawn shaping are reviewed and compiled only — same limitation and same cause as M12d's
+`DefenseSpawner`, where MockBukkit reports the entity API these classes need as a *skip* rather than
+a failure. What is asserted is the arithmetic and the rules: `SiegeCapacity`, `SiegeCatalogue`,
+`SiegePlacement`, `SiegeCamp` and the carve-out, two of them mutation-checked by breaking the
+production code and confirming the named tests go red.
 
 ---
 

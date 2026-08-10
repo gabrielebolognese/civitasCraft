@@ -204,6 +204,11 @@ class SchemaTest {
         // such thing; the block in the world is a marker and this is the camp.
         schema.put("siege_camps", List.of("id", "war_id", "city_id", "world", "x", "y", "z",
                 "health", "placed_at", "destroyed_at", "rebuilt"));
+        // V25, SPEC 29.4: what an attacker has fielded. SPEC 3 defines no table and SPEC 29 asks
+        // for none, but the entities survive a restart, so a budget held only in memory would
+        // hand a fresh 70 points to an attacker whose army was still standing.
+        schema.put("siege_units", List.of("id", "war_id", "city_id", "type", "points", "world",
+                "x", "y", "z", "alive", "bought_at"));
         return schema;
     }
 

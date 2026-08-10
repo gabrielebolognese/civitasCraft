@@ -123,6 +123,8 @@ public record CivitasServices(
         UpgradeService upgrades,
         DefenseService defense,
         dev.civitas.core.defense.WardenService warden,
+        dev.civitas.core.siege.SiegeService siege,
+        dev.civitas.core.siege.SiegeSpawner siegeSpawner,
         DiplomacyService diplomacy,
         VaultService vaults,
         VaultView vaultView,

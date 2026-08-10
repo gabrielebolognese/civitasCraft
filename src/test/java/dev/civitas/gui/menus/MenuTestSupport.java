@@ -215,7 +215,11 @@ final class MenuTestSupport implements AutoCloseable {
                         0, false),
                 cities.daos,
                 scoreboard, outposts,
-                outpostTeleport, upgradeService, defenseService, wardenService, diplomacyService, vaultService,
+                outpostTeleport, upgradeService, defenseService, wardenService,
+                // No menu reads siege: SPEC 29 defines none, so the GUI fixture does not
+                // build the service. A screen that needed it would fail loudly here.
+                null, null,
+                diplomacyService, vaultService,
                 vaultView, menus, layouts,
                 input, spawns, halls,
                 cities.accounts, new PlayerLookup(cities.daos.players()), Scheduler.direct());

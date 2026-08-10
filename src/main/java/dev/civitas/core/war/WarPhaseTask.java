@@ -178,6 +178,13 @@ public final class WarPhaseTask implements Runnable {
         war.state(WarState.ROLLING_BACK);
         persist(war);
 
+        // SPEC 29.4: siege units "Despawn at war end. No refund, ever." Before the evacuation
+        // rather than after, because SPEC 11.8.2's first step clears the zone of players and a
+        // Ravager still standing in it would be the one thing left to fight nothing.
+        if (siege != null) {
+            siege.endWar(war);
+        }
+
         // SPEC 11.9 before SPEC 11.8.2, deliberately. A war is settled the moment it ends,
         // not when the restore finishes: a player who lost should be told they lost rather
         // than waiting on a rollback, and if the rollback runs into trouble the result is
@@ -269,6 +276,19 @@ public final class WarPhaseTask implements Runnable {
     /** SPEC 11.9's payouts, wired after construction because it needs the treasury. */
     public void useResolution(WarResolution warResolution) {
         this.resolution = warResolution;
+    }
+
+    /** SPEC 29.4's war-end despawn, wired by the plugin. */
+    @FunctionalInterface
+    public interface SiegeEnd {
+
+        void endWar(War war);
+    }
+
+    private SiegeEnd siege;
+
+    public void useSiege(SiegeEnd end) {
+        this.siege = end;
     }
 
     private void announceOutcome(War war, WarResolution.Outcome outcome) {

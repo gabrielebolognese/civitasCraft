@@ -368,6 +368,21 @@ siege:
   camp-destroy-points: 40
   camp-rebuild-cost-percent: 50
 
+  # NOT SPEC's numbers, and worth knowing which.
+  #
+  # camp-cost: SPEC 29.5 says a camp "can be rebuilt once per war at half cost" and never says
+  # what the whole cost is. A percentage needs a figure to be a percentage of, so one is shipped;
+  # the alternative was a free camp, which would have made camp-rebuild-cost-percent above inert.
+  #
+  # camp-damage-per-hit and camp-hit-cooldown-ms: SPEC gives the camp 200 HP as "a block-entity",
+  # which Bukkit has no such thing as -- a block is not damageable. So the banner in the world is
+  # a marker and the health is on its row, and something has to take it down. 5 a blow over a
+  # 400ms debounce is roughly twenty seconds of committed hitting, which is what makes SPEC 29.5's
+  # "real secondary objective" true rather than decorative.
+  camp-cost: "20000"
+  camp-damage-per-hit: 5.0
+  camp-hit-cooldown-ms: 400
+
   # SPEC 29.3's roster. Four units against the defender's six, deliberately: "the attacker's real
   # advantages are choosing the timing, having full player mobility, and being able to retreat."
   #

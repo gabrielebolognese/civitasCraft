@@ -2787,3 +2787,99 @@ Format:
   reads as authoritative and following its references leads to the wrong text every time — the
   same hazard as SPEC 37 shipping a `border:` block that SPEC 32.3 rejects, which M3a found.
   *Date:* 2026-08-10
+
+- **[M19a]** SPEC 29.2's formula and SPEC 29.2's own table disagree. The formula is
+  `round(defender_defense_capacity * 0.70)`; at Fortification 5 that is `round(225 * 0.70)`, and
+  225 x 0.70 is exactly 157.5, which rounds to **158** under any half-up convention. **The
+  published table says 157.** *Implemented default:* truncation, settled against the published
+  figures rather than by argument, the same way SPEC 39.3's ambiguous `n` was settled against SPEC
+  39.4's tables. Truncation matches all three rows SPEC prints (70, 105, 157); half-up matches two
+  of three. It is also the conservative direction, since an attacker never gets more siege than the
+  exact share. `SiegeCapacityTest` asserts the three published rows rather than the formula, because
+  a ratio that is nearly right gives a curve of the right shape and the wrong numbers.
+  *Date:* 2026-08-10
+
+- **[M19a]** SPEC 29.5 says a siege camp "can be rebuilt once per war at half cost" and **never
+  says what the whole cost is**. SPEC 30.3 ships `camp-rebuild-cost-percent: 50` and no camp price
+  anywhere. A percentage needs a figure to be a percentage of. *Implemented default:*
+  `siege.camp-cost`, **this implementation's number** (20,000 C), stated as such in `defense.yml`.
+  The alternative was a free camp, under which SPEC's own `camp-rebuild-cost-percent` would be
+  inert -- half of nothing is nothing -- and that is precisely the class of dead key the config
+  sweep found nineteen of. 20,000 sits between the Siege Archer's 15,000 and the Siege Beast's
+  40,000, so a camp is a real commitment without being most of a Fortification-0 attacker's
+  70-point budget. *Date:* 2026-08-10
+
+- **[M19a]** SPEC 29.5 gives the camp "200 HP as a block-entity", and **Bukkit has no such thing**:
+  a block is not damageable and carries no health, and the only entity that could hold one would be
+  a mob standing where the banner is. *Implemented default:* the banner in the world is a
+  **marker** and the camp is its row. Two consequences worth knowing, both deliberate. Mining the
+  marker is refused outright, because a 200 HP objective a diamond pickaxe removes in one second is
+  not an objective -- SPEC 29.5 calls it "a real secondary objective". And hitting it is what does
+  damage, at `siege.camp-damage-per-hit` (5) over `siege.camp-hit-cooldown-ms` (400), **neither of
+  which is a SPEC figure**; together they make roughly twenty seconds of committed hitting. Only the
+  defending side's hits count: an attacker striking their own camp, or a bystander wandering past,
+  changes nothing. *Date:* 2026-08-10
+
+- **[M19a]** SPEC 29 describes camps and units in full and **defines no command and no GUI for
+  either**. SPEC 9.3's `/war` tree has no siege entry, SPEC 8.8's Wars menu has no siege slot, and
+  SPEC 8.9's Defense menu is the defender's. *Implemented default:* `/war siege` with `camp`, `buy`,
+  `list` and a bare status -- the minimum that makes SPEC 29 reachable. Same reasoning as
+  `/ca warp set` at M3b (SPEC defines `/warp` and no way to create one) and `/toggle` at M7a: a
+  system with no way to drive it is inert configuration wearing a different hat. Recorded as beyond
+  SPEC rather than slipped in. *Date:* 2026-08-10
+
+- **[M19a]** SPEC 30.1 forbids "unit-specific targeting logic anywhere else", and SPEC 29.4 needs
+  exactly one exception to SPEC 26.4's "units never fight units" -- the Breacher. Those pull against
+  each other, and the obvious implementation is the wrong one: writing the exception beside the code
+  that spawns Breachers would be a second place deciding what may be attacked, free to drift.
+  *Implemented default:* `TargetingRule.breacherException`, so the prohibition and its one hole are
+  a single readable statement, plus one extra field on `TargetingRule.Unit`. Siege units reach the
+  same rule through their own resolver, `SiegeTargeting`, which decides nothing -- **one rule, two
+  resolvers**, which is what SPEC 30.1 asks for; a siege unit is not in `defense_units` and owns no
+  ground, so one resolver could not serve both. Four of the six carve-out tests assert what the
+  exception does **not** reach, including **its own side's garrison**: SPEC 11.4 puts both cities'
+  claims in the war zone, so an attacker's own guards are standing in it, and a Breacher that ate
+  them would be a war-winning own goal. *Date:* 2026-08-10
+
+- **[M19a]** SPEC 3 defines no table for siege units and SPEC 29 asks for none, but two rules make
+  one unavoidable, so V25 adds `siege_units`. **The budget:** the entities carry SPEC 12.5's
+  persistence flags, so they survive a restart -- held in memory alone, the tally would reset and
+  hand an attacker a fresh 70 points while their existing army was still standing. **The despawn:**
+  SPEC 29.4 removes every unit at war end and SPEC 29.5 removes a city's units when its camp falls;
+  both need a list, and scanning the world for tagged mobs finds only the ones in loaded chunks.
+  Deliberately **not** modelled on `defense_units`: a siege unit has no upkeep, no materialisation,
+  no city cap and no life beyond its war, so sharing that table would mean an exception in every
+  reader. A dead unit's row is **kept** and still counts against the budget, because SPEC 29.4
+  refunds nothing -- summing only the living would turn SPEC 29.2's cap into a rate limit.
+  *Date:* 2026-08-10
+
+- **[M19a]** SPEC 29.5's camp is "visible on `/city map` to **both** sides, deliberately", and the
+  tile has to sit **above** every ownership tile rather than beside them. A camp planted in the
+  attacker's own claims -- which SPEC 29.5 permits -- would otherwise render as their territory and
+  be invisible to the people it is aimed at, which is the exact failure SPEC's own sentence names:
+  "a siege the defender cannot see is not a siege, it is an ambush." *Date:* 2026-08-10
+
+- **[M19a]** SPEC 29.5 says "Attackers place a Siege Camp banner block" and never says whether a
+  defender may. *Implemented default:* attacking side only, which includes allies who joined that
+  side per SPEC 30.2 case 104. Reading it otherwise would give the defender a second garrison budget
+  on top of SPEC 25.5's, which SPEC 29.2 never sized and which the anti-fortress ratio would then be
+  measuring against itself. *Date:* 2026-08-10
+
+- **[M19a]** SPEC 29.5 does not say whether a camp goes down whole or a chunk at a time, nor what
+  happens to a camp in a war that resolves normally. *Implemented default:* a destroyed camp's row
+  is **kept** with `destroyed_at` stamped, because it is the only record that the one rebuild SPEC
+  allows has been spent -- deleting on destruction would hand every attacker unlimited rebuilds. At
+  war end both camps and units are **deleted**, because a siege has no life beyond its war and no
+  later question the rows could answer. The `markDestroyed` update is guarded on
+  `destroyed_at IS NULL`, so two players landing the killing blow in one tick cannot both score SPEC
+  29.5's 40 points; the in-memory half of that guarantee is in `SiegeCamp.damage` and is
+  mutation-checked. *Date:* 2026-08-10
+
+- **[M19a]** **Unverified surface, stated rather than left to be found.** `SiegeListener`,
+  `SiegeSpawner` and `SiegeTick` have no tests -- camp damage, the Breacher's damage rewrite, the
+  no-drops rule on a siege death, the Banner Bearer's aura and the spawn shaping are reviewed and
+  compiled only. This is the same limitation M12d recorded for `DefenseSpawner`, and the same cause:
+  MockBukkit reports the entity API these classes need as a **skip** rather than a failure. What is
+  asserted is the arithmetic and the rules -- `SiegeCapacity`, `SiegeCatalogue`, `SiegePlacement`,
+  `SiegeCamp` and the carve-out, two of them mutation-checked. **All of it needs the live pass, and
+  M20a's balance sweep cannot substitute for it.** *Date:* 2026-08-10

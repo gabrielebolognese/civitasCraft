@@ -908,6 +908,103 @@ public final class CivitasPlugin extends JavaPlugin {
                     main.getName(), spawn.getBlockX() >> 4, spawn.getBlockZ() >> 4});
         });
 
+        // ==============================================================================
+        // SPEC 29's siege, M19a
+        // ==============================================================================
+        dev.civitas.core.siege.SiegeCatalogue siegeCatalogue =
+                new dev.civitas.core.siege.SiegeCatalogue(configs, getLogger());
+        int siegeUnits = siegeCatalogue.load();
+        getLogger().info(() -> "Loaded " + siegeUnits + " siege unit type(s).");
+
+        dev.civitas.core.siege.SiegeCapacity siegeCapacity =
+                new dev.civitas.core.siege.SiegeCapacity(configs, defenseService.capacityRule());
+        // SPEC 29.2: computed once, at declaration, and frozen. The war service asks the
+        // defender's Fortification level exactly here and never again.
+        warWiring.service().useSiegeCapacity(defenderId ->
+                siegeCapacity.against(cityRegistry.city(defenderId)
+                        .map(city -> upgradeService.levelOf(city,
+                                dev.civitas.core.upgrade.UpgradeType.FORTIFICATION))
+                        .orElse(0)));
+
+        dev.civitas.core.siege.SiegeSpawner siegeSpawner =
+                new dev.civitas.core.siege.SiegeSpawner(this, lang);
+        dev.civitas.core.siege.SiegeService siegeService =
+                new dev.civitas.core.siege.SiegeService(manager, loadedDaos.siegeCamps(),
+                        loadedDaos.siegeUnits(), siegeCatalogue, siegeCapacity, cityRegistry,
+                        claimRegistry, treasuryService, configs);
+        siegeService.loadAll().thenAccept(loaded -> {
+            if (loaded > 0) {
+                getLogger().info(() -> "Loaded " + loaded + " siege camp(s).");
+            }
+        });
+        // Rows are not entities. SPEC 12.5's persistence flags are set on siege mobs too, so
+        // deleting the rows without this would leave a Ravager standing in a rolled-back city
+        // with nothing owning it.
+        siegeService.useDespawn((warId, cityId) -> scheduler.runOnMain(() -> {
+            for (org.bukkit.World world : getServer().getWorlds()) {
+                for (org.bukkit.entity.Entity entity : world.getEntities()) {
+                    if (siegeSpawner.warIdOf(entity).map(id -> id == warId).orElse(false)
+                            && (cityId == null || siegeSpawner.cityIdOf(entity)
+                                    .map(id -> id.equals(cityId)).orElse(false))) {
+                        entity.remove();
+                    }
+                }
+            }
+        }));
+        warWiring.phases().useSiege(war -> {
+            // SPEC 30.4's siege.units-expired, to the side that paid for them. Before the
+            // despawn rather than after, so the message and the empty ground arrive together.
+            for (org.bukkit.entity.Player online : getServer().getOnlinePlayers()) {
+                cityRegistry.cityOf(online.getUniqueId())
+                        .filter(city -> war.isAttackerSide(city.id()))
+                        .ifPresent(city -> lang.send(online, "siege.units-expired"));
+            }
+            siegeService.endWar(war.id());
+        });
+        // SPEC 29.5: visible to BOTH sides, deliberately. "A siege the defender cannot
+        // see is not a siege, it is an ambush."
+        claimMap.useSiegeCamps((world, chunkX, chunkZ) ->
+                siegeService.campAt(world, chunkX, chunkZ).isPresent());
+
+        dev.civitas.core.siege.SiegeTargeting siegeTargeting =
+                new dev.civitas.core.siege.SiegeTargeting(siegeSpawner, defenseSpawner,
+                        siegeCatalogue);
+        dev.civitas.core.siege.SiegeTargeting.Wars siegeWars =
+                new dev.civitas.core.siege.SiegeTargeting.Wars() {
+            @Override
+            public boolean isActive(int warId) {
+                return warWiring.registry().war(warId)
+                        .map(war -> war.state() == dev.civitas.core.war.WarState.ACTIVE)
+                        .orElse(false);
+            }
+
+            @Override
+            public boolean isOnSameSide(int warId, int ownerCityId, java.util.UUID player) {
+                return warWiring.registry().war(warId).flatMap(war ->
+                        cityRegistry.cityOf(player).map(city ->
+                                war.isAttackerSide(city.id())
+                                        == war.isAttackerSide(ownerCityId))).orElse(false);
+            }
+
+            @Override
+            public boolean isEnemyPlayer(int warId, int ownerCityId, java.util.UUID player) {
+                return warWiring.registry().war(warId).flatMap(war ->
+                        cityRegistry.cityOf(player).map(city ->
+                                war.areEnemies(ownerCityId, city.id()))).orElse(false);
+            }
+
+            @Override
+            public boolean isEnemyUnit(int warId, int ownerCityId,
+                                       org.bukkit.entity.Entity defenseUnit) {
+                return warWiring.registry().war(warId).flatMap(war ->
+                        defenseSpawner.unitIdOf(defenseUnit)
+                                .flatMap(defenseRegistry::byId)
+                                .map(unit -> war.areEnemies(ownerCityId, unit.cityId())))
+                        .orElse(false);
+            }
+        };
+        siegeTargeting.useWars(siegeWars);
+
         // SPEC 32.6's mining claims. Built before travel because /mine tp goes through the
         // TeleportService below, and before the services record because two seams read it.
         dev.civitas.core.world.WorldRegistry worldRegistry =
@@ -1031,6 +1128,21 @@ public final class CivitasPlugin extends JavaPlugin {
                 () -> combatTagListener.showCountdowns(getServer().getOnlinePlayers(),
                         System.currentTimeMillis()), 20L, 20L);
 
+        // SPEC 29's camps and units in the world, attached here for the same reason: it
+        // announces a fallen camp to both sides and the router is built at this point.
+        // SPEC 29.3's Banner Bearer, the only siege unit with an ongoing effect.
+        dev.civitas.core.siege.SiegeTick siegeTick =
+                new dev.civitas.core.siege.SiegeTick(getServer(), siegeSpawner, siegeCatalogue);
+        siegeTick.useWars(siegeWars);
+        getServer().getScheduler().runTaskTimer(this, siegeTick::sweep, 100L,
+                siegeTick.sweepIntervalTicks());
+
+        dev.civitas.listener.SiegeListener siegeListener =
+                new dev.civitas.listener.SiegeListener(siegeService, siegeSpawner, siegeTargeting,
+                        warWiring.registry(), warWiring.scoring(), lang, messenger);
+        siegeListener.useDefenseUnits(defenseSpawner::isDefenseUnit);
+        getServer().getPluginManager().registerEvents(siegeListener, this);
+
         // SPEC 26.2's visible half, attached now that both the router it speaks through and
         // the audit log it records violations in exist.
         dev.civitas.listener.TrespassListener trespassListener =
@@ -1082,7 +1194,8 @@ public final class CivitasPlugin extends JavaPlugin {
                         timings.enabled()),
                 loadedDaos, warWiring.scoreboard(),
                 outpostService, outpostTeleport, upgradeService,
-                defenseService, wardenService, diplomacyService, vaultService, vaultView,
+                defenseService, wardenService, siegeService, siegeSpawner,
+                diplomacyService, vaultService, vaultView,
                 menuManager, layoutLoader,
                 amountInput, spawnService, cityHall, accounts, lookup, scheduler));
 
@@ -1406,6 +1519,8 @@ public final class CivitasPlugin extends JavaPlugin {
                              dev.civitas.core.war.WarScoreboard scoreboard,
                              dev.civitas.core.war.WarRestrictions restrictions,
                              dev.civitas.core.war.RollbackEngine rollback,
+                             dev.civitas.core.war.WarScoring scoring,
+                             dev.civitas.core.war.WarPhaseTask phases,
                              java.util.function.Consumer<dev.civitas.core.war.War> trigger) { }
 
     private WarWiring startWarSystem(DatabaseManager database, DaoRegistry loadedDaos,
@@ -1562,7 +1677,7 @@ public final class CivitasPlugin extends JavaPlugin {
 
         return new WarWiring(warRegistry, warRewards, payouts.marketBonusPercent(),
                 warService, warAllies, peaceOffers, capturePoints, scoreboard, warRestrictions,
-                rollback, war -> {
+                rollback, warScoring, phases, war -> {
                     // SPEC 9.4.5's /ca war rollback, taking exactly the path the phase task
                     // takes when a war ends on its own: freeze the log, then replay it.
                     blockLog.freeze(war.id());

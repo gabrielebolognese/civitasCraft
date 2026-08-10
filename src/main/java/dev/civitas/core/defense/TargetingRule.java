@@ -60,7 +60,8 @@ public final class TargetingRule {
      *                     which is why it cancels above the hostile-mob branch rather than beside
      *                     the state check
      */
-    public record Unit(UnitState state, UUID alertedTarget, double range, boolean commissioned) {
+    public record Unit(UnitState state, UUID alertedTarget, double range, boolean commissioned,
+                       boolean engagesDefenseUnits) {
 
         public Unit {
             Objects.requireNonNull(state, "state");
@@ -68,7 +69,11 @@ public final class TargetingRule {
 
         /** A unit past its commissioning window, which is every unit placed in peacetime. */
         public Unit(UnitState state, UUID alertedTarget, double range) {
-            this(state, alertedTarget, range, true);
+            this(state, alertedTarget, range, true, false);
+        }
+
+        public Unit(UnitState state, UUID alertedTarget, double range, boolean commissioned) {
+            this(state, alertedTarget, range, commissioned, false);
         }
     }
 
@@ -83,7 +88,7 @@ public final class TargetingRule {
         // it holds in every state including HOSTILE, and because unit-versus-unit combat
         // produces unwatchable clumps of AI and lets wars resolve with no players present.
         if (candidate.isDefenseUnit()) {
-            return Decision.cancel("UNITS_NEVER_FIGHT_UNITS");
+            return breacherException(unit, candidate);
         }
 
         // SPEC 27.8: a unit placed during an ACTIVE war "enter[s] a 60-second inactive period
@@ -144,5 +149,40 @@ public final class TargetingRule {
             return Decision.cancel("OUT_OF_RANGE");
         }
         return Decision.allow("ALLOWED");
+    }
+
+    /**
+     * SPEC 29.4's single exception to "units never fight units": the Breacher.
+     *
+     * <p>It lives here rather than in the siege package on purpose. SPEC 30.1 forbids
+     * "unit-specific targeting logic anywhere else", and an exception written next to the code
+     * that spawns Breachers would be exactly that — a second place that decides what may be
+     * attacked, free to drift from this one. Written here, the prohibition and its one hole are
+     * a single readable statement.
+     *
+     * <p>Every guard the general path applies still applies: an uncommissioned unit swings at
+     * nothing, only a HOSTILE unit engages, only an enemy's garrison is a target (an attacker's
+     * own guards are inside the war zone too, per SPEC 11.4, and a Breacher that ate them would
+     * be a war-winning own goal), and range is still range.
+     */
+    private Decision breacherException(Unit unit, Candidate candidate) {
+        if (!unit.engagesDefenseUnits()) {
+            return Decision.cancel("UNITS_NEVER_FIGHT_UNITS");
+        }
+        if (!unit.commissioned()) {
+            return Decision.cancel("COMMISSIONING");
+        }
+        if (unit.state() != UnitState.HOSTILE) {
+            // A siege unit outside an ACTIVE war has nothing to break. The narrow reading is
+            // also the safe one: it is the only state in which a war is being fought.
+            return Decision.cancel("STATE_" + unit.state());
+        }
+        if (!candidate.enemyInWarZone()) {
+            return Decision.cancel("NOT_AN_ENEMY_UNIT");
+        }
+        if (candidate.distance() > unit.range()) {
+            return Decision.cancel("OUT_OF_RANGE");
+        }
+        return Decision.allow("BREACHER");
     }
 }

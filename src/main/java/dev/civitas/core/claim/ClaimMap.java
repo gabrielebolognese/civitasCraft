@@ -35,7 +35,17 @@ public final class ClaimMap {
         /** Any other city. */
         OTHER("claim.map.tile.other"),
         /** Unclaimed. */
-        WILDERNESS("claim.map.tile.wilderness");
+        WILDERNESS("claim.map.tile.wilderness"),
+        /**
+         * An attacker's siege camp, SPEC 29.5.
+         *
+         * <p>Shown to <b>both</b> sides, which SPEC 29.5 states and argues: "The defender should
+         * know where the attack is staging, because a siege the defender cannot see is not a
+         * siege, it is an ambush." It therefore sits above every ownership tile rather than
+         * beside them — a camp planted in the attacker's own claims would otherwise render as
+         * their territory and be invisible to the people it is aimed at.
+         */
+        SIEGE_CAMP("claim.map.tile.siege-camp");
 
         private final String messageKey;
 
@@ -90,6 +100,10 @@ public final class ClaimMap {
 
     /** Classifies a chunk without rendering it, so the same rules drive the GUI mini-map. */
     public Tile tileAt(String world, int chunkX, int chunkZ, Optional<City> viewerCity) {
+        // SPEC 29.5, before ownership: a camp is what the chunk is, whoever owns the ground.
+        if (camps != null && camps.test(world, chunkX, chunkZ)) {
+            return Tile.SIEGE_CAMP;
+        }
         Optional<Claim> claim = claims.at(world, chunkX, chunkZ);
         if (claim.isEmpty()) {
             return Tile.WILDERNESS;
@@ -139,6 +153,19 @@ public final class ClaimMap {
 
     private dev.civitas.core.diplomacy.DiplomacyRegistry diplomacy;
     private dev.civitas.core.war.WarRegistry wars;
+    private SiegeCamps camps;
+
+    /** Where the siege camps are, SPEC 29.5. */
+    @FunctionalInterface
+    public interface SiegeCamps {
+
+        boolean test(String world, int chunkX, int chunkZ);
+    }
+
+    /** SPEC 29.5's map marker, wired by M19a. */
+    public void useSiegeCamps(SiegeCamps siege) {
+        this.camps = siege;
+    }
 
     /** SPEC 6.5's ally colour, wired by M13. */
     public void useDiplomacy(dev.civitas.core.diplomacy.DiplomacyRegistry registry) {

@@ -245,6 +245,7 @@ claim:
       other: "<dark_gray>#"
       wilderness: "<white>-"
       self: "<gold><bold>@</bold></gold>"
+      siege-camp: "<dark_red>X"
 
 protection:
   denied:
@@ -1614,3 +1615,35 @@ mine:
   released: "<red>Your mining claim at <white><chunk></white> was released for unpaid upkeep. <gray>Your blocks are still standing.</gray>"
   usage: "<gray>/mine claim | unclaim | info | trust <player> | untrust <player> | tp"
   no-claim-to-tp: "<red>You have no mining claim to travel to."
+
+# SPEC 29, the attacker's siege. Camps and units, both consumed by the war they belong to.
+siege:
+  no-war: "<red>Your city is not in a war. Siege exists only inside one."
+  wrong-phase: "<red>Siege can only be raised during preparation or while the war is being fought."
+  not-attacking: "<red>Only the attacking side raises a siege."
+  unknown-unit: "<red>No such siege unit. <gray>Try /war siege buy and press tab.</gray>"
+  no-camp: "<red>Your city has no siege camp. <gray>Plant one with /war siege camp.</gray>"
+  capacity-full: "<red>Siege capacity full: <white><used>/<total></white>. <gray>This unit costs <cost>.</gray>"
+  # SPEC 29.2's budget is set by the DEFENDER's fortification, which is the whole point of it.
+  status-header: "<gold>Siege</gold> <gray>| budget <white><total></white> points, set by the enemy's fortification.</gray>"
+  status-budget: "<gray>Fielded: <white><used>/<total></white> points.</gray>"
+  status-no-camp: "<gray>No camp. <white>/war siege camp</white> plants one for <gold><cost></gold>.</gray>"
+  status-camp: "<gray>Camp at <white>(<x>, <z>)</white>, <white><health></white> health remaining.</gray>"
+  status-camp-lost: "<red>Your camp at (<x>, <z>) has fallen.</red> <gray>It can be rebuilt once, at half cost.</gray>"
+  # SPEC 29.5's four refusals, each naming the rule rather than only the no.
+  camp-wrong-phase: "<red>A siege camp can only be planted during preparation or an active war."
+  camp-not-attacking: "<red>Only an attacking city plants a siege camp."
+  camp-foreign-ground: "<red>A camp goes in wilderness or your own claims. <gray>Not in somebody else's city.</gray>"
+  camp-too-far: "<red>Too far from the enemy to stage an attack. <gray>Nearest enemy claim: <white><actual></white> chunks.</gray>"
+  camp-already-placed: "<red>Your city already has a siege camp. <gray>One per city.</gray>"
+  camp-rebuild-spent: "<red>Your camp was destroyed and rebuilt once already. <gray>That is the only rebuild.</gray>"
+  camp-placed: "<green>Siege camp planted at <white>(<x>, <z>)</white>.</green> <gray><health> health. Both sides can see it.</gray>"
+  camp-must-be-worn-down: "<red>A siege camp cannot be mined. <gray>Hit it until it falls.</gray>"
+  camp-destroyed: "<dark_red>The siege camp of <white><cityname></white> has been destroyed.</dark_red> <gray>Its units are gone. +<points> to the defenders.</gray>"
+  bought: "<green>Bought a <white><unit></white></green> <gray>for <cost>. It stands at your camp.</gray>"
+  list-empty: "<gray>Your city has fielded no siege in this war.</gray>"
+  list-header: "<gold>Siege fielded</gold> <gray>(<count>)</gray>"
+  list-entry: "<gray> • <white><unit></white>, <points> points, <state></gray>"
+  alive: "standing"
+  dead: "destroyed"
+  units-expired: "<gray>Siege units dismissed at war end.</gray>"

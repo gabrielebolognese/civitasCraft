@@ -107,6 +107,18 @@ public final class WarScoring {
     }
 
     /**
+     * SPEC 29.5: what the defender scores for levelling an attacker's siege camp.
+     *
+     * <p>Its number lives in {@code defense.yml} beside the rest of SPEC 30.3's siege block
+     * rather than in {@code war.yml}'s scoring section, because that is where SPEC 30.3 puts it
+     * and because the whole siege system is retuned from one place.
+     */
+    public int awardCampDestroyed(War war, boolean attackerSide, int points) {
+        war.addScore(attackerSide, points);
+        return points;
+    }
+
+    /**
      * Awards the City Hall bonus, once per war per city.
      *
      * @return the points given, or zero if that city has already had it

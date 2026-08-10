@@ -245,6 +245,7 @@ claim:
       other: "<dark_gray>#"
       wilderness: "<white>-"
       self: "<gold><bold>@</bold></gold>"
+      siege-camp: "<dark_red>X"
 
 protection:
   denied:
@@ -1595,3 +1596,33 @@ mine:
   released: "<red>La tua concessione a <white><chunk></white> e' stata liberata per mantenimento non pagato. <gray>I tuoi blocchi sono ancora in piedi.</gray>"
   usage: "<gray>/mine claim | unclaim | info | trust <giocatore> | untrust <giocatore> | tp"
   no-claim-to-tp: "<red>Non hai una concessione mineraria dove andare."
+
+# SPEC 29, l'assedio dell'attaccante. Accampamenti e unità, consumati dalla guerra a cui appartengono.
+siege:
+  no-war: "<red>La tua città non è in guerra. L'assedio esiste solo dentro una guerra."
+  wrong-phase: "<red>L'assedio si allestisce solo durante la preparazione o mentre si combatte."
+  not-attacking: "<red>Solo il fronte attaccante allestisce un assedio."
+  unknown-unit: "<red>Unità d'assedio inesistente. <gray>Usa /war siege buy e premi tab.</gray>"
+  no-camp: "<red>La tua città non ha un accampamento. <gray>Piantalo con /war siege camp.</gray>"
+  capacity-full: "<red>Capacità d'assedio esaurita: <white><used>/<total></white>. <gray>Questa unità costa <cost>.</gray>"
+  status-header: "<gold>Assedio</gold> <gray>| budget <white><total></white> punti, deciso dalle fortificazioni nemiche.</gray>"
+  status-budget: "<gray>Schierati: <white><used>/<total></white> punti.</gray>"
+  status-no-camp: "<gray>Nessun accampamento. <white>/war siege camp</white> ne pianta uno per <gold><cost></gold>.</gray>"
+  status-camp: "<gray>Accampamento a <white>(<x>, <z>)</white>, <white><health></white> di salute.</gray>"
+  status-camp-lost: "<red>Il tuo accampamento a (<x>, <z>) è caduto.</red> <gray>Si può ricostruire una volta sola, a metà prezzo.</gray>"
+  camp-wrong-phase: "<red>Un accampamento si pianta solo in preparazione o a guerra in corso."
+  camp-not-attacking: "<red>Solo una città attaccante pianta un accampamento d'assedio."
+  camp-foreign-ground: "<red>L'accampamento va in terra libera o nei tuoi claim. <gray>Non in quelli di altri.</gray>"
+  camp-too-far: "<red>Troppo lontano dal nemico per allestire un attacco. <gray>Claim nemico più vicino: <white><actual></white> chunk.</gray>"
+  camp-already-placed: "<red>La tua città ha già un accampamento. <gray>Uno per città.</gray>"
+  camp-rebuild-spent: "<red>Il tuo accampamento è già stato distrutto e ricostruito una volta. <gray>È l'unica ricostruzione concessa.</gray>"
+  camp-placed: "<green>Accampamento piantato a <white>(<x>, <z>)</white>.</green> <gray><health> di salute. Lo vedono entrambi i fronti.</gray>"
+  camp-must-be-worn-down: "<red>Un accampamento non si scava. <gray>Colpiscilo finché non cade.</gray>"
+  camp-destroyed: "<dark_red>L'accampamento di <white><cityname></white> è stato distrutto.</dark_red> <gray>Le sue unità sono perdute. +<points> ai difensori.</gray>"
+  bought: "<green>Acquistato un <white><unit></white></green> <gray>per <cost>. È al tuo accampamento.</gray>"
+  list-empty: "<gray>La tua città non ha schierato assedio in questa guerra.</gray>"
+  list-header: "<gold>Assedio schierato</gold> <gray>(<count>)</gray>"
+  list-entry: "<gray> • <white><unit></white>, <points> punti, <state></gray>"
+  alive: "in piedi"
+  dead: "distrutta"
+  units-expired: "<gray>Unità d'assedio congedate a fine guerra.</gray>"

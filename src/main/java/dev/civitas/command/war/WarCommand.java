@@ -109,6 +109,7 @@ public final class WarCommand {
                             acceptPeace(context.getSource().getSender());
                             return Command.SINGLE_SUCCESS;
                         }))
+                .then(new SiegeCommands(services, lang, scheduler, logger).build())
                 .then(Commands.literal("scoreboard")
                         .executes(context -> {
                             scoreboard(context.getSource().getSender());
