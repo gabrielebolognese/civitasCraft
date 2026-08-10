@@ -943,6 +943,36 @@ public final class CivitasPlugin extends JavaPlugin {
         // SPEC 33.1's table puts PvP off inside a mining claim, which M4a left as a seam.
         pvpPolicy.useMiningClaims(miningRegistry::isClaimed);
 
+        // SPEC 33.4's war PvP, the seam M4a left empty. Four conditions, all required.
+        //
+        // The last one is the narrowing SPEC 33.4 makes deliberately: "Inside the claims of a
+        // city that is not party to the war, PvP remains off for everyone. Two enemies who meet
+        // inside a neutral city cannot fight there." Without it any city next to a war becomes
+        // collateral, and the anti-toxicity pillar does not survive that. Wilderness is covered
+        // because it has no owning city to be neutral.
+        pvpPolicy.useWarCheck((attacker, victim, world, chunkX, chunkZ) -> {
+            var theirs = cityRegistry.cityOf(attacker);
+            var victims = cityRegistry.cityOf(victim);
+            if (theirs.isEmpty() || victims.isEmpty()) {
+                // SPEC 17.4 case 41: somebody with no city is a bystander, never a target.
+                return false;
+            }
+            for (var war : warWiring.registry().activeWarsCovering(world,
+                    chunkX << 4, chunkZ << 4)) {
+                if (!war.areEnemies(theirs.get().id(), victims.get().id())) {
+                    continue;
+                }
+                var owner = claimRegistry.at(world, chunkX, chunkZ)
+                        .flatMap(claim -> cityRegistry.city(claim.cityId()));
+                if (owner.isPresent() && !war.involves(owner.get().id())) {
+                    // A neutral city's land. Not a battleground.
+                    return false;
+                }
+                return true;
+            }
+            return false;
+        });
+
         // SPEC 39.10's waystations, the other thing that can own ground in a resource world.
         dev.civitas.core.waystation.WaystationRegistry waystationRegistry =
                 new dev.civitas.core.waystation.WaystationRegistry(loadedDaos.waystations());
