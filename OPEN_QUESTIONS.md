@@ -2761,3 +2761,29 @@ Format:
   `EntityDamageByEntityEvent` or the live pass. **Peacetime PvP also remains disabled**, so SPEC
   33.6's peacetime keepInventory row is built, configured and unreachable until a developer flips
   `pvp.peacetime`. *Date:* 2026-08-10
+
+- **[M19b]** **I closed this milestone having built three of the four parts I had listed**, and
+  the fourth turned out to be unbuildable, which is not the same as it being done. Recording both
+  halves because only the second is SPEC's fault.
+  SPEC 38's M19b row asks for an "unopposed score multiplier and walkover", and
+  `war.unopposed-score-multiplier: 0.3` with `war.walkover-absence-percent: 70` appear in exactly
+  one place in all 41 sections — the config block at SPEC 37. **No prose anywhere describes what
+  either does**: not what an unopposed score is, not what counts as an absence, not what the 70%
+  is a percentage of. Implementing them means inventing the behaviour, which CLAUDE.md forbids.
+  *Implemented default:* not built, and the keys are **not shipped** — a key with no code behind
+  it is the defect the config sweep found nineteen of. The one walkover rule SPEC does define is
+  SPEC 21.4 F4, "a war only counts toward the leaderboard if the losing side scored at least 25%
+  of the winner's score", and **M9a already built it** as
+  `anti-abuse.war-leaderboard-min-loser-score-percent`, filtered in `WarDao.findRecords`. So the
+  fourth part is either already delivered under another milestone or undefined.
+  **This needs a developer decision** if the two keys were meant to do something else.
+  *Date:* 2026-08-10
+
+- **[M19b]** SPEC 38's M19b row cites section numbers that are **stale by roughly two throughout**:
+  it gives "(33.2)" for global war PvP where 33.2 is Friendly fire, "(33.3)" for scoped
+  keepInventory where 33.3 is Peacetime, "(33.4)" for combat tagging where 33.4 is War, and
+  "(33.5)" for the unopposed multiplier where 33.5 is Resource worlds. The real sections are 33.4,
+  33.6 and 33.8, which is what this milestone was built against. Worth recording because the row
+  reads as authoritative and following its references leads to the wrong text every time — the
+  same hazard as SPEC 37 shipping a `border:` block that SPEC 32.3 rejects, which M3a found.
+  *Date:* 2026-08-10
