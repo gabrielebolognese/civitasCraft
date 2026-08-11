@@ -190,7 +190,10 @@ final class MenuTestSupport implements AutoCloseable {
                         new dev.civitas.core.mining.MiningClaimRegistry(
                                 cities.daos.miningClaims(), CityTestSupport.quietLogger()),
                         cities.configs, dev.civitas.util.Scheduler.direct()),
-                cities.shops, quests, challenges, leaderboards, stats,
+                cities.shops, quests,
+                new dev.civitas.core.onboarding.OnboardingService(cities.daos.onboarding(),
+                        cities.economy, cities.configs, CityTestSupport.quietLogger()),
+                challenges, leaderboards, stats,
                 cities.contests, cities.serverEvents, warService, warAllies, peace,
                 capturePoints,
                 new dev.civitas.core.war.RollbackEngine(cities.daos, cities.configs,

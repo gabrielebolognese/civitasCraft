@@ -95,6 +95,7 @@ public record CivitasServices(
         dev.civitas.core.waystation.WaystationService waystations,
         PlayerShopService shops,
         QuestService quests,
+        dev.civitas.core.onboarding.OnboardingService onboarding,
         ChallengeService challenges,
         LeaderboardService leaderboards,
         StatsService stats,

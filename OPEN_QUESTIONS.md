@@ -3138,3 +3138,71 @@ Format:
   has not been demonstrated is a real trip -- the admin alert reaching an online admin, the audit
   row landing, and a player meeting `market.frozen` at the moment they try to sell.
   *Date:* 2026-08-11
+
+- **[M9b]** SPEC 34.3's five steps are "distinct from the daily quests in Part I 13.1", and three of
+  them have **no metric to hang off**: travel, visiting a city and settling are events rather than
+  counters. *Implemented default:* their own table and their own enum rather than an extension of
+  `QuestMetric`. The daily table is reassigned every midnight and its rows carry a playtime-scaled
+  target and reward; these five are fixed, permanent and paid exactly once, so sharing the table
+  would mean an exception in every reader of it. *Date:* 2026-08-11
+
+- **[M9b]** **The idempotency lives in the primary key, not in the service.** Three of the five
+  steps hang off events a player can repeat freely -- selling, teleporting, walking across a claim
+  border -- so a chain that paid on every trigger would be the best income source in the game for
+  somebody who stood on a boundary and walked back and forth. `(uuid, step)` is the key, the insert
+  and the payment share a transaction, and there is a test that crosses a border fifty times and
+  asserts one payment. *Date:* 2026-08-11
+
+- **[M9b]** SPEC 34.3's fifth step branches -- "Either found a city **or** claim a mining claim" --
+  and neither branch passes through anything a listener can see: both are service calls.
+  *Implemented default:* a hook on each service, fired **after** the transaction commits. A
+  `CityCreateEvent` listener would have been wrong for the reason SPEC 2.3 gives: that event fires
+  *before* the mutation so it can be cancelled, and a step paid on an intent rather than an outcome
+  would pay for a founding that then failed. The first step is reported the same way, by the market.
+  *Date:* 2026-08-11
+
+- **[M9b]** **Nothing in the chain is a gate, including its order.** SPEC 34.2: "No forced tutorial,
+  ever. The player can walk away from all of it." So steps may be completed out of order -- a player
+  who founds a city in their first ten minutes has done step five, and refusing to pay because they
+  skipped step two would be the gate SPEC forbids. There is a test for exactly that.
+  *Date:* 2026-08-11
+
+- **[M9b]** SPEC 34.4 names a toggle SPEC 23.6's table does not have: "disableable with
+  `/toggle tips`". SPEC 23.6's list is closed and predates Part IV. *Implemented default:* a `TIPS`
+  category, mutable, mandated by the later section rather than invented -- and mutable obviously,
+  since an onboarding hint a veteran cannot switch off is the one thing worse than no hint.
+  *Date:* 2026-08-11
+
+- **[M9b]** **The two sweeps caught three things review did not, and one was a real bug.**
+  `OnboardingService` read `starter.rewards.<step>` while `onboarding.yml` nests them under
+  `onboarding.starter.rewards.<step>`, so four of the five rewards were permanently at their
+  hardcoded defaults and an operator editing them would have seen nothing happen. Found by
+  `ConfigKeyUsageTest`, not by reading either file -- the defect is invisible from either side
+  alone, which is what that test exists for. *Date:* 2026-08-11
+
+- **[M9b]** The other two findings were the same shape and worth recording as a pattern:
+  **concatenated keys are invisible to both sweeps.** `"onboarding.step-" + configKey()`,
+  `"onboarding.tip-" + n` and `"onboarding.starter.rewards." + configKey()` all read as keys nothing
+  consults, so the orphan half flagged sixteen live messages as dead and the config half flagged
+  four live settings as unread. *Implemented default:* every key is a **literal** -- on the enum
+  constant for the step keys, in a named array for the tips. That is a fix rather than a workaround:
+  a concatenated key is exactly the defect M23's localisation pass was written to catch, because a
+  typo in one ships as "Missing message" to a player and nothing says so. *Date:* 2026-08-11
+
+- **[M9b]** SPEC 34.4's recruitment board is described as a fixture at spawn, which is content
+  rather than code. *Implemented default:* `/city list open` opens it, because a board a new player
+  has to walk past to find is a board most of them never see -- and this is the one screen in the
+  plugin written specifically for them. Its sort order is **ascending by member count**, which is
+  SPEC 34.4's own instruction and pillar 1.3 made concrete: sorted the other way it would put the
+  twenty-member city at the top and hand it every newcomer. *Date:* 2026-08-11
+
+- **[M9b]** The iron counter for step four is **in memory, per session**. A player who logs out at
+  31 ore starts again. *Implemented default:* deliberate -- adding a column to the schema for one
+  32-block errand is not worth a migration, and thirty-two ore is a few minutes. Recorded because
+  it is a visible rough edge rather than an oversight. *Date:* 2026-08-11
+
+- **[M9b]** **Unverified: the first-session flow has never run.** The title, the staggered chat, the
+  book landing in slot 8 and the contextual tip are wired and compiled and have no tests --
+  `PlayerJoinEvent` with `hasPlayedBefore()` false needs a real server. What is asserted is the
+  chain itself: the payments, the idempotency, the ordering and the configuration, 13 tests.
+  *Date:* 2026-08-11

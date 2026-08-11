@@ -264,6 +264,9 @@ public final class CityService {
             if (core != null) {
                 claims.register(core);
             }
+            // After the transaction has committed, so a starter step is never paid for a
+            // founding that rolled back.
+            fireCreated(founder);
         }));
     }
 
@@ -1155,6 +1158,34 @@ public final class CityService {
      */
     public void onCityDisbanded(java.util.function.IntConsumer hook) {
         disbandHooks.add(Objects.requireNonNull(hook, "hook"));
+    }
+
+    /**
+     * SPEC 34.3's fifth step, one of its two branches.
+     *
+     * <p>A hook rather than a {@code CityCreateEvent} listener for the reason M13 recorded about
+     * the disband hooks: SPEC 2.3 fires that event <em>before</em> the mutation so it can be
+     * cancelled, and a starter step paid on an intent rather than an outcome would pay for a
+     * founding that then failed.
+     */
+    public void onCityCreated(java.util.function.Consumer<java.util.UUID> hook) {
+        createHooks.add(Objects.requireNonNull(hook, "hook"));
+    }
+
+    private final List<java.util.function.Consumer<java.util.UUID>> createHooks =
+            new java.util.concurrent.CopyOnWriteArrayList<>();
+
+    private void fireCreated(java.util.UUID founder) {
+        for (var hook : createHooks) {
+            try {
+                hook.accept(founder);
+            } catch (RuntimeException e) {
+                // A hook is a bystander. One that throws must not take the founding with it.
+                java.util.logging.Logger.getLogger("CivitasCraft").log(
+                        java.util.logging.Level.WARNING,
+                        "A city-created hook failed for " + founder, e);
+            }
+        }
     }
 
     private final List<java.util.function.IntConsumer> disbandHooks =

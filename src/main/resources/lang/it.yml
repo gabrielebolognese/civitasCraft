@@ -327,6 +327,18 @@ shop:
   owner-bought: "<gray><player> ha venduto <white><amount>x <item></white> al tuo negozio per <white><price></white>."
 
 gui:
+  recruitment:
+    title: "<dark_gray>Citta' in cerca di membri"
+    header: "<gold>Citta' aperte"
+    header-lore: "<gray><count> accettano chiunque, dalla piu' piccola."
+    none: "<red>Nessuna citta' e' aperta al momento"
+    none-lore: "<gray>Chiedi in giro, o fonda la tua con <white>/city create</white>."
+    entry: "<aqua><city>"
+    entry-members: "<gray>Membri: <white><count>"
+    entry-motd: "<gray><motd>"
+    no-motd: "nessun messaggio"
+    entry-join: "<green>Clicca per entrare"
+    entry-already: "<red>Sei gia' in una citta'"
   contests:
     title: "<dark_gray>Concorsi"
     none: "<gray>Nessun concorso in corso"
@@ -1451,6 +1463,7 @@ help:
   bounty: "<yellow>/bounty <player> <amount> <dark_gray>- <gray>Metti una taglia su qualcuno. Pagata solo durante una guerra."
   report: "<yellow>/report <player> <reason> <dark_gray>- <gray>Segnala un giocatore ai moderatori."
   civitas: "<yellow>/civitas rules <dark_gray>- <gray>Le regole del server. Leggile prima della tua prima guerra."
+  guide: "<white>/guide</white> <gray>- la guida per i nuovi giocatori, e <white>/guide progress</white>"
   quota: "<yellow>/quota <dark_gray>- <gray>Vedi quanto puoi ancora vendere al mercato oggi."
   toggle: "<yellow>/toggle [categoria] <dark_gray>- <gray>Scegli quali messaggi ricevere."
   spawn: "<yellow>/spawn <dark_gray>- <gray>Viaggia verso l'hub del server."
@@ -1670,3 +1683,45 @@ siege:
   alive: "in piedi"
   dead: "distrutta"
   units-expired: "<gray>Unità d'assedio congedate a fine guerra.</gray>"
+
+onboarding:
+  welcome-title: "<gold><bold>Benvenuto"
+  welcome-subtitle: "<gray>Un mondo di citta', commercio e guerre reversibili"
+  intro-server: "<gray>Questo e' un server di costruzione di citta'. Fondane una, uniscene a una, o gioca da solo: funzionano tutte e tre.</gray>"
+  intro-guide: "<gray>La tua <white>Guida</white> e' nella hotbar. <white>/guide</white> la riapre quando vuoi.</gray>"
+  intro-land: "<gray>La terra vicino allo spawn e' occupata. <white>/rtp</white> ti porta dove non possiede nessuno.</gray>"
+
+  name-sell-something: "Vendi qualcosa al mercato"
+  name-travel: "Allontanati 500 blocchi dallo spawn"
+  name-visit-city: "Visita una citta' qualsiasi"
+  name-mine-iron: "Estrai 32 minerali di ferro"
+  name-settle: "Fonda una citta', o pianta una miniera"
+
+  step-sell-something: "<green>Prima vendita.</green> <gray>E' da li' che arrivano i soldi. <white>+<reward></white></gray>"
+  step-travel: "<green>Hai trovato terra libera.</green> <gray>Non e' di nessuno finche' qualcuno non la reclama. <white>+<reward></white></gray>"
+  step-visit-city: "<green>Sei entrato nella citta' di qualcuno.</green> <gray>Sono i loro claim a proteggerla. <white>+<reward></white></gray>"
+  step-mine-iron: "<green>32 di ferro.</green> <gray>Il mondo delle risorse e' dove si scava. <white>+<reward></white></gray>"
+  step-settle: "<green>Ora hai un posto tuo.</green> <white>+<reward></white>"
+  chain-finished: "<gold>Il giro e' finito.</gold> <gray>Il resto sta a te. <white>/guide</white> se lo rivuoi.</gray>"
+
+  progress-header: "<dark_gray>--- <gold>Per cominciare<dark_gray>, <white><done></white>/<white><total></white> ---"
+  progress-done: "<green>  + <gray><step>"
+  progress-todo: "<gray>  - <step>"
+
+  tip-1: "<dark_gray>[<gold>Consiglio<dark_gray>] <gray>I negozi dei giocatori non hanno quota di vendita. Vendere alle persone conviene piu' che vendere al vuoto.</gray>"
+  tip-2: "<dark_gray>[<gold>Consiglio<dark_gray>] <gray>Il costo dei claim si divide per i membri attivi. Reclutare conviene piu' che accumulare.</gray>"
+  tip-3: "<dark_gray>[<gold>Consiglio<dark_gray>] <gray>Tutto cio' che si rompe in guerra viene rimesso a posto. In gioco ci sono i soldi, non le costruzioni.</gray>"
+  tip-4: "<dark_gray>[<gold>Consiglio<dark_gray>] <gray>Gli oggetti presi a mano da una cassa in guerra sono persi per sempre. Il caveau cittadino non e' saccheggiabile.</gray>"
+  tip-5: "<dark_gray>[<gold>Consiglio<dark_gray>] <gray>La ricchezza e' una classifica su nove. <white>/leaderboard</white></gray>"
+  tip-6: "<dark_gray>[<gold>Consiglio<dark_gray>] <gray>Tutto cio' che costruisci fuori da un claim non e' protetto. <white>/city here</white> ti dice dove sei.</gray>"
+
+guide:
+  title: "<gold>Guida"
+  author: "<gray>CivitasCraft"
+  page-welcome: "<bold>Benvenuto</bold>\n\nQuesto e' un server dedicato a costruire citta' insieme.\n\nPuoi fondarne una, unirti a una, o non unirti mai a nulla e giocare comunque a tutto il gioco.\n\nNiente qui e' obbligatorio."
+  page-money: "<bold>Soldi</bold>\n\nSi guadagna giocando: vendendo al mercato, con le missioni giornaliere e con lo stipendio di gioco.\n\nIl mercato compra una lista corta e vende centinaia di blocchi da costruzione.\n\nVendere agli altri giocatori non ha quota."
+  page-cities: "<bold>Citta'</bold>\n\nUna citta' e' persone, una tesoreria condivisa e terra.\n\nEntri con un invito, o entri da solo se e' aperta.\n\nFondarne una costa 10.000 C e due ore di gioco."
+  page-land: "<bold>Terra</bold>\n\nUn claim e' un chunk. Dentro, costruisce solo la tua citta'.\n\nFuori da ogni claim non e' protetto niente.\n\nI claim costano per prenderli e costano per tenerli."
+  page-war: "<bold>Guerra</bold>\n\nLe guerre si dichiarano, si preparano per 48 ore e si combattono per una settimana.\n\nOgni blocco rotto viene rimesso a posto.\n\nGli oggetti presi a mano da una cassa no."
+  page-contests: "<bold>Concorsi</bold>\n\nOgni due settimane viene annunciato un tema e le citta' costruiscono.\n\nChiunque puo' visitare le opere e votare.\n\nI premi vanno in tesoreria."
+  page-commands: "<bold>Comandi</bold>\n\n/city\n/rtp\n/shop\n/quests\n/leaderboard\n/guide\n/civitas rules"

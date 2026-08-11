@@ -213,6 +213,9 @@ class SchemaTest {
         // of the ledger, which already holds them and which SPEC 1.5 makes authoritative.
         schema.put("money_supply", List.of("id", "timestamp", "player_total",
                 "treasury_total", "escrow_total"));
+        // V27, SPEC 34.3's starter chain. One row per COMPLETED step, and the primary key is
+        // the idempotency: several steps hang off events a player can repeat freely.
+        schema.put("player_onboarding", List.of("uuid", "step", "completed_at"));
         return schema;
     }
 

@@ -1,0 +1,44 @@
+# A new player's first session, SPEC 34.
+#
+# SPEC 34.1 states the gap this fills: Parts I to III "assume the player already understands
+# cities, claims, quotas, wars and contests. Nothing describes what happens in a new player's
+# first ten minutes."
+#
+# It also answers a question the rest of the specification leaves open, and answers it as a
+# design decision rather than an accident: "A player may play indefinitely without a city...
+# Roughly 30% of players on any server will never join a group, and designing them out is
+# designing out 30% of the server." That is why the starter chain's last step branches.
+#
+# NOTHING HERE IS A GATE. SPEC 34.2: "No forced tutorial, ever. The player can walk away from
+# all of it." Every line below is a nudge; a player who ignores the lot loses 5,000 C.
+onboarding:
+  # The Guide Book, SPEC 34.2 step 4. A written book rather than a wall of chat, placed in a
+  # hotbar slot on first join and re-obtainable with /guide.
+  give-guide-book: true
+  guide-book-slot: 8
+
+  # SPEC 34.2 step 3: three lines, staggered so they are readable rather than a wall.
+  message-stagger-seconds: 20
+
+  # SPEC 34.3's five-step chain. Once per account, distinct from the daily quests.
+  starter-quests-enabled: true
+  starter:
+    rewards:
+      # 5,000 C across the chain on top of SPEC 4.2's 2,000 starting balance, which is 70% of a
+      # city founding fee -- so a motivated new player can found one in their first session or
+      # two, which is the pace SPEC 34.3 is aiming at.
+      sell-something: "500"
+      travel: "500"
+      visit-city: "750"
+      mine-iron: "750"
+      settle: "2500"
+
+  # SPEC 34.4's contextual tips: one line on join, cycling. Muted with /toggle tips.
+  tips-enabled: true
+
+  # SPEC 34.4's recruitment board, sorted by member count ASCENDING so a new player is steered
+  # toward small cities rather than the biggest one. That is pillar 1.3 made concrete: "A player
+  # joining on day 90 must be able to contribute meaningfully within their first session."
+  recruitment-board:
+    enabled: true
+    size: 45

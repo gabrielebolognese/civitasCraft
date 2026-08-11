@@ -139,8 +139,30 @@ public final class MiningClaimService {
             long id = dao.insertSync(connection, row);
             return Result.success(new MiningClaimRow(id, player, world, chunkX, chunkZ, now,
                     cost, null));
-        }).thenCompose(result -> onMain(result, row -> registry.remember(row)));
+        }).thenCompose(result -> onMain(result, row -> {
+            registry.remember(row);
+            // SPEC 34.3's fifth step, the other branch. After the commit, for the same reason
+            // CityService fires its hook there.
+            for (var hook : claimedHooks) {
+                hook.accept(row.uuid());
+            }
+        }));
     }
+
+    /**
+     * SPEC 34.3's fifth step, the branch that does not involve a city.
+     *
+     * <p>SPEC 34.1: "A player may play indefinitely without a city… Roughly 30% of players on any
+     * server will never join a group, and designing them out is designing out 30% of the server."
+     * That is why the step branches, and why this hook exists beside the city one rather than
+     * instead of it.
+     */
+    public void onClaimed(java.util.function.Consumer<java.util.UUID> hook) {
+        claimedHooks.add(java.util.Objects.requireNonNull(hook, "hook"));
+    }
+
+    private final java.util.List<java.util.function.Consumer<java.util.UUID>> claimedHooks =
+            new java.util.concurrent.CopyOnWriteArrayList<>();
 
     /**
      * Releases a claim, refunding half of what was paid.

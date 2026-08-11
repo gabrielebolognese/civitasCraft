@@ -327,6 +327,18 @@ shop:
   owner-bought: "<gray><player> sold <white><amount>x <item></white> to your shop for <white><price></white>."
 
 gui:
+  recruitment:
+    title: "<dark_gray>Cities looking for members"
+    header: "<gold>Open cities"
+    header-lore: "<gray><count> accepting anyone, smallest first."
+    none: "<red>No city is open right now"
+    none-lore: "<gray>Ask around, or found your own with <white>/city create</white>."
+    entry: "<aqua><city>"
+    entry-members: "<gray>Members: <white><count>"
+    entry-motd: "<gray><motd>"
+    no-motd: "no message set"
+    entry-join: "<green>Click to join"
+    entry-already: "<red>You are already in a city"
   contests:
     title: "<dark_gray>Contests"
     none: "<gray>No contest running"
@@ -1469,6 +1481,7 @@ help:
   bounty: "<yellow>/bounty <player> <amount> <dark_gray>- <gray>Put a price on someone. Paid only during a war."
   report: "<yellow>/report <player> <reason> <dark_gray>- <gray>Report a player to the moderators."
   civitas: "<yellow>/civitas rules <dark_gray>- <gray>The server rules. Read them before your first war."
+  guide: "<white>/guide</white> <gray>- the new player guide, and <white>/guide progress</white>"
   quota: "<yellow>/quota <dark_gray>- <gray>See how much you may still sell to the market today."
   toggle: "<yellow>/toggle [category] <dark_gray>- <gray>Choose which messages you receive."
   spawn: "<yellow>/spawn <dark_gray>- <gray>Travel to the server hub."
@@ -1695,3 +1708,46 @@ siege:
   alive: "standing"
   dead: "destroyed"
   units-expired: "<gray>Siege units dismissed at war end.</gray>"
+
+# SPEC 34's onboarding. Nothing here is a gate: SPEC 34.2 says "No forced tutorial, ever."
+onboarding:
+  welcome-title: "<gold><bold>Welcome"
+  welcome-subtitle: "<gray>A world of cities, trade and rebuildable wars"
+  intro-server: "<gray>This is a city-building server. Found one, join one, or play alone - all three work.</gray>"
+  intro-guide: "<gray>Your <white>Guide Book</white> is in your hotbar. <white>/guide</white> opens it any time.</gray>"
+  intro-land: "<gray>Land near spawn is taken. <white>/rtp</white> drops you somewhere nobody owns.</gray>"
+
+  name-sell-something: "Sell something to the market"
+  name-travel: "Travel 500 blocks from spawn"
+  name-visit-city: "Visit any city"
+  name-mine-iron: "Mine 32 iron ore"
+  name-settle: "Found a city, or stake a mining claim"
+
+  step-sell-something: "<green>First sale.</green> <gray>That is where money comes from. <white>+<reward></white></gray>"
+  step-travel: "<green>You found open ground.</green> <gray>Nobody owns it until somebody claims it. <white>+<reward></white></gray>"
+  step-visit-city: "<green>You walked into somebody's city.</green> <gray>Their claims are what protect it. <white>+<reward></white></gray>"
+  step-mine-iron: "<green>32 iron.</green> <gray>The resource world is where mining happens. <white>+<reward></white></gray>"
+  step-settle: "<green>You have somewhere of your own.</green> <white>+<reward></white>"
+  chain-finished: "<gold>That is the whole tour.</gold> <gray>Everything else is up to you. <white>/guide</white> if you want it again.</gray>"
+
+  progress-header: "<dark_gray>--- <gold>Getting started<dark_gray>, <white><done></white>/<white><total></white> ---"
+  progress-done: "<green>  + <gray><step>"
+  progress-todo: "<gray>  - <step>"
+
+  tip-1: "<dark_gray>[<gold>Tip<dark_gray>] <gray>Player shops have no sell quota. Selling to people beats selling to the void.</gray>"
+  tip-2: "<dark_gray>[<gold>Tip<dark_gray>] <gray>Claim cost is divided by your city's active members. Recruiting beats hoarding.</gray>"
+  tip-3: "<dark_gray>[<gold>Tip<dark_gray>] <gray>Everything broken in a war is put back. The stakes are money, not builds.</gray>"
+  tip-4: "<dark_gray>[<gold>Tip<dark_gray>] <gray>Items taken out of a chest by hand during a war are gone for good. The city vault is not lootable.</gray>"
+  tip-5: "<dark_gray>[<gold>Tip<dark_gray>] <gray>Wealth is one of nine leaderboards. <white>/leaderboard</white></gray>"
+  tip-6: "<dark_gray>[<gold>Tip<dark_gray>] <gray>Anything you build outside a claim is unprotected. <white>/city here</white> tells you where you are.</gray>"
+
+guide:
+  title: "<gold>Guide"
+  author: "<gray>CivitasCraft"
+  page-welcome: "<bold>Welcome</bold>\n\nThis is a server about building cities together.\n\nYou can found one, join one, or never join anything and still play the whole game.\n\nNothing here is required."
+  page-money: "<bold>Money</bold>\n\nYou earn by playing: selling to the market, daily quests, and the playtime stipend.\n\nThe market buys a short list and sells hundreds of building blocks.\n\nSelling to other players has no quota."
+  page-cities: "<bold>Cities</bold>\n\nA city is people, a shared treasury and land.\n\nJoin one with an invite, or walk into an open one.\n\nFounding costs 10,000 C and two hours of playtime."
+  page-land: "<bold>Land</bold>\n\nA claim is one chunk. Inside it, only your city can build.\n\nOutside every claim, nothing is protected.\n\nClaims cost money to take and money to keep."
+  page-war: "<bold>War</bold>\n\nWars are declared, prepared for 48 hours, and fought for a week.\n\nEvery block broken is put back afterwards.\n\nItems taken out of a chest by hand are not."
+  page-contests: "<bold>Contests</bold>\n\nEvery two weeks a theme is announced and cities build.\n\nAnyone can visit the entries and vote.\n\nPrizes go to the treasury."
+  page-commands: "<bold>Commands</bold>\n\n/city\n/rtp\n/shop\n/quests\n/leaderboard\n/guide\n/civitas rules"

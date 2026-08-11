@@ -208,6 +208,12 @@ public final class CivitasPlugin extends JavaPlugin {
                 new dev.civitas.command.city.CityChatCommand(services::get, lang);
         dev.civitas.command.player.CivitasCommand civitasCommand =
                 new dev.civitas.command.player.CivitasCommand(this, lang);
+        // SPEC 34.4: "/guide reissues the book at any time." The book is built from lang alone,
+        // so the command exists before storage does -- a new player asking for it during the
+        // null window gets the book, and only /guide progress needs the service.
+        dev.civitas.command.player.GuideCommand guideCommand =
+                new dev.civitas.command.player.GuideCommand(services::get,
+                        new dev.civitas.core.onboarding.GuideBook(lang), lang, scheduler);
         new CommandRegistry(this, lang).registerAll(
                 List.of(cityCommand.build(), moneyCommand.build(), payCommand.build(),
                         shopCommand.build(), sellCommand.build(), worthCommand.build(),
@@ -219,7 +225,8 @@ public final class CivitasPlugin extends JavaPlugin {
                         allianceChat.build(), leaderboardCommand.build(),
                         contestCommand.build(), warCommand.build(),
                         bountyCommand.build(), adminCommand.build(),
-                        reportCommand.build(), cityChat.build(), civitasCommand.build()));
+                        reportCommand.build(), cityChat.build(), civitasCommand.build(),
+                        guideCommand.build()));
 
         warnIfRollbackDisabled();
         openDatabaseAsync(scheduler);
@@ -926,6 +933,18 @@ public final class CivitasPlugin extends JavaPlugin {
                 () -> moneySupplyService.prune(System.currentTimeMillis()),
                 12000L, 24L * 60 * 60 * 20L);
 
+        // ==============================================================================
+        // SPEC 34's onboarding, M9b
+        // ==============================================================================
+        // SPEC 34.1 states the gap: Parts I to III "assume the player already understands cities,
+        // claims, quotas, wars and contests. Nothing describes what happens in a new player's
+        // first ten minutes." Nothing below is a gate -- SPEC 34.2: "No forced tutorial, ever."
+        dev.civitas.core.onboarding.OnboardingService onboardingService =
+                new dev.civitas.core.onboarding.OnboardingService(loadedDaos.onboarding(),
+                        economyService, configs, getLogger());
+        dev.civitas.core.onboarding.GuideBook guideBook =
+                new dev.civitas.core.onboarding.GuideBook(lang);
+
         // SPEC 21.7's circuit breakers, M14b. The mitigation for the exploit nobody has
         // thought of yet: every threshold is a ratio against the ledger's own recent history,
         // because an absolute figure is a guess about how big this server will be.
@@ -1188,6 +1207,21 @@ public final class CivitasPlugin extends JavaPlugin {
                 new dev.civitas.listener.CombatTagListener(combatTag, pvpPolicy, configs, lang,
                         messenger, getLogger());
         getServer().getPluginManager().registerEvents(combatTagListener, this);
+
+        // SPEC 34.2's first session and SPEC 34.3's chain, attached here because the router it
+        // speaks through is built at this point.
+        dev.civitas.listener.OnboardingListener onboardingListener =
+                new dev.civitas.listener.OnboardingListener(this, onboardingService, guideBook,
+                        cityRegistry, claimRegistry, configs, lang, messenger);
+        getServer().getPluginManager().registerEvents(onboardingListener, this);
+        // SPEC 34.3's fifth step branches, and neither branch passes through anything the
+        // listener can see: a founding and a mining claim are both service calls. So the two
+        // services that can settle a player report it, one line each.
+        cityService.onCityCreated(founder -> onboardingListener.onSettled(founder));
+        miningClaimService.onClaimed(onboardingListener::onSettled);
+        // SPEC 34.3's first step. Reported by the market rather than watched, because a sale is
+        // a service call and the only thing that knows one succeeded is the service.
+        marketService.onSold(seller -> onboardingListener.onSold(seller));
         getServer().getScheduler().runTaskTimer(this,
                 () -> combatTagListener.showCountdowns(getServer().getOnlinePlayers(),
                         System.currentTimeMillis()), 20L, 20L);
@@ -1236,7 +1270,7 @@ public final class CivitasPlugin extends JavaPlugin {
                 upkeepTask, marketService, marketFilter, togglePreferences, messenger,
                 teleportService, randomTeleport, warpService, miningClaimService,
                 waystationService,
-                shopService, questService,
+                shopService, questService, onboardingService,
                 challengeService, leaderboardService, statsService, contestService,
                 eventService, warWiring.service(), warWiring.allies(), warWiring.peace(),
                 warWiring.capturePoints(), warWiring.rollback(), warWiring.trigger(),

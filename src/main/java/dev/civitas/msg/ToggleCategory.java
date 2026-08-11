@@ -65,7 +65,16 @@ public enum ToggleCategory {
     /** Plugin sounds. Presentation, so mutable. */
     SOUNDS("sounds", true, false),
     /** One-line messages instead of multi-line. Off by default, per SPEC 23.6. */
-    COMPACT("compact", false, false);
+    COMPACT("compact", false, false),
+    /**
+     * SPEC 34.4's contextual tips and the first-session nudges.
+     *
+     * <p>Not in SPEC 23.6's table, which is closed and predates Part IV. SPEC 34.4 names the
+     * command that mutes them -- "disableable with {@code /toggle tips}" -- so the category is
+     * mandated by a later section rather than invented here. Mutable, obviously: an onboarding
+     * hint a veteran cannot switch off would be the one thing worse than no hint.
+     */
+    TIPS("tips", true, false);
 
     private final String key;
     private final boolean defaultOn;

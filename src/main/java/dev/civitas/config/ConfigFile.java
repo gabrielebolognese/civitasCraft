@@ -22,6 +22,8 @@ public enum ConfigFile {
     WORLD("world.yml"),
     /** PvP, death and combat tagging, SPEC 33. */
     COMBAT("combat.yml"),
+    /** A new player's first session and the starter chain, SPEC 34. */
+    ONBOARDING("onboarding.yml"),
     /** Shared GUI furniture: the slots and icons SPEC 8.2 fixes for every menu. */
     GUI("gui/common.yml");
 

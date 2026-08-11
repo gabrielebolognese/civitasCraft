@@ -134,6 +134,18 @@ public final class MarketService {
         this.suspended = java.util.Objects.requireNonNull(itemSuspended, "itemSuspended");
     }
 
+    /**
+     * SPEC 34.3's first starter step.
+     *
+     * <p>Reported rather than watched: a sale is a service call and nothing outside this class
+     * knows one succeeded. Fired after the transaction, so a sale that failed pays nothing.
+     */
+    private java.util.function.Consumer<UUID> soldHook = seller -> { };
+
+    public void onSold(java.util.function.Consumer<UUID> hook) {
+        this.soldHook = java.util.Objects.requireNonNull(hook, "hook");
+    }
+
     /** The quota, or empty on a server without one. */
     public Optional<SellQuota> quota() {
         return Optional.ofNullable(quota);
@@ -260,6 +272,8 @@ public final class MarketService {
             // SPEC 13.1's Trading quests count the value sold, not the number of sales.
             reporter.report(seller, QuestMetric.MARKET_SELL_VALUE,
                     result.orElseThrow().gross().longValue());
+            // SPEC 34.3's first starter step, after the transaction so a failed sale pays nothing.
+            soldHook.accept(seller);
 
             // Stock moves only once the money has committed, so a failed sale cannot move
             // the price for everyone else.

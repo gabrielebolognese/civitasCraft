@@ -231,6 +231,14 @@ public final class CityCommand {
 
     private ArgumentBuilder<CommandSourceStack, ?> list() {
         return Commands.literal("list")
+                // SPEC 34.4's recruitment board, reachable rather than only at spawn: SPEC puts
+                // it on a board in the hub, and a new player who never walks past that board
+                // would never find the one screen written for them.
+                .then(Commands.literal("open")
+                        .executes(context -> {
+                            openRecruitment(context);
+                            return Command.SINGLE_SUCCESS;
+                        }))
                 .executes(context -> sendList(context, 1))
                 .then(Commands.argument("page", IntegerArgumentType.integer(1))
                         .executes(context ->
@@ -921,6 +929,25 @@ public final class CityCommand {
 
     private interface RankAction {
         void run(Player player, City city, CityRank rank);
+    }
+
+    /**
+     * Opens SPEC 34.4's recruitment board.
+     *
+     * <p>Sorted smallest-city-first by the menu itself, which is pillar 1.3 made concrete: a board
+     * sorted the other way would put the twenty-member city at the top and hand it every newcomer.
+     */
+    private void openRecruitment(CommandContext<CommandSourceStack> context) {
+        Player player = player(context);
+        if (player == null) {
+            return;
+        }
+        CivitasServices current = services.get();
+        if (current == null) {
+            lang.send(player, "plugin.starting");
+            return;
+        }
+        new dev.civitas.gui.menus.RecruitmentMenu(current.menus(), current, player).open();
     }
 
     private int withOwnCity(CommandContext<CommandSourceStack> context, CityAction action) {
