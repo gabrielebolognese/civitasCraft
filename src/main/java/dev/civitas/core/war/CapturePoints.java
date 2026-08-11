@@ -83,8 +83,19 @@ public final class CapturePoints {
      */
     public List<Point> generate(War war, Collection<Claim> defenderClaims, int wanted,
                                 int coreChunkX, int coreChunkZ) {
-        List<Claim> claims = List.copyOf(defenderClaims);
+        // SPEC 39.9: "Capture points are generated from the main city body only, never from
+        // outposts, so a war is decided at the city rather than at a remote holding."
+        //
+        // This is not a tidy-up. SPEC 32.3 removed the world border, so an outpost may sit
+        // hundreds of thousands of blocks away — and the three points SPEC 11.6 asks for are the
+        // north-most claim, the south-most, and the one furthest from the core. Include outposts
+        // and two of those three land on the remote holding by construction, which puts the
+        // objectives of a war a week's travel from the fighting.
+        List<Claim> claims = defenderClaims.stream().filter(claim -> !claim.isOutpost()).toList();
         if (claims.isEmpty()) {
+            // A city that is nothing but outposts cannot happen — SPEC 6.4 forbids unclaiming
+            // the core — but a war against one would have no ground to contest, and inventing
+            // points on ground SPEC excludes is worse than placing none.
             points.put(war.id(), List.of());
             return List.of();
         }

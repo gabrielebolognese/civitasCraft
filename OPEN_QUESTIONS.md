@@ -2944,3 +2944,37 @@ Format:
   says the affected chunks "must be reloaded, which usually means a restart", and the message says
   so, but that has not been demonstrated. **This belongs on the launch checklist beside SPEC 18.3.**
   *Date:* 2026-08-11
+
+- **[M19d]** The milestone found the defect PLAN predicted, and it was in a place nothing else
+  would have looked. SPEC 11.6 places the three capture points at "the geometric extremes of the
+  defender's claim set (north-most, south-most, and the chunk furthest from the core)", and
+  `CapturePoints.generate` was handed every claim the defender owned. SPEC 32.3 removed the world
+  border and SPEC 39 made outposts part of the war zone, so a defender with a holding 640,000
+  blocks out had **two of its three war objectives on that holding by construction** -- against SPEC
+  39.9's explicit "Capture points are generated from the main city body only, never from outposts,
+  so a war is decided at the city rather than at a remote holding". *Fixed:* one filter on
+  `isOutpost`, mutation-checked by reverting it and confirming two named tests go red. The
+  degenerate case -- a defender whose only claims are outposts -- places **no** points rather than
+  unreachable ones. *Date:* 2026-08-11
+
+- **[M19d]** Everything else held, which is worth recording because a milestone that finds one bug
+  can look like a milestone that only looked in one place. Checked and correct at 640,000 blocks:
+  the 26-bit zone packing (no two chunks collide), the zone's cost (a set of chunks, not a bounding
+  box -- a box here would be 1.6 billion chunks), `RegionFiles.covering` (both groups collapse to a
+  handful of files 1,250 regions apart, and nothing between them), the block log and rollback replay
+  at both +640,000 and -640,000, and the SPEC 11.4 perimeter at the far group's edge.
+  *Date:* 2026-08-11
+
+- **[M19d]** `OverlapSeeder` computes its bounding box over the chunks two wars share, so two wars
+  overlapping at **both** the city and a remote outpost produce a box 640,000 blocks wide. That is a
+  wider query, not a wrong one -- the box only bounds which rows are considered, and every row
+  inside it is still filtered correctly -- and it happens once, at war start. *Implemented default:*
+  left as it is, with a test asserting the seeding is still correct across the gap. Splitting the
+  box per region group would be a speculative optimisation of a once-per-war query.
+  *Date:* 2026-08-11
+
+- **[M19d]** This milestone is a **fixture rather than a feature**, and PLAN said in advance why it
+  was the one most likely to be skipped: "Every war test will naturally be run on a compact test map
+  where both cities are a few hundred blocks apart." That is exactly what happened -- twenty-two
+  milestones of war tests, all of them within a few hundred blocks of origin, because that is what a
+  test fixture builds when nobody insists otherwise. *Date:* 2026-08-11
