@@ -201,6 +201,15 @@ final class MenuTestSupport implements AutoCloseable {
                 new dev.civitas.core.moderation.ReportService(cities.daos, cities.configs),
                 new dev.civitas.storage.BackupService(quiet(), cities.db,
                         directory.resolve("backups").toFile()),
+                // SPEC 32.8's world backups. Real here rather than null, because it is cheap
+                // and because a fixture that hands out null teaches nothing when a screen
+                // eventually reads one.
+                new dev.civitas.core.world.WorldBackupService(quiet(),
+                        directory.resolve("world-backups"),
+                        name -> java.util.Optional.empty(),
+                        new dev.civitas.core.world.WorldRegistry(cities.configs)
+                                .backupSettings()),
+                new dev.civitas.core.world.WorldRegistry(cities.configs),
                 28,
                 java.util.List::of,
                 () -> 0,

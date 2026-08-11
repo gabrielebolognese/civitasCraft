@@ -126,3 +126,43 @@ mining-claims:
     cost: 100
     cooldown: 180
     warmup: 8
+
+# SPEC 32.8's world backups.
+#
+# THIS IS NOT THE DATABASE BACKUP. That one lives in config.yml under storage.backup and copies
+# the plugin's own data. This copies the WORLD -- the region files holding everybody's builds.
+#
+# SPEC 32.8 opens by retiring its own earlier design, and the reason is the missing border:
+# "An unbounded world means region files accumulate wherever anyone has ever travelled. Part IV's
+# original 'daily full world backup, keep 7' stops being viable within months once players scatter
+# across hundreds of thousands of blocks."
+#
+# So there are three tiers instead of one. A weekly full copy kept twice. A daily incremental of
+# only the regions that changed, kept a fortnight. And a snapshot of just the regions a war can
+# reach, taken before every war -- which is affordable precisely because a war zone is bounded
+# where the world is not.
+#
+# The war snapshot is the safety net beneath the safety net. SPEC 11.8's diff-based rollback is the
+# primary mechanism and handles every normal case; this exists for the case where it does not, and
+# it "turns 'the plugin ate my castle' from a catastrophe into a fifteen-minute admin fix".
+backup:
+  enabled: true
+
+  # SPEC 32.8: full weekly keep 2, incremental daily keep 14 days.
+  full-interval-hours: 168
+  full-keep-count: 2
+  incremental-interval-hours: 24
+  incremental-keep-days: 14
+  # Hour of the day the sweep first fires after a restart, 0-23.
+  run-hour: 5
+
+  # Taken immediately before a war enters ACTIVE, kept until it resolves plus this many days.
+  war-zone-snapshot: true
+  war-snapshot-retention-days: 7
+
+  # SPEC 32.8: "Refuse to start a war if free disk is under world.backup.min-free-gb."
+  #
+  # Checked at DECLARATION rather than at the PREP -> ACTIVE transition where the snapshot is
+  # actually taken, because by then both wagers are escrowed and there is nothing useful left to
+  # refuse. A declaration blocked here has cost nobody anything.
+  min-free-gb: 10

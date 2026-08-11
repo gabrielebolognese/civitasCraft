@@ -2883,3 +2883,64 @@ Format:
   asserted is the arithmetic and the rules -- `SiegeCapacity`, `SiegeCatalogue`, `SiegePlacement`,
   `SiegeCamp` and the carve-out, two of them mutation-checked. **All of it needs the live pass, and
   M20a's balance sweep cannot substitute for it.** *Date:* 2026-08-10
+
+- **[M19c]** SPEC 32.8 and SPEC 37 give different backup schemes, and for once the contradiction
+  settles itself: SPEC 32.8 **names the design it replaces**. SPEC 37's `backup:` block ships
+  `world-daily-hour: 5` and `world-keep-count: 7`; SPEC 32.8's opening sentence is "Part IV's
+  original 'daily full world backup, keep 7' stops being viable within months once players scatter
+  across hundreds of thousands of blocks", and it then tabulates three tiers. *Implemented default:*
+  SPEC 32.8's three tiers -- weekly full keep 2, daily incremental keep 14 days, per-war snapshot.
+  Worth recording because it is the **fourth** time SPEC 37 has been the stale side of a
+  contradiction, after M3a's `border:` block, M4a's peacetime PvP and M4a's `combat-tag.seconds: 15`
+  against SPEC 33.8's argued 30/120. This one needed no judgement call at all. *Date:* 2026-08-11
+
+- **[M19c]** SPEC 32.8 says nothing about **saving the worlds before copying them**, and without it
+  the whole feature is quietly wrong. A region file on disk holds what was last flushed to it, so a
+  copy taken mid-session captures whatever state the chunks were in at the last autosave -- for a
+  city somebody has been building in all evening, that is not the state the war starts from, and the
+  error is invisible until an admin restores a snapshot and gets a building half-built.
+  *Implemented default:* every tier calls `World.save()` on the server thread before handing the
+  copy to an async task. That is a stall proportional to unsaved chunks -- once a week, once a day,
+  and once per war -- and it is the price of the snapshot meaning what it says. *Date:* 2026-08-11
+
+- **[M19c]** SPEC 32.8 says to "Refuse to start a war if free disk is under
+  `world.backup.min-free-gb`" and does not say which moment "start" is. *Implemented default:*
+  **declaration**, not the PREP-to-ACTIVE transition where the snapshot is actually taken. By that
+  transition both wagers are escrowed (SPEC 11.3), the defender has spent 48 hours fortifying, and
+  refusing achieves nothing but a war that cannot proceed and cannot be unwound. A declaration
+  blocked at the door has cost nobody anything. The guard also **passes when no snapshot would be
+  taken** -- backups disabled, or `war-zone-snapshot: false` -- because a rule that blocked wars to
+  protect a copy nobody is making is a rule with no purpose behind it. *Date:* 2026-08-11
+
+- **[M19c]** The unit of backup is the **region file**, and that has a consequence SPEC does not
+  spell out. Minecraft stores 32x32 chunks in one `r.X.Z.mca` and there is no way to copy part of
+  one, so a snapshot always covers **more** ground than the war zone, and restoring one rewinds
+  every chunk in every region the fighting touched -- including neighbours who shared a file, and
+  including anything built there since the war. *Implemented default:* it is a rewind, not an undo,
+  and the confirmation message says exactly that rather than only asking twice. SPEC 32.8's
+  "requires typing the war id twice" is the mechanism; the reason had to be written. *Date:* 2026-08-11
+
+- **[M19c]** SPEC 32.8's reporting asks for "projected growth" and nothing records yesterday's world
+  size. *Implemented default:* the newest incremental backup's size annualised, which is a
+  first-order estimate and is labelled as one in the message. With no incremental yet it reports
+  **zero rather than a guess**. Recording a size history would mean a table for a number nobody acts
+  on hourly. *Date:* 2026-08-11
+
+- **[M19c]** SPEC 32.8's snapshot retention is "until the war reaches RESOLVED plus 7 days", and the
+  obvious column to measure from is the wrong one. *Implemented default:* `war_ends_at`, not
+  `rollback_completed_at`. SPEC 11.8.5 allows a rollback to fail outright and leave that column
+  null, and a snapshot pruned on a column that never fills would be kept forever -- for exactly the
+  wars whose snapshot matters most, where the rollback went wrong. *Date:* 2026-08-11
+
+- **[M19c]** The world backups go in their own `world-backups/` folder rather than joining the
+  database backups in `backups/`. Two different things -- one is the plugin's data, the other is
+  everybody's builds -- and an operator clearing a folder to reclaim disk should not have to work
+  out which they are deleting. *Date:* 2026-08-11
+
+- **[M19c]** **Unverified: nothing has ever been restored on a live server.** The tests drive fake
+  `.mca` files in a temp directory, which is the correct scope for the rules they check -- which
+  files are copied, which are pruned, whether a war zone collapses to a handful of regions -- and
+  proves nothing about Minecraft reloading a region file swapped underneath it. SPEC 32.8's restore
+  says the affected chunks "must be reloaded, which usually means a restart", and the message says
+  so, but that has not been demonstrated. **This belongs on the launch checklist beside SPEC 18.3.**
+  *Date:* 2026-08-11

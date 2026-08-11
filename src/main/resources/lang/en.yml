@@ -1144,6 +1144,7 @@ war:
     cancelled: "Cancelled"
     rollback-failed: "Restore failed"
   declare:
+    no-disk: "<red>The server is low on disk space, so the pre-war world snapshot cannot be taken.</red> <gray>Wars are blocked until staff free some. SPEC 32.8: correctness over gameplay.</gray>"
     self: "<red>A city cannot declare war on itself."
     too-few-members: "<red>Both cities need at least <white><required></white> members to go to war."
     too-few-claims: "<red>Both cities need at least <white><required></white> claims to go to war."
@@ -1234,6 +1235,23 @@ admin:
   help-city: "<gray>/ca city <white>setmayor | rename | delete | restore | freeze | unfreeze | forceadd | forceremove | setupkeep | forgivedebt"
   help-eco: "<gray>/ca eco <white>give | take | set | freeze | rollback | treasury</white>   <gray>/ca market <white>setprice | setstock | reload"
   help-system: "<gray>/ca <white>reload | backup | debug | perf | migrate check | event | contest | reports"
+  # SPEC 32.8's world backups. Not the database backups above: these copy the region files
+  # holding everybody's builds, and the two are deliberately separate folders.
+  backup:
+    never: "never"
+    status-header: "<dark_gray>--- <gold>World backups<dark_gray> ---"
+    status-world: "<gray>World: <white><size></white> across <white><files></white> region files in <white><worlds></white> world(s)"
+    status-full: "<gray>Last full: <white><when></white> <dark_gray>(keeping <keep>)"
+    status-incremental: "<gray>Last incremental: <white><when></white> <dark_gray>(keeping <days> days)"
+    status-wars: "<gray>Pre-war snapshots held: <white><count>"
+    status-disk: "<gray>Free disk: <white><free> GB</white> <dark_gray>(a war needs <required> GB)"
+    status-growth: "<gray>Projected yearly growth: <white><projected></white> <dark_gray>(from the last incremental)"
+  world:
+    restore-confirm: "<red>This rewinds every region the war touched, not only the war zone.</red> <gray>Anything built in those regions since is lost. Type <white>/ca world restore war <id> <id></white> to confirm.</gray>"
+    restore-mismatch: "<red>The two ids do not match. Nothing was restored."
+    restore-started: "<gray>Restoring the pre-war snapshot of war <white><id></white>..."
+    restore-done: "<green>Restored <white><files></white> region file(s).</green> <gray>The affected chunks need reloading, which usually means a restart.</gray>"
+    restore-missing: "<red>There is no pre-war snapshot for that war."
   system:
     backup-started: "<gray>Backing up..."
     backup-done: "<green>Backup written to <white><file></white>."

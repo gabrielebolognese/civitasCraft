@@ -1130,6 +1130,7 @@ war:
     cancelled: "Annullata"
     rollback-failed: "Ripristino fallito"
   declare:
+    no-disk: "<red>Il server ha poco spazio su disco, quindi l'istantanea pre-guerra del mondo non puo' essere presa.</red> <gray>Le guerre sono bloccate finche' lo staff non ne libera.</gray>"
     self: "<red>Una citta' non puo' dichiarare guerra a se stessa."
     too-few-members: "<red>Servono almeno <white><required></white> membri per entrambe le citta'."
     too-few-claims: "<red>Servono almeno <white><required></white> chunk rivendicati per entrambe."
@@ -1220,6 +1221,21 @@ admin:
   help-city: "<gray>/ca city <white>setmayor | rename | delete | restore | freeze | unfreeze | forceadd | forceremove | setupkeep | forgivedebt"
   help-eco: "<gray>/ca eco <white>give | take | set | freeze | rollback | treasury</white>   <gray>/ca market <white>setprice | setstock | reload"
   help-system: "<gray>/ca <white>reload | backup | debug | perf | migrate check | event | contest | reports"
+  backup:
+    never: "mai"
+    status-header: "<dark_gray>--- <gold>Backup del mondo<dark_gray> ---"
+    status-world: "<gray>Mondo: <white><size></white> su <white><files></white> file di regione in <white><worlds></white> mondo/i"
+    status-full: "<gray>Ultimo completo: <white><when></white> <dark_gray>(ne conserva <keep>)"
+    status-incremental: "<gray>Ultimo incrementale: <white><when></white> <dark_gray>(conservati <days> giorni)"
+    status-wars: "<gray>Istantanee pre-guerra conservate: <white><count>"
+    status-disk: "<gray>Spazio libero: <white><free> GB</white> <dark_gray>(una guerra ne richiede <required>)"
+    status-growth: "<gray>Crescita annua stimata: <white><projected></white> <dark_gray>(dall'ultimo incrementale)"
+  world:
+    restore-confirm: "<red>Questo riporta indietro ogni regione toccata dalla guerra, non solo la zona di guerra.</red> <gray>Tutto cio' che vi e' stato costruito dopo va perduto. Digita <white>/ca world restore war <id> <id></white> per confermare.</gray>"
+    restore-mismatch: "<red>I due id non coincidono. Non e' stato ripristinato nulla."
+    restore-started: "<gray>Ripristino dell'istantanea pre-guerra della guerra <white><id></white>..."
+    restore-done: "<green>Ripristinati <white><files></white> file di regione.</green> <gray>I chunk interessati vanno ricaricati, il che di solito significa un riavvio.</gray>"
+    restore-missing: "<red>Non esiste un'istantanea pre-guerra per quella guerra."
   system:
     backup-started: "<gray>Backup in corso..."
     backup-done: "<green>Backup scritto in <white><file></white>."

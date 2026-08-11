@@ -54,8 +54,8 @@ public final class AdminSystemCommands {
 
     /** Every 9.4.6 branch plus {@code reports}, added to the {@code /ca} root. */
     public List<LiteralArgumentBuilder<CommandSourceStack>> build() {
-        return List.of(reload(), backup(), debug(), perf(), migrate(), event(), contest(),
-                reports());
+        return List.of(reload(), backup(), world(), debug(), perf(), migrate(), event(),
+                contest(), reports());
     }
 
     // ==================================================================================
@@ -102,6 +102,7 @@ public final class AdminSystemCommands {
     private LiteralArgumentBuilder<CommandSourceStack> backup() {
         return Commands.literal("backup")
                 .requires(source -> source.getSender().hasPermission("civitas.admin.system"))
+                .then(backupStatus())
                 .executes(context -> {
                     Audience audience = context.getSource().getSender();
                     CivitasServices current = ready(audience);
@@ -126,6 +127,133 @@ public final class AdminSystemCommands {
                             }));
                     return Command.SINGLE_SUCCESS;
                 });
+    }
+
+    /** SPEC 32.8's reporting: world size, region count, last full, last incremental, growth. */
+    private LiteralArgumentBuilder<CommandSourceStack> backupStatus() {
+        return Commands.literal("status")
+                .requires(source -> source.getSender().hasPermission("civitas.admin.system"))
+                .executes(context -> {
+                    Audience audience = context.getSource().getSender();
+                    CivitasServices current = ready(audience);
+                    if (current == null) {
+                        return Command.SINGLE_SUCCESS;
+                    }
+                    reportBackupStatus(audience, current);
+                    return Command.SINGLE_SUCCESS;
+                });
+    }
+
+    private void reportBackupStatus(Audience audience, CivitasServices current) {
+        var backups = current.worldBackups();
+        var worlds = current.worlds().allManagedWorlds();
+
+        // Sizing a world means stat-ing every region file it has, which on a mature server is
+        // thousands. Off the main thread, then printed back on it.
+        async(() -> {
+            var status = backups.status(worlds);
+            scheduler.runOnMain(() -> {
+                lang.send(audience, "admin.backup.status-header");
+                lang.send(audience, "admin.backup.status-world",
+                        Replies.p("size", megabytes(status.worldBytes())),
+                        Replies.p("files", String.valueOf(status.regionFileCount())),
+                        Replies.p("worlds", String.valueOf(worlds.size())));
+                lang.send(audience, "admin.backup.status-full",
+                        Replies.p("when", describe(status.lastFull())),
+                        Replies.p("keep", String.valueOf(backups.settings().fullKeepCount())));
+                lang.send(audience, "admin.backup.status-incremental",
+                        Replies.p("when", describe(status.lastIncremental())),
+                        Replies.p("days",
+                                String.valueOf(backups.settings().incrementalKeepDays())));
+                lang.send(audience, "admin.backup.status-wars",
+                        Replies.p("count", String.valueOf(status.warSnapshots())));
+                lang.send(audience, "admin.backup.status-disk",
+                        Replies.p("free", String.valueOf(status.freeGb())),
+                        Replies.p("required", String.valueOf(backups.settings().minFreeGb())));
+                lang.send(audience, "admin.backup.status-growth",
+                        Replies.p("projected", megabytes(status.projectedYearlyBytes())));
+            });
+        });
+    }
+
+    private static String megabytes(long bytes) {
+        return String.format(java.util.Locale.ROOT, "%.1f MB", bytes / (1024.0 * 1024.0));
+    }
+
+    private String describe(java.util.Optional<java.time.Instant> when) {
+        return when.map(instant -> java.time.format.DateTimeFormatter
+                        .ofPattern("yyyy-MM-dd HH:mm")
+                        .withZone(java.time.ZoneId.systemDefault())
+                        .format(instant))
+                .orElseGet(() -> lang.plain("admin.backup.never"));
+    }
+
+    /**
+     * SPEC 32.8's {@code /ca world restore war <id>}, with the war id typed twice.
+     *
+     * <p>The double confirmation is not ceremony. A region file holds 32x32 chunks, so restoring a
+     * war snapshot rewinds every chunk in every region the fighting touched — including ground
+     * outside the war zone that happened to share a file with it, and including anything built
+     * there since. It is a rewind, not an undo.
+     */
+    private LiteralArgumentBuilder<CommandSourceStack> world() {
+        return Commands.literal("world")
+                .requires(source -> source.getSender().hasPermission("civitas.admin.system"))
+                .then(Commands.literal("restore")
+                        .then(Commands.literal("war")
+                                .then(Commands.argument("id", IntegerArgumentType.integer(1))
+                                        .executes(context -> {
+                                            lang.send(context.getSource().getSender(),
+                                                    "admin.world.restore-confirm",
+                                                    Replies.p("id", String.valueOf(
+                                                            IntegerArgumentType.getInteger(
+                                                                    context, "id"))));
+                                            return Command.SINGLE_SUCCESS;
+                                        })
+                                        .then(Commands.argument("confirm",
+                                                        IntegerArgumentType.integer(1))
+                                                .executes(context -> {
+                                                    restoreWar(context.getSource().getSender(),
+                                                            IntegerArgumentType.getInteger(
+                                                                    context, "id"),
+                                                            IntegerArgumentType.getInteger(
+                                                                    context, "confirm"));
+                                                    return Command.SINGLE_SUCCESS;
+                                                })))));
+    }
+
+    private void restoreWar(Audience audience, int warId, int confirm) {
+        CivitasServices current = ready(audience);
+        if (current == null) {
+            return;
+        }
+        if (warId != confirm) {
+            lang.send(audience, "admin.world.restore-mismatch");
+            return;
+        }
+        current.audit().record(actorOf(audience), "WORLD_RESTORE_WAR", null,
+                "{" + '"' + "war" + '"' + ":" + warId + "}");
+        lang.send(audience, "admin.world.restore-started", Replies.p("id", String.valueOf(warId)));
+
+        async(() -> {
+            var restored = current.worldBackups().restoreWarSnapshot(warId);
+            scheduler.runOnMain(() -> restored.ifPresentOrElse(
+                    count -> lang.send(audience, "admin.world.restore-done",
+                            Replies.p("files", String.valueOf(count))),
+                    () -> lang.send(audience, "admin.world.restore-missing")));
+        });
+    }
+
+    /**
+     * Runs heavy file work off the server thread.
+     *
+     * <p>Its own thread rather than Bukkit's async pool, because this class has no plugin handle
+     * and both callers are one-shot admin commands rather than anything that could pile up.
+     */
+    private static void async(Runnable work) {
+        Thread worker = new Thread(work, "civitas-world-backup");
+        worker.setDaemon(true);
+        worker.start();
     }
 
     private LiteralArgumentBuilder<CommandSourceStack> debug() {

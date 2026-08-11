@@ -160,6 +160,14 @@ public final class WarService {
             return Result.failure("SELF_WAR", "war.declare.self");
         }
 
+        // SPEC 32.8's disk guard: "Refuse to start a war if free disk is under
+        // world.backup.min-free-gb." Here rather than at the PREP -> ACTIVE transition where the
+        // snapshot is actually taken, because by then both wagers are escrowed and there is
+        // nothing useful left to refuse. A declaration blocked here has cost nobody anything.
+        if (!diskHeadroom.getAsBoolean()) {
+            return Result.failure("NO_DISK_HEADROOM", "war.declare.no-disk");
+        }
+
         // 2. Both cities have at least three members: SPEC 15.2, against alt-account war spam.
         int minMembers = war.getInt("declaration.min-members", 3);
         if (attacker.members().size() < minMembers || defender.members().size() < minMembers) {
@@ -588,5 +596,18 @@ public final class WarService {
     /** Hands the service SPEC 29.2's calculator. M19a's only touchpoint here. */
     public void useSiegeCapacity(java.util.function.IntUnaryOperator calculator) {
         this.siege = java.util.Objects.requireNonNull(calculator, "calculator");
+    }
+
+    /**
+     * SPEC 32.8's disk guard.
+     *
+     * <p>Answers yes until wired, which is the conservative direction here and not the usual one:
+     * a seam that refused by default would block every war on a server whose backups are switched
+     * off entirely, and the guard exists to protect a snapshot that would not be taken.
+     */
+    private java.util.function.BooleanSupplier diskHeadroom = () -> true;
+
+    public void useDiskGuard(java.util.function.BooleanSupplier headroom) {
+        this.diskHeadroom = java.util.Objects.requireNonNull(headroom, "headroom");
     }
 }

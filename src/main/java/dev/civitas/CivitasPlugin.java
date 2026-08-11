@@ -1009,6 +1009,25 @@ public final class CivitasPlugin extends JavaPlugin {
         // TeleportService below, and before the services record because two seams read it.
         dev.civitas.core.world.WorldRegistry worldRegistry =
                 new dev.civitas.core.world.WorldRegistry(configs, getLogger());
+
+        // ==============================================================================
+        // SPEC 32.8's world backups, M19c
+        // ==============================================================================
+        // Its own folder beside the database backups, and deliberately not the same one: that
+        // one holds the plugin's data, this one holds everybody's builds, and an operator
+        // clearing "backups" to reclaim disk should not have to guess which they are deleting.
+        worldBackups = new dev.civitas.core.world.WorldBackupService(getLogger(),
+                new File(getDataFolder(), "world-backups").toPath(),
+                name -> java.util.Optional.ofNullable(getServer().getWorld(name))
+                        .map(org.bukkit.World::getWorldFolder),
+                worldRegistry.backupSettings());
+        // SPEC 32.8's guard, which is checked at declaration rather than at the snapshot: by the
+        // time the snapshot is taken both wagers are escrowed and refusing achieves nothing.
+        warWiring.service().useDiskGuard(worldBackups::hasHeadroomForWar);
+        scheduleWorldBackups(worldBackups, worldRegistry, loadedDaos);
+
+        // SPEC 32.6's mining claims. Built before travel because /mine tp goes through the
+        // TeleportService below, and before the services record because two seams read it.
         dev.civitas.core.mining.MiningClaimRegistry miningRegistry =
                 new dev.civitas.core.mining.MiningClaimRegistry(loadedDaos.miningClaims(),
                         getLogger());
@@ -1177,6 +1196,7 @@ public final class CivitasPlugin extends JavaPlugin {
                 warWiring.capturePoints(), warWiring.rollback(), warWiring.trigger(),
                 auditService, adminProtection, fraudHeuristics, inspectMode,
                 ledgerExport, upkeepOverrides, reportService, backups,
+                worldBackups, worldRegistry,
                 configs.get(ConfigFile.CONFIG).getInt("storage.backup.keep-count", 28),
                 this::pendingMigrationNames,
                 () -> warBlockLog == null ? 0 : warBlockLog.bufferedCount(),
@@ -1749,6 +1769,132 @@ public final class CivitasPlugin extends JavaPlugin {
                 }
             });
         }
+
+        snapshotWarZone(war.id(), byWorld);
+    }
+
+    /**
+     * SPEC 32.8's pre-war region snapshot, taken at the same moment as everything else that has
+     * to be captured before the first block moves.
+     *
+     * <p>The worlds are <b>saved first, on the server thread</b>. A region file only contains what
+     * has been written to it, so copying without saving would snapshot whatever was last flushed —
+     * which for a city somebody has been building in all evening is not the state the war starts
+     * from. That is a stall proportional to unsaved chunks, taken once per war, in exchange for
+     * the snapshot meaning what it says.
+     */
+    private void snapshotWarZone(int warId, java.util.Map<String, List<long[]>> byWorld) {
+        if (worldBackups == null || !worldBackups.settings().warZoneSnapshot()) {
+            return;
+        }
+
+        java.util.Map<String, List<int[]>> chunks = new java.util.HashMap<>();
+        for (var entry : byWorld.entrySet()) {
+            org.bukkit.World world = Bukkit.getWorld(entry.getKey());
+            if (world == null) {
+                continue;
+            }
+            world.save();
+            List<int[]> narrowed = new java.util.ArrayList<>(entry.getValue().size());
+            for (long[] chunk : entry.getValue()) {
+                narrowed.add(new int[] {(int) chunk[0], (int) chunk[1]});
+            }
+            chunks.put(entry.getKey(), narrowed);
+        }
+        if (chunks.isEmpty()) {
+            return;
+        }
+
+        getServer().getScheduler().runTaskAsynchronously(this,
+                () -> worldBackups.snapshotWarZone(warId, chunks));
+    }
+
+    private dev.civitas.core.world.WorldBackupService worldBackups;
+
+    /**
+     * SPEC 32.8's two scheduled tiers, plus the snapshot prune.
+     *
+     * <p>Both run asynchronously and both are told to save the worlds first, on the server thread,
+     * for the reason {@link #snapshotWarZone} gives: a region file holds what was last flushed to
+     * it, so a copy taken without a save captures a state nobody was ever in.
+     *
+     * <p>The first run is delayed to the configured hour rather than firing at startup. A server
+     * coming back from an outage has enough to do, and a backup taken in the same minute as a
+     * restart is the least interesting one there is.
+     */
+    private void scheduleWorldBackups(dev.civitas.core.world.WorldBackupService service,
+                                      dev.civitas.core.world.WorldRegistry worlds,
+                                      DaoRegistry loadedDaos) {
+        if (!service.settings().enabled()) {
+            getLogger().info("World backups are disabled. SPEC 11.8's rollback is still the "
+                    + "primary mechanism, but there is no snapshot behind it.");
+            return;
+        }
+
+        long ticksToHour = ticksUntilHour(worlds.backupRunHour());
+        long fullPeriod = Math.max(1L, worlds.backupFullIntervalHours()) * 3600L * 20L;
+        long incrementalPeriod = Math.max(1L, worlds.backupIncrementalIntervalHours()) * 3600L * 20L;
+
+        getServer().getScheduler().runTaskTimer(this, () -> runWorldBackup(service, worlds, true),
+                ticksToHour, fullPeriod);
+        // Offset by a minute so a day on which both tiers fall due does not have the incremental
+        // racing the full copy for the same files.
+        getServer().getScheduler().runTaskTimer(this, () -> runWorldBackup(service, worlds, false),
+                ticksToHour + 1200L, incrementalPeriod);
+
+        // SPEC 32.8: a snapshot lives until its war resolves plus the retention window. Hourly,
+        // because it is a directory listing and a handful of deletes.
+        getServer().getScheduler().runTaskTimerAsynchronously(this, () -> {
+            java.util.Map<Integer, java.nio.file.Path> snapshots = service.warSnapshots();
+            if (snapshots.isEmpty()) {
+                return;
+            }
+            loadedDaos.wars().findByStates(java.util.List.of(
+                    dev.civitas.core.war.WarState.RESOLVED.key())).thenAccept(rows -> {
+                java.util.Map<Integer, Long> resolved = new java.util.HashMap<>();
+                for (var row : rows) {
+                    if (snapshots.containsKey(row.id())) {
+                        // war_ends_at, not rollback_completed_at: SPEC 32.8 measures from
+                        // RESOLVED, and a rollback that never finished leaves that column null.
+                        resolved.put(row.id(), row.warEndsAt());
+                    }
+                }
+                int removed = service.pruneWarSnapshots(resolved, System.currentTimeMillis());
+                if (removed > 0) {
+                    getLogger().info("Removed " + removed + " expired pre-war snapshot(s).");
+                }
+            });
+        }, 6000L, 72000L);
+    }
+
+    private void runWorldBackup(dev.civitas.core.world.WorldBackupService service,
+                                dev.civitas.core.world.WorldRegistry worlds, boolean full) {
+        java.util.List<String> names = worlds.allManagedWorlds();
+        for (String name : names) {
+            org.bukkit.World world = getServer().getWorld(name);
+            if (world != null) {
+                world.save();
+            }
+        }
+        java.time.Instant now = java.time.Instant.now();
+        getServer().getScheduler().runTaskAsynchronously(this, () -> {
+            if (full) {
+                service.fullBackup(names, now);
+            } else {
+                service.incrementalBackup(names, now);
+            }
+        });
+    }
+
+    /** Ticks from now until the next occurrence of an hour of the day, 0-23. */
+    private static long ticksUntilHour(int hour) {
+        java.time.ZonedDateTime now = java.time.ZonedDateTime.now();
+        java.time.ZonedDateTime next = now.withHour(Math.floorMod(hour, 24))
+                .withMinute(0).withSecond(0).withNano(0);
+        if (!next.isAfter(now)) {
+            next = next.plusDays(1);
+        }
+        return Math.max(20L, java.time.Duration.between(now, next).toSeconds() * 20L);
     }
 
     /**

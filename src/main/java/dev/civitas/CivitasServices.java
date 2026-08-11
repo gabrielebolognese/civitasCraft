@@ -112,6 +112,8 @@ public record CivitasServices(
         UpkeepOverrides upkeepOverrides,
         ReportService reports,
         BackupService backups,
+        dev.civitas.core.world.WorldBackupService worldBackups,
+        dev.civitas.core.world.WorldRegistry worlds,
         int backupKeepCount,
         java.util.function.Supplier<java.util.List<String>> pendingMigrationSupplier,
         java.util.function.IntSupplier warBlockLogBufferedSupplier,

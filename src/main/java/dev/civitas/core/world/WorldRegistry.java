@@ -136,6 +136,49 @@ public final class WorldRegistry {
         return configs.get(ConfigFile.WORLD).getStringList("worlds.mining-claimable");
     }
 
+    /**
+     * Every world SPEC 32.8's backups cover, deduplicated and in a stable order.
+     *
+     * <p>All five, not only the claimable ones. A player's mine in the resource world and a base
+     * in the nether are builds too, and SPEC 32.8's whole premise is that region files accumulate
+     * "wherever anyone has ever travelled".
+     */
+    public List<String> allManagedWorlds() {
+        java.util.LinkedHashSet<String> names = new java.util.LinkedHashSet<>(
+                List.of(main(), mainNether(), mainEnd(), resource(), resourceNether()));
+        names.addAll(cityEnabled());
+        names.addAll(miningClaimable());
+        names.removeIf(name -> name == null || name.isBlank());
+        return List.copyOf(names);
+    }
+
+    // ==================================================================================
+    // SPEC 32.8's backup settings
+    // ==================================================================================
+
+    public dev.civitas.core.world.WorldBackupService.Settings backupSettings() {
+        var world = configs.get(ConfigFile.WORLD);
+        return new dev.civitas.core.world.WorldBackupService.Settings(
+                world.getBoolean("backup.enabled", true),
+                world.getInt("backup.full-keep-count", 2),
+                world.getInt("backup.incremental-keep-days", 14),
+                world.getBoolean("backup.war-zone-snapshot", true),
+                world.getInt("backup.war-snapshot-retention-days", 7),
+                world.getInt("backup.min-free-gb", 10));
+    }
+
+    public int backupFullIntervalHours() {
+        return configs.get(ConfigFile.WORLD).getInt("backup.full-interval-hours", 168);
+    }
+
+    public int backupIncrementalIntervalHours() {
+        return configs.get(ConfigFile.WORLD).getInt("backup.incremental-interval-hours", 24);
+    }
+
+    public int backupRunHour() {
+        return configs.get(ConfigFile.WORLD).getInt("backup.run-hour", 5);
+    }
+
     // ==================================================================================
     // SPEC 17.2 case 21
     // ==================================================================================
