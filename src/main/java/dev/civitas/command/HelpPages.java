@@ -60,7 +60,7 @@ public final class HelpPages {
     public static final java.util.List<String> ROOT_COMMANDS = java.util.List.of(
             "city", "money", "pay", "shop", "sell", "worth", "quota", "quests", "challenges",
             "ally", "truce", "ac", "citychat", "leaderboard", "contest", "war", "bounty",
-            "report", "civitas", "toggle", "spawn", "rtp", "warp", "mine", "guide",
+            "report", "civitas", "toggle", "spawn", "rtp", "warp", "mine", "guide", "season",
             "cityadmin");
 
     public static final String GENERAL = "help.category-general";
@@ -129,6 +129,7 @@ public final class HelpPages {
             Entry.of("help.report", "civitas.use", GENERAL, "report"),
             Entry.of("help.civitas", "civitas.use", GENERAL, "civitas"),
             Entry.of("help.guide", "civitas.use", GENERAL, "guide"),
+            Entry.of("help.season", "civitas.use", GENERAL, "season"),
             // Added at M3b. /quota shipped at M6c and /toggle at M7a with no help entry, and
             // nothing caught it because rootCommands() in the test was a hardcoded literal
             // that did not know they existed. Both are player-facing and both were invisible

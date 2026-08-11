@@ -216,6 +216,14 @@ class SchemaTest {
         // V27, SPEC 34.3's starter chain. One row per COMPLETED step, and the primary key is
         // the idempotency: several steps hang off events a player can repeat freely.
         schema.put("player_onboarding", List.of("uuid", "step", "completed_at"));
+        // V28, SPEC 35. A season is a scoreboard reset: the baselines are what let the boards
+        // be measured from its start without any counter being touched, and the results are the
+        // Hall of Fame, which is the one thing here that never resets.
+        schema.put("seasons", List.of("id", "name", "theme", "starts_at", "ends_at",
+                "state", "ended_at"));
+        schema.put("season_results", List.of("id", "season_id", "board", "position",
+                "holder_uuid", "holder_name", "value"));
+        schema.put("season_baselines", List.of("season_id", "board", "subject", "value"));
         return schema;
     }
 

@@ -55,7 +55,7 @@ public final class AdminSystemCommands {
     /** Every 9.4.6 branch plus {@code reports}, added to the {@code /ca} root. */
     public List<LiteralArgumentBuilder<CommandSourceStack>> build() {
         return List.of(reload(), backup(), world(), debug(), perf(), migrate(), event(),
-                contest(), reports());
+                contest(), season(), reports());
     }
 
     // ==================================================================================
@@ -254,6 +254,77 @@ public final class AdminSystemCommands {
         Thread worker = new Thread(work, "civitas-world-backup");
         worker.setDaemon(true);
         worker.start();
+    }
+
+    /**
+     * {@code /ca season start|end|extend}, SPEC 35.5.
+     *
+     * <p>Starting one is what captures the baselines every seasonal board is measured against, so
+     * it is the single most consequential command in this tree — and the least destructive: a
+     * season creates rows and removes nothing.
+     */
+    private LiteralArgumentBuilder<CommandSourceStack> season() {
+        return Commands.literal("season")
+                .requires(source -> source.getSender().hasPermission("civitas.admin.system"))
+                .then(Commands.literal("start")
+                        .then(Commands.argument("name", StringArgumentType.word())
+                                .then(Commands.argument("theme",
+                                                StringArgumentType.greedyString())
+                                        .executes(context -> {
+                                            startSeason(context.getSource().getSender(),
+                                                    StringArgumentType.getString(context, "name"),
+                                                    StringArgumentType.getString(context,
+                                                            "theme"));
+                                            return Command.SINGLE_SUCCESS;
+                                        }))))
+                .then(Commands.literal("end")
+                        .executes(context -> {
+                            endSeason(context.getSource().getSender());
+                            return Command.SINGLE_SUCCESS;
+                        }))
+                .then(Commands.literal("extend")
+                        .then(Commands.argument("days", IntegerArgumentType.integer(1, 365))
+                                .executes(context -> {
+                                    extendSeason(context.getSource().getSender(),
+                                            IntegerArgumentType.getInteger(context, "days"));
+                                    return Command.SINGLE_SUCCESS;
+                                })));
+    }
+
+    private void startSeason(Audience audience, String name, String theme) {
+        CivitasServices current = ready(audience);
+        if (current == null) {
+            return;
+        }
+        current.audit().record(actorOf(audience), "SEASON_START", null, null);
+        Replies.reply(current.seasons().start(name, theme, System.currentTimeMillis()),
+                audience, lang, scheduler, logger,
+                season -> lang.send(audience, "season.started",
+                        Replies.p("name", season.name()),
+                        Replies.p("theme", season.theme())));
+    }
+
+    private void endSeason(Audience audience) {
+        CivitasServices current = ready(audience);
+        if (current == null) {
+            return;
+        }
+        current.audit().record(actorOf(audience), "SEASON_END", null, null);
+        Replies.reply(current.seasons().end(System.currentTimeMillis()),
+                audience, lang, scheduler, logger,
+                standings -> lang.send(audience, "season.ended",
+                        Replies.p("name", standings.season().name())));
+    }
+
+    private void extendSeason(Audience audience, int days) {
+        CivitasServices current = ready(audience);
+        if (current == null) {
+            return;
+        }
+        current.audit().record(actorOf(audience), "SEASON_EXTEND", null, null);
+        Replies.reply(current.seasons().extend(days), audience, lang, scheduler, logger,
+                season -> lang.send(audience, "season.extended",
+                        Replies.p("days", String.valueOf(days))));
     }
 
     private LiteralArgumentBuilder<CommandSourceStack> debug() {

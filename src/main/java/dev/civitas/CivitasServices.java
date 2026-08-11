@@ -98,6 +98,7 @@ public record CivitasServices(
         dev.civitas.core.onboarding.OnboardingService onboarding,
         ChallengeService challenges,
         LeaderboardService leaderboards,
+        dev.civitas.core.season.SeasonService seasons,
         StatsService stats,
         ContestService contests,
         EventService events,

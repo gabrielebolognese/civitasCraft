@@ -134,3 +134,36 @@ leaderboards:
   # How often the lifetime Builder and Farmer counters are written out. Small and frequent:
   # this interval is the most work an unclean shutdown can lose.
   stats-flush-seconds: 30
+
+# SPEC 35's seasons.
+#
+# SPEC 35.1 states the problem they solve: "Six months in, the founding cities hold every top slot
+# and a player who joins in month seven cannot ever appear on any of them. The multi-axis
+# leaderboard design in Part I 13.3 existed specifically to give newcomers a path to visible
+# status. Permanent accumulation removes that path and quietly breaks pillar 1.3."
+#
+# A SEASON TAKES NOTHING AWAY. SPEC 35.2, in bold: "Nothing a player built or owns is ever taken
+# away. This is not a wipe. It is a scoreboard reset." Cities, claims, treasuries, balances,
+# builds, upgrades, member rosters and the world all survive untouched, and there is no code in
+# this plugin that a season could use to remove any of them.
+#
+# WHAT ACTUALLY RESETS is narrower than SPEC's own summary implies, and the reason is structural.
+# Four of the nine SPEC 13.3 boards are STOCKS rather than flows: Wealth IS a balance, City
+# Treasury IS a treasury, City Size IS a claim count, City Population IS a member roster. A stock
+# has no "since" -- resetting one would mean taking something away, which is the one thing SPEC
+# 35.2 forbids. So a season rebases the five FLOW boards (Contribution, Builder, Farmer, Contest
+# Champions, War Record) against a baseline taken when it opened, and leaves the other four alone.
+#
+# That is not a gap. Those five are precisely the ladders a newcomer can climb, which is what
+# pillar 1.3 needs: SPEC 13.3's own argument is that "servers where wealth is the only ladder
+# become toxic because there is exactly one way to matter."
+seasons:
+  enabled: true
+  length-days: 90
+  # SPEC 35.2's end-of-season announcement window.
+  announce-days-before-end: 7
+  # SPEC 35.3 caps a seasonal payout so it cannot distort the SPEC 21.4 money supply accounting:
+  # "Small currency prizes are permitted but capped."
+  max-currency-prize: "100000"
+  # How often the sweep checks whether the running season has expired.
+  check-interval-minutes: 60

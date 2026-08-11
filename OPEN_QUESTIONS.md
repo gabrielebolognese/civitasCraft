@@ -3206,3 +3206,65 @@ Format:
   `PlayerJoinEvent` with `hasPlayedBefore()` false needs a real server. What is asserted is the
   chain itself: the payments, the idempotency, the ordering and the configuration, 13 tests.
   *Date:* 2026-08-11
+
+- **[M14c]** **SPEC 35.2 asks for something that is partly impossible, and the impossible part is
+  structural rather than a limitation.** It says a season resets "leaderboard rankings only" and
+  lists balances, treasuries, claims and member rosters among the things a season never touches. For
+  four of SPEC 13.3's nine boards those are **the same number**: Wealth *is* a balance, City
+  Treasury *is* a treasury, City Size *is* a claim count, City Population *is* a member roster. A
+  stock has no "since" — it is what it is right now — so resetting one would mean taking something
+  away, which SPEC 35.2 forbids in bold. *Implemented default:* a season rebases the five **flow**
+  boards (Contribution, Builder, Farmer, Contest Champions, War Record) and leaves the four **stock**
+  boards alone. Recorded rather than papered over, because a reader comparing SPEC's "rankings only"
+  against nine boards and finding five would otherwise assume four were forgotten. *Date:* 2026-08-11
+
+- **[M14c]** That split is also the one pillar 1.3 needs, which is why it is not a compromise. SPEC
+  35.1's whole argument is that permanent accumulation "quietly breaks pillar 1.3" by making the top
+  slots unreachable, and SPEC 13.3's is that "servers where wealth is the only ladder become toxic
+  because there is exactly one way to matter." A newcomer cannot out-bank a six-month-old city and
+  never could; the five boards a season *does* reset are precisely the ones they can climb.
+  *Date:* 2026-08-11
+
+- **[M14c]** **The reset is a baseline, not a truncation.** `season_baselines` records what every
+  counter read when the season opened, and a season score is the lifetime figure minus that.
+  Resetting the counters themselves would have been simpler and would have destroyed a player's
+  lifetime Builder total — which SPEC 35.2 lists among the things a season never takes away. It also
+  means a season can be extended or ended early without anything being recomputed.
+  *Date:* 2026-08-11
+
+- **[M14c]** Rebasing **changes the order, not only the numbers**, and that reordering is the entire
+  feature: a founding city with 900,000 blocks placed before the season and 100 since ranks below a
+  newcomer with 5,000 since. Ranks are therefore assigned *after* the re-sort rather than carried
+  over from the lifetime board. *Date:* 2026-08-11
+
+- **[M14c]** Baselines are keyed by the **displayed name**, because `LeaderboardEntry` carries no id
+  — a board is built for display and never needed one. The consequence, recorded rather than hidden:
+  a player who changes their Minecraft name mid-season loses their baseline and their season score
+  restarts from the rename. A city rename costs SPEC 5.7's fee, so the same applies there and is
+  rarer. Fixing it properly means adding an id to `LeaderboardEntry`, which touches every board.
+  *Date:* 2026-08-11
+
+- **[M14c]** The Hall of Fame stores its values **rendered** rather than as numbers. The underlying
+  figures keep moving after a season closes, and a Hall of Fame that changed when somebody kept
+  playing would not be a record of anything. It is also the only thing in this system that never
+  resets, which is what a player who topped a board in season two still has in season nine.
+  *Date:* 2026-08-11
+
+- **[M14c]** SPEC 35.2 says the not-a-wipe line "must be stated explicitly and repeatedly in-game,
+  because 'season' on most servers means 'your stuff is deleted' and players will assume the worst."
+  *Implemented default:* taken literally — `season.not-a-wipe` appears on `/season`, on
+  `/season rewards`, and in the end-of-season broadcast. Repetition that would be noise anywhere
+  else is the requirement here. *Date:* 2026-08-11
+
+- **[M14c]** **SPEC 35.3's rewards are described and not implemented.** A banner pattern, a chat
+  title, a Hall of Fame entry and a non-tradeable commemorative item: the Hall of Fame entry exists,
+  and the other three are cosmetics with no system behind them — this plugin has no chat-title
+  mechanism, no banner-pattern grant and no commemorative-item registry, and inventing three would
+  be inventing features. *Implemented default:* `/season rewards` describes what SPEC promises and
+  the standings are recorded; the cosmetics are not granted. **This needs a developer decision**, and
+  it is the largest gap in the milestone. *Date:* 2026-08-11
+
+- **[M14c]** **Unverified: no season has ever run to completion.** The classification, the clock and
+  the expiry are pure and tested; `start`, `end`, `extend` and the rebasing are wired and compiled
+  and exercised only through the shipped fixture. What has not been demonstrated is a ninety-day
+  cycle, or a rebase over a board with real history behind it. *Date:* 2026-08-11

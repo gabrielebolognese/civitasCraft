@@ -211,6 +211,9 @@ public final class CivitasPlugin extends JavaPlugin {
         // SPEC 34.4: "/guide reissues the book at any time." The book is built from lang alone,
         // so the command exists before storage does -- a new player asking for it during the
         // null window gets the book, and only /guide progress needs the service.
+        dev.civitas.command.player.SeasonCommand seasonCommand =
+                new dev.civitas.command.player.SeasonCommand(services::get, lang, scheduler,
+                        getLogger());
         dev.civitas.command.player.GuideCommand guideCommand =
                 new dev.civitas.command.player.GuideCommand(services::get,
                         new dev.civitas.core.onboarding.GuideBook(lang), lang, scheduler);
@@ -226,7 +229,7 @@ public final class CivitasPlugin extends JavaPlugin {
                         contestCommand.build(), warCommand.build(),
                         bountyCommand.build(), adminCommand.build(),
                         reportCommand.build(), cityChat.build(), civitasCommand.build(),
-                        guideCommand.build()));
+                        guideCommand.build(), seasonCommand.build()));
 
         warnIfRollbackDisabled();
         openDatabaseAsync(scheduler);
@@ -934,6 +937,22 @@ public final class CivitasPlugin extends JavaPlugin {
                 12000L, 24L * 60 * 60 * 20L);
 
         // ==============================================================================
+        // SPEC 35's seasons, M14c
+        // ==============================================================================
+        // A scoreboard reset and nothing else. SPEC 35.2, in bold: "Nothing a player built or
+        // owns is ever taken away. This is not a wipe."
+        dev.civitas.core.season.SeasonService seasonService =
+                new dev.civitas.core.season.SeasonService(loadedDaos.seasons(),
+                        leaderboardService, configs, getLogger());
+        seasonService.load();
+        long seasonTicks = Math.max(1L, configs.get(ConfigFile.EVENTS)
+                .getInt("seasons.check-interval-minutes", 60)) * 60L * 20L;
+        getServer().getScheduler().runTaskTimerAsynchronously(this,
+                () -> seasonService.sweepQuietly(System.currentTimeMillis(),
+                        standings -> announceSeasonEnd(standings)),
+                2400L, seasonTicks);
+
+        // ==============================================================================
         // SPEC 34's onboarding, M9b
         // ==============================================================================
         // SPEC 34.1 states the gap: Parts I to III "assume the player already understands cities,
@@ -1271,7 +1290,8 @@ public final class CivitasPlugin extends JavaPlugin {
                 teleportService, randomTeleport, warpService, miningClaimService,
                 waystationService,
                 shopService, questService, onboardingService,
-                challengeService, leaderboardService, statsService, contestService,
+                challengeService, leaderboardService, seasonService, statsService,
+                contestService,
                 eventService, warWiring.service(), warWiring.allies(), warWiring.peace(),
                 warWiring.capturePoints(), warWiring.rollback(), warWiring.trigger(),
                 auditService, adminProtection, fraudHeuristics, inspectMode,
@@ -1924,6 +1944,30 @@ public final class CivitasPlugin extends JavaPlugin {
                                 trip.baseline().toPlainString()),
                         dev.civitas.command.Replies.p("ratio", trip.ratio().toPlainString()));
             }
+        });
+    }
+
+    /**
+     * SPEC 35.2's end-of-season ceremony.
+     *
+     * <p>Announced to everyone, because SPEC 35.2 makes the standings a public moment — and it
+     * says the same line the commands do, for the reason SPEC gives: "'season' on most servers
+     * means 'your stuff is deleted' and players will assume the worst."
+     */
+    private void announceSeasonEnd(dev.civitas.core.season.SeasonService.Standings standings) {
+        getServer().getScheduler().runTask(this, () -> {
+            getServer().broadcast(lang.get("season.ended",
+                    dev.civitas.command.Replies.p("name", standings.season().name())));
+            getServer().broadcast(lang.get("season.not-a-wipe"));
+            standings.byBoard().forEach((board, entries) -> {
+                if (!entries.isEmpty()) {
+                    getServer().broadcast(lang.get("season.winner",
+                            dev.civitas.command.Replies.p("board", lang.plain(board.nameKey())),
+                            dev.civitas.command.Replies.p("name", entries.get(0).name()),
+                            dev.civitas.command.Replies.p("value",
+                                    entries.get(0).value().toPlainString())));
+                }
+            });
         });
     }
 
