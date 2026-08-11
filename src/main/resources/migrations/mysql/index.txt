@@ -29,3 +29,5 @@ V25__siege_units.sql
 V26__money_supply.sql
 V27__onboarding.sql
 V28__seasons.sql
+V29__staff_notes.sql
+V30__server_stats.sql

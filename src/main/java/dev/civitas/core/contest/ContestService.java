@@ -108,6 +108,52 @@ public final class ContestService {
         });
     }
 
+    /**
+     * SPEC 40.1's contest visit warps.
+     *
+     * <h3>Why a warp and not the direct teleport that already worked</h3>
+     *
+     * <p>SPEC 40.1 exists because SPEC 32.3 removed the world border: "An entry four hundred
+     * thousand blocks out would receive zero votes, and the city that built it would be
+     * structurally excluded from a core system." {@code /contest visit} already answers that, so
+     * the warp adds something else — a <b>named, discoverable</b> route that shows up in
+     * {@code /warp} tab completion beside every other public warp, for a player who never learns
+     * the contest commands.
+     *
+     * <p>Temporary by construction: the warp carries the voting window's end as its expiry, so a
+     * contest that is never formally closed still stops advertising its entries. That is
+     * {@code WarpService}'s expiry column doing the job M3b built it for.
+     */
+    @FunctionalInterface
+    public interface Warps {
+
+        /**
+         * Publishes a warp, or removes it when {@code at} is null.
+         *
+         * @param expiresAt when the warp should stop working
+         */
+        void publish(String name, String world, double x, double y, double z, Long expiresAt);
+    }
+
+    private Warps warps;
+
+    public void useWarps(Warps publisher) {
+        this.warps = Objects.requireNonNull(publisher, "publisher");
+    }
+
+    /**
+     * The warp name for an entry.
+     *
+     * <p>Prefixed so the sweep at contest end can find every one of them without a table of its
+     * own, and so an operator reading {@code /warp} can tell a contest warp from one they made.
+     */
+    public static String warpNameFor(String cityName) {
+        return WARP_PREFIX + cityName.toLowerCase(java.util.Locale.ROOT);
+    }
+
+    /** What every contest warp starts with. */
+    public static final String WARP_PREFIX = "contest-";
+
     /** Replaces the cached contest. Used by the cycle after it advances a state. */
     void remember(Contest contest) {
         current.set(contest);
@@ -275,9 +321,14 @@ public final class ContestService {
                 return completed(Result.<ContestEntryRow>failure("BAD_REGION", "contest.no-region"));
             }
             return daos.contestEntries().markSubmitted(entry.id(), now)
-                    .thenApply(ignored -> Result.success(new ContestEntryRow(entry.id(),
-                            entry.contestId(), entry.cityId(), entry.plotRegion(), now,
-                            entry.score(), false, null, null)));
+                    .thenApply(ignored -> {
+                        // SPEC 40.1, after the row is marked rather than before: a warp to an
+                        // entry that failed to submit would point at a build nobody may vote on.
+                        publishWarp(city, entry, contest);
+                        return Result.success(new ContestEntryRow(entry.id(),
+                                entry.contestId(), entry.cityId(), entry.plotRegion(), now,
+                                entry.score(), false, null, null));
+                    });
         });
     }
 
@@ -456,11 +507,53 @@ public final class ContestService {
             daos.contests().updateState(connection, contest.id(), ContestState.FINISHED.key());
             return Result.success(List.copyOf(placements));
         }).thenApply(result -> {
-            if (result instanceof Result.Success<List<Placement>>) {
+            if (result instanceof Result.Success<List<Placement>>(List<Placement> placed)) {
                 scheduler.runOnMain(() -> current.set(contest.withState(ContestState.FINISHED)));
+                // SPEC 40.1: "The warp is deleted when the contest closes." Every entry, not only
+                // the winners — a losing entry's warp is just as stale.
+                for (Placement placement : placed) {
+                    cities.city(placement.entry().cityId()).ifPresent(city ->
+                            removeWarp(city.name()));
+                }
             }
             return result;
         });
+    }
+
+    /**
+     * Publishes SPEC 40.1's warp for one entry.
+     *
+     * <p>Above the build, at the same height {@code /contest visit} uses, so the two routes arrive
+     * in the same place. Silent when the world is not loaded: an entry in an unloaded world cannot
+     * be visited by either route, and refusing the submission over it would punish the entrant for
+     * an operator's world list.
+     */
+    private void publishWarp(City city, ContestEntryRow entry, Contest contest) {
+        if (warps == null || !visitWarpsEnabled()) {
+            return;
+        }
+        PlotRegion.parse(entry.plotRegion()).ifPresent(region -> {
+            double x = Math.floor(region.centreX()) + 0.5;
+            double z = Math.floor(region.centreZ()) + 0.5;
+            double y = region.maxY() + viewHeight();
+            warps.publish(warpNameFor(city.name()), region.world(), x, y, z, contest.endsAt());
+        });
+    }
+
+    private void removeWarp(String cityName) {
+        if (warps != null) {
+            warps.publish(warpNameFor(cityName), null, 0, 0, 0, null);
+        }
+    }
+
+    /** How far above the build a visitor arrives, matching {@code /contest visit}. */
+    private int viewHeight() {
+        int size = maxRegionSize();
+        return size > 0 ? Math.min(16, size) : 16;
+    }
+
+    public boolean visitWarpsEnabled() {
+        return configs.get(ConfigFile.EVENTS).getBoolean("contests.visit-warps", true);
     }
 
     /**

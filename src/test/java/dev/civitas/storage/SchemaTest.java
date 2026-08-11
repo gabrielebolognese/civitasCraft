@@ -224,6 +224,18 @@ class SchemaTest {
         schema.put("season_results", List.of("id", "season_id", "board", "position",
                 "holder_uuid", "holder_name", "value"));
         schema.put("season_baselines", List.of("season_id", "board", "subject", "value"));
+        // V29, SPEC 22.7.2. Its own table rather than the report queue or audit_log: a report is
+        // somebody complaining, an audit row is an action that happened, and a note is a
+        // moderator's own memory across both. No update and no delete -- a note that could be
+        // revised is not a record of what somebody thought at the time.
+        schema.put("staff_notes", List.of("id", "target_uuid", "author_uuid", "note",
+                "created_at"));
+        // V30, SPEC 36.6. One row a day rather than a running counter, because the question is
+        // always about a trend -- "are we losing players" is a shape, and a counter cannot be
+        // differenced.
+        schema.put("server_stats", List.of("day_start", "registered", "active_7d",
+                "active_30d", "cities", "claims", "average_city", "wars_started",
+                "contest_entries"));
         return schema;
     }
 

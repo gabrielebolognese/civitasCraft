@@ -89,6 +89,27 @@ public final class PlayerDao extends Dao<PlayerRow> {
         return queryList("SELECT " + COLUMNS + " FROM players WHERE city_id IS NOT NULL");
     }
 
+    /** SPEC 36.6: how many accounts have ever joined. */
+    public CompletableFuture<Integer> countAll() {
+        return db.call(connection -> queryOneSync(connection,
+                "SELECT COUNT(*) AS total FROM players",
+                rs -> rs.getInt("total")).orElse(0));
+    }
+
+    /**
+     * SPEC 36.6: how many have played since a moment.
+     *
+     * <p>{@code last_seen}, not {@code active_playtime_ms}. The question is retention — has this
+     * person been here — and somebody who logs in weekly to stand in their city has not left,
+     * whatever SPEC 4.2.1's anti-AFK filter thinks of them. The same reading SPEC 17.1's
+     * inactivity rules take.
+     */
+    public CompletableFuture<Integer> countSeenSince(long since) {
+        return db.call(connection -> queryOneSync(connection,
+                "SELECT COUNT(*) AS total FROM players WHERE last_seen >= ?",
+                rs -> rs.getInt("total"), since).orElse(0));
+    }
+
     /** Feeds the SPEC 13.3 Wealth leaderboard. */
     public CompletableFuture<List<PlayerRow>> findTopByBalance(int limit) {
         return queryList("SELECT " + COLUMNS + " FROM players ORDER BY balance DESC LIMIT ?", limit);

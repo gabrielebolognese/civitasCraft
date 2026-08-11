@@ -1294,6 +1294,36 @@ admin:
     top-players: "<dark_gray>--- <gold>Richest players<dark_gray> ---"
     top-cities: "<dark_gray>--- <gold>Richest cities<dark_gray> ---"
     top-entry: "<gray>  <white><name></white> <dark_gray>-> <gold><amount></gold> <dark_gray>(<percent>% of circulation)"
+  # SPEC 22.7.1's investigative commands. Market activity only, deliberately: /ca ledger already
+  # shows everything, and an admin chasing an exploit does not want rent payments interleaved
+  # with the eight thousand diamonds somebody sold in an hour.
+  history:
+    header: "<dark_gray>--- <gold>Market activity<dark_gray>, <white><player></white>, last <white><days></white>d <dark_gray>(<count>) ---"
+    none: "<gray>Nothing in that window."
+    entry: "<gray>  <white><type></white> <dark_gray>| <white><item></white> <dark_gray>| <amount> <dark_gray>-> <balance>"
+    net: "<gray>Net over the window: <white><amount>"
+    item-header: "<dark_gray>--- <gold><item><dark_gray>, last <white><days></white>d <dark_gray>(<count> sales) ---"
+    item-entry: "<gray>  <white><player></white> <dark_gray>-> <gold><amount>"
+  notes:
+    header: "<dark_gray>--- <gold>Staff notes<dark_gray> on <white><player></white> <dark_gray>(<count>) ---"
+    none: "<gray>No notes."
+    entry: "<gray>  <dark_gray>[<when>]</dark_gray> <note>"
+    added: "<green>Note added for <white><player></white>.</green> <gray>Notes are never edited or deleted.</gray>"
+  spy:
+    "on": "<green>Chat monitoring on.</green> <gray>You will see city and alliance chat you are not in.</gray>"
+    "off": "<gray>Chat monitoring off."
+    line: "<dark_gray>[<dark_purple>spy<dark_gray>] <aqua><city></aqua> <white><player></white><dark_gray>:</dark_gray> <gray><message>"
+  whoami:
+    header: "<dark_gray>--- <gold>Your admin permissions<dark_gray> ---"
+    held: "<green>  + <white><node>"
+    missing: "<dark_gray>  - <node>"
+  # SPEC 36.6. The retention line is the one worth reading: a server bleeding regulars while its
+  # registration count still climbs is the failure SPEC calls slow and confusing to diagnose.
+  stats:
+    header: "<dark_gray>--- <gold>Server<dark_gray> ---"
+    players: "<gray>Players: <white><registered></white> registered, <white><week></white> this week, <white><month></white> this month"
+    cities: "<gray>Cities: <white><cities></white> holding <white><claims></white> chunks <dark_gray>(<average> each)"
+    retention: "<gray>Weekly retention: <white><percent>%</white> <dark_gray>of the month's active players came back this week"
   system:
     backup-started: "<gray>Backing up..."
     backup-done: "<green>Backup written to <white><file></white>."
@@ -1483,6 +1513,8 @@ help:
   civitas: "<yellow>/civitas rules <dark_gray>- <gray>The server rules. Read them before your first war."
   guide: "<white>/guide</white> <gray>- the new player guide, and <white>/guide progress</white>"
   season: "<white>/season</white> <gray>- the current season, its standings and its rewards"
+  transactions: "<white>/transactions [page]</white> <gray>- your own ledger, last 30 days"
+  playtime: "<white>/playtime [player]</white> <gray>- total and active playtime, and what it unlocks"
   quota: "<yellow>/quota <dark_gray>- <gray>See how much you may still sell to the market today."
   toggle: "<yellow>/toggle [category] <dark_gray>- <gray>Choose which messages you receive."
   spawn: "<yellow>/spawn <dark_gray>- <gray>Travel to the server hub."
@@ -1776,3 +1808,23 @@ season:
   ended: "<gold>Season <white><name></white> has ended.</gold>"
   extended: "<green>The season has been extended by <white><days></white> days."
   winner: "<gray>  <white><board></white> <dark_gray>-> <gold><name></gold> <dark_gray>(<value>)"
+
+# SPEC 22.3. SPEC 22.1 rates /transactions Critical: "A player had no way to see their own
+# transaction history. Only admins could." Read from the ledger, so what a player sees is what an
+# admin sees -- a player-facing view that could disagree with the audit trail would be worse than
+# none at all.
+transactions:
+  header: "<dark_gray>--- <gold>Your transactions<dark_gray>, last <white><days></white>d <dark_gray>| page <white><page></white>/<white><pages></white> of <count> ---"
+  none: "<gray>Nothing in the last 30 days."
+  none-of-type: "<gray>No <white><type></white> transactions in the last 30 days."
+  credit: "<gray>  <dark_gray><when></dark_gray> <white><type></white> <green>+<amount></green> <dark_gray>-> <balance>"
+  debit: "<gray>  <dark_gray><when></dark_gray> <white><type></white> <red>-<amount></red> <dark_gray>-> <balance>"
+
+# SPEC 22.3. Both figures always: SPEC 4.2.1's anti-AFK filter makes them differ, and a player
+# told only the first cannot work out why a gate has not opened for them.
+playtime:
+  header: "<dark_gray>--- <gold>Playtime<dark_gray>, <white><player></white> ---"
+  total: "<gray>Total: <white><time>"
+  active: "<gray>Active: <white><time></white> <dark_gray>(what the gates below measure)"
+  can-found: "<green>  + You have the <hours>h needed to found a city."
+  cannot-found: "<gray>  - Founding a city needs <white><hours>h</white> of active playtime."

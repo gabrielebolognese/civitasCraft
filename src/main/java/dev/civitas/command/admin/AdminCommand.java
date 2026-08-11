@@ -35,6 +35,19 @@ public final class AdminCommand {
 
     private final Runnable reloadHook;
 
+    /**
+     * SPEC 22.7.2's /ca spy, exposed so the chat listener can ask who is watching.
+     *
+     * <p>Held here rather than in a service because the state is per-admin and per-session, and
+     * building a service for a set of UUIDs that a restart should clear would be more machinery
+     * than the feature.
+     */
+    private AdminInvestigationCommands investigation;
+
+    public AdminInvestigationCommands investigation() {
+        return investigation;
+    }
+
     public AdminCommand(Supplier<CivitasServices> services, LangManager lang,
                         Scheduler scheduler, Logger logger, Runnable reloadHook) {
         this.services = Objects.requireNonNull(services, "services");
@@ -58,6 +71,11 @@ public final class AdminCommand {
         AdminEconomyCommands economy = new AdminEconomyCommands(services, lang, scheduler,
                 logger);
         root.then(economy.build()).then(economy.buildMarket()).then(economy.buildBreaker());
+        AdminInvestigationCommands investigation =
+                new AdminInvestigationCommands(services, lang, scheduler, logger);
+        investigation.build().forEach(root::then);
+        this.investigation = investigation;
+
         new AdminSystemCommands(services, lang, scheduler, logger, reloadHook).build()
                 .forEach(root::then);
         new AdminInspectCommands(services, lang, scheduler, logger).build()

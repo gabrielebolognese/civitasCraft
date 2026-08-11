@@ -115,6 +115,7 @@ public record CivitasServices(
         LedgerExport ledgerExport,
         UpkeepOverrides upkeepOverrides,
         ReportService reports,
+        dev.civitas.core.admin.ServerStatsService serverStats,
         BackupService backups,
         dev.civitas.core.world.WorldBackupService worldBackups,
         dev.civitas.core.world.WorldRegistry worlds,

@@ -211,12 +211,25 @@ public final class CivitasPlugin extends JavaPlugin {
         // SPEC 34.4: "/guide reissues the book at any time." The book is built from lang alone,
         // so the command exists before storage does -- a new player asking for it during the
         // null window gets the book, and only /guide progress needs the service.
+        // SPEC 22.1 rates /transactions Critical: "A player had no way to see their own
+        // transaction history. Only admins could."
+        dev.civitas.command.player.TransactionsCommand transactionsCommand =
+                new dev.civitas.command.player.TransactionsCommand(services::get, lang, scheduler,
+                        getLogger());
+        dev.civitas.command.player.PlaytimeCommand playtimeCommand =
+                new dev.civitas.command.player.PlaytimeCommand(services::get, lang, scheduler,
+                        getLogger());
         dev.civitas.command.player.SeasonCommand seasonCommand =
                 new dev.civitas.command.player.SeasonCommand(services::get, lang, scheduler,
                         getLogger());
         dev.civitas.command.player.GuideCommand guideCommand =
                 new dev.civitas.command.player.GuideCommand(services::get,
                         new dev.civitas.core.onboarding.GuideBook(lang), lang, scheduler);
+        // SPEC 22.7.2's /ca spy, wired after the tree is built because the set it reads lives
+        // on the command that toggles it.
+        cityChat.useSpy(uuid -> adminCommand.investigation() != null
+                && adminCommand.investigation().isSpying(uuid));
+
         new CommandRegistry(this, lang).registerAll(
                 List.of(cityCommand.build(), moneyCommand.build(), payCommand.build(),
                         shopCommand.build(), sellCommand.build(), worthCommand.build(),
@@ -229,7 +242,8 @@ public final class CivitasPlugin extends JavaPlugin {
                         contestCommand.build(), warCommand.build(),
                         bountyCommand.build(), adminCommand.build(),
                         reportCommand.build(), cityChat.build(), civitasCommand.build(),
-                        guideCommand.build(), seasonCommand.build()));
+                        guideCommand.build(), seasonCommand.build(),
+                        transactionsCommand.build(), playtimeCommand.build()));
 
         warnIfRollbackDisabled();
         openDatabaseAsync(scheduler);
@@ -1211,6 +1225,45 @@ public final class CivitasPlugin extends JavaPlugin {
         warpService.loadAll().thenAccept(count ->
                 getLogger().info(() -> "Loaded " + count + " warps."));
 
+        // ==============================================================================
+        // SPEC 36.6's server statistics and SPEC 36.4's public API, M21b
+        // ==============================================================================
+        // SPEC 36.6: recorded "so a server owner can see trends, which is the only way to notice
+        // retention problems before they are terminal."
+        dev.civitas.core.admin.ServerStatsService serverStatsService =
+                new dev.civitas.core.admin.ServerStatsService(loadedDaos, cityRegistry,
+                        claimRegistry, getLogger());
+        getServer().getScheduler().runTaskTimerAsynchronously(this,
+                () -> serverStatsService.recordQuietly(System.currentTimeMillis()),
+                3600L, 6L * 60 * 60 * 20L);
+
+        // SPEC 36.4's API, registered on the services manager so a third-party plugin can find
+        // it without compiling against this one. Read-only by construction: see CivitasApi.
+        getServer().getServicesManager().register(dev.civitas.api.CivitasApi.class,
+                new dev.civitas.api.CivitasApiImpl(services::get), this,
+                org.bukkit.plugin.ServicePriority.Normal);
+
+        // SPEC 36.6's anonymous metrics. Disabling is bStats' own server-wide opt-out rather
+        // than a second switch here, which would let this plugin report while an operator
+        // believed they had turned metrics off.
+        dev.civitas.integration.MetricsHook.register(this, services::get, getLogger());
+
+        // SPEC 40.1's contest visit warps, M15a. The consequence of SPEC 32.3's missing border:
+        // "An entry four hundred thousand blocks out would receive zero votes, and the city that
+        // built it would be structurally excluded from a core system."
+        contestService.useWarps((name, world, x, y, z, expiresAt) -> {
+            if (world == null) {
+                warpService.delete(name);
+                return;
+            }
+            org.bukkit.World target = getServer().getWorld(world);
+            if (target == null) {
+                return;
+            }
+            warpService.set(name, new org.bukkit.Location(target, x, y, z), null, expiresAt,
+                    System.currentTimeMillis());
+        });
+
         // SPEC 23.6's notification preferences and SPEC 23.4's channel router. The router
         // consults the preferences on every send, and the four SPEC 23.6 locks are enforced
         // inside the preferences so no channel can bypass them.
@@ -1295,7 +1348,8 @@ public final class CivitasPlugin extends JavaPlugin {
                 eventService, warWiring.service(), warWiring.allies(), warWiring.peace(),
                 warWiring.capturePoints(), warWiring.rollback(), warWiring.trigger(),
                 auditService, adminProtection, fraudHeuristics, inspectMode,
-                ledgerExport, upkeepOverrides, reportService, backups,
+                ledgerExport, upkeepOverrides, reportService, serverStatsService,
+                backups,
                 worldBackups, worldRegistry,
                 configs.get(ConfigFile.CONFIG).getInt("storage.backup.keep-count", 28),
                 this::pendingMigrationNames,

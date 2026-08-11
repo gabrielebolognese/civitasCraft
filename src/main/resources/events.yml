@@ -88,6 +88,11 @@ events:
       weight: 1.0
 
 contests:
+  # SPEC 40.1: a submission publishes a temporary public warp to a viewing point above the
+  # build, deleted when the contest closes. It exists because SPEC 32.3 removed the world border
+  # -- "an entry four hundred thousand blocks out would receive zero votes, and the city that
+  # built it would be structurally excluded from a core system."
+  visit-warps: true
   enabled: true
   # SPEC 13.4: a 14-day cycle run automatically.
   cycle-days: 14

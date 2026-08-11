@@ -99,9 +99,21 @@ public enum StarterStep {
         return Optional.empty();
     }
 
-    /** How many iron ore SPEC 34.3 asks for at step four. */
-    public static final int IRON_TARGET = 32;
+    /**
+     * SPEC 34.3's two targets, as the config keys the hard rule requires.
+     *
+     * <p>They shipped as constants and were caught by an audit rather than by a test: SPEC 0
+     * rule 3 is "Every numeric value in this document is a default config value, not a hardcoded
+     * constant", and both of these are values SPEC 34.3 states in its table. Neither sweep can
+     * see this class of defect — {@code ConfigKeyUsageTest} finds keys nothing reads, and a
+     * number that was never a key is invisible to it.
+     */
+    public static final String IRON_TARGET_KEY = "onboarding.starter.iron-ore-target";
+    public static final String TRAVEL_BLOCKS_KEY = "onboarding.starter.travel-blocks";
 
-    /** How far from spawn SPEC 34.3's travel step counts, in blocks. */
-    public static final int TRAVEL_BLOCKS = 500;
+    /** SPEC 34.3's default: "Mine 32 iron ore". */
+    public static final int DEFAULT_IRON_TARGET = 32;
+
+    /** SPEC 34.3's default: "travel 500 blocks from spawn". */
+    public static final int DEFAULT_TRAVEL_BLOCKS = 500;
 }

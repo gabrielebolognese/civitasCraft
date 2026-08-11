@@ -1276,6 +1276,31 @@ admin:
     top-players: "<dark_gray>--- <gold>Giocatori piu' ricchi<dark_gray> ---"
     top-cities: "<dark_gray>--- <gold>Citta' piu' ricche<dark_gray> ---"
     top-entry: "<gray>  <white><name></white> <dark_gray>-> <gold><amount></gold> <dark_gray>(<percent>% della circolazione)"
+  history:
+    header: "<dark_gray>--- <gold>Attivita' di mercato<dark_gray>, <white><player></white>, ultimi <white><days></white>g <dark_gray>(<count>) ---"
+    none: "<gray>Niente in quel periodo."
+    entry: "<gray>  <white><type></white> <dark_gray>| <white><item></white> <dark_gray>| <amount> <dark_gray>-> <balance>"
+    net: "<gray>Saldo del periodo: <white><amount>"
+    item-header: "<dark_gray>--- <gold><item><dark_gray>, ultimi <white><days></white>g <dark_gray>(<count> vendite) ---"
+    item-entry: "<gray>  <white><player></white> <dark_gray>-> <gold><amount>"
+  notes:
+    header: "<dark_gray>--- <gold>Note dello staff<dark_gray> su <white><player></white> <dark_gray>(<count>) ---"
+    none: "<gray>Nessuna nota."
+    entry: "<gray>  <dark_gray>[<when>]</dark_gray> <note>"
+    added: "<green>Nota aggiunta per <white><player></white>.</green> <gray>Le note non si modificano ne' si cancellano.</gray>"
+  spy:
+    "on": "<green>Monitoraggio chat attivo.</green> <gray>Vedrai la chat cittadina e di alleanza a cui non appartieni.</gray>"
+    "off": "<gray>Monitoraggio chat disattivato."
+    line: "<dark_gray>[<dark_purple>spy<dark_gray>] <aqua><city></aqua> <white><player></white><dark_gray>:</dark_gray> <gray><message>"
+  whoami:
+    header: "<dark_gray>--- <gold>I tuoi permessi da amministratore<dark_gray> ---"
+    held: "<green>  + <white><node>"
+    missing: "<dark_gray>  - <node>"
+  stats:
+    header: "<dark_gray>--- <gold>Server<dark_gray> ---"
+    players: "<gray>Giocatori: <white><registered></white> registrati, <white><week></white> questa settimana, <white><month></white> questo mese"
+    cities: "<gray>Citta': <white><cities></white> con <white><claims></white> chunk <dark_gray>(<average> ciascuna)"
+    retention: "<gray>Ritenzione settimanale: <white><percent>%</white> <dark_gray>degli attivi del mese e' tornato questa settimana"
   system:
     backup-started: "<gray>Backup in corso..."
     backup-done: "<green>Backup scritto in <white><file></white>."
@@ -1465,6 +1490,8 @@ help:
   civitas: "<yellow>/civitas rules <dark_gray>- <gray>Le regole del server. Leggile prima della tua prima guerra."
   guide: "<white>/guide</white> <gray>- la guida per i nuovi giocatori, e <white>/guide progress</white>"
   season: "<white>/season</white> <gray>- la stagione in corso, le classifiche e i premi"
+  transactions: "<white>/transactions [page]</white> <gray>- il tuo registro, ultimi 30 giorni"
+  playtime: "<white>/playtime [player]</white> <gray>- tempo totale e attivo, e cosa sblocca"
   quota: "<yellow>/quota <dark_gray>- <gray>Vedi quanto puoi ancora vendere al mercato oggi."
   toggle: "<yellow>/toggle [categoria] <dark_gray>- <gray>Scegli quali messaggi ricevere."
   spawn: "<yellow>/spawn <dark_gray>- <gray>Viaggia verso l'hub del server."
@@ -1748,3 +1775,17 @@ season:
   ended: "<gold>La stagione <white><name></white> e' terminata.</gold>"
   extended: "<green>La stagione e' stata estesa di <white><days></white> giorni."
   winner: "<gray>  <white><board></white> <dark_gray>-> <gold><name></gold> <dark_gray>(<value>)"
+
+transactions:
+  header: "<dark_gray>--- <gold>Le tue transazioni<dark_gray>, ultimi <white><days></white>g <dark_gray>| pagina <white><page></white>/<white><pages></white> di <count> ---"
+  none: "<gray>Niente negli ultimi 30 giorni."
+  none-of-type: "<gray>Nessuna transazione di tipo <white><type></white> negli ultimi 30 giorni."
+  credit: "<gray>  <dark_gray><when></dark_gray> <white><type></white> <green>+<amount></green> <dark_gray>-> <balance>"
+  debit: "<gray>  <dark_gray><when></dark_gray> <white><type></white> <red>-<amount></red> <dark_gray>-> <balance>"
+
+playtime:
+  header: "<dark_gray>--- <gold>Tempo di gioco<dark_gray>, <white><player></white> ---"
+  total: "<gray>Totale: <white><time>"
+  active: "<gray>Attivo: <white><time></white> <dark_gray>(quello che contano i requisiti sotto)"
+  can-found: "<green>  + Hai le <hours>h necessarie per fondare una citta'."
+  cannot-found: "<gray>  - Fondare una citta' richiede <white><hours>h</white> di gioco attivo."

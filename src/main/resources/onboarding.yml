@@ -23,6 +23,12 @@ onboarding:
   # SPEC 34.3's five-step chain. Once per account, distinct from the daily quests.
   starter-quests-enabled: true
   starter:
+    # SPEC 34.3's two targets. Both shipped as hardcoded constants at first and were caught by
+    # an audit rather than by a test -- SPEC 0 rule 3 is that every numeric value in the
+    # specification is a config key, and neither config sweep can see a number that was never
+    # a key at all.
+    iron-ore-target: 32
+    travel-blocks: 500
     rewards:
       # 5,000 C across the chain on top of SPEC 4.2's 2,000 starting balance, which is 70% of a
       # city founding fee -- so a motivated new player can found one in their first session or

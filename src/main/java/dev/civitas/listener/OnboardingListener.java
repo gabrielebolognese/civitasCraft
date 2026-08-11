@@ -168,8 +168,8 @@ public final class OnboardingListener implements Listener {
         if (spawn.getWorld() != player.getWorld()) {
             return;
         }
-        if (spawn.distanceSquared(event.getTo())
-                < (double) StarterStep.TRAVEL_BLOCKS * StarterStep.TRAVEL_BLOCKS) {
+        double far = onboarding.travelBlocks();
+        if (spawn.distanceSquared(event.getTo()) < far * far) {
             enteredCity(player, event.getTo());
             return;
         }
@@ -201,7 +201,7 @@ public final class OnboardingListener implements Listener {
         }
         Player player = event.getPlayer();
         int mined = ironMined.merge(player.getUniqueId(), 1, Integer::sum);
-        if (mined >= StarterStep.IRON_TARGET) {
+        if (mined >= onboarding.ironTarget()) {
             award(player, StarterStep.MINE_IRON);
         }
     }

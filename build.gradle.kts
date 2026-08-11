@@ -40,6 +40,9 @@ dependencies {
     implementation("com.mysql:mysql-connector-j:9.7.0")
     implementation("it.unimi.dsi:fastutil-core:8.5.14")
     implementation("org.spongepowered:configurate-yaml:4.2.0")
+    // SPEC 36.6's anonymous metrics. Shaded and relocated like every other
+    // dependency, because two plugins shipping an unrelocated bStats clash.
+    implementation("org.bstats:bstats-bukkit:3.1.0")
 
     // The server API is compileOnly at runtime but tests need the real classes
     // (YamlConfiguration, MiniMessage, Component) on their classpath.
@@ -71,6 +74,7 @@ tasks {
         relocate("com.zaxxer.hikari", "dev.civitas.lib.hikari")
         relocate("it.unimi.dsi.fastutil", "dev.civitas.lib.fastutil")
         relocate("org.spongepowered.configurate", "dev.civitas.lib.configurate")
+        relocate("org.bstats", "dev.civitas.lib.bstats")
         // The JDBC drivers are deliberately NOT relocated: both resolve their driver
         // class, and sqlite its native library, by hardcoded package name. Paper gives
         // every plugin its own class loader, so an unrelocated driver cannot clash with

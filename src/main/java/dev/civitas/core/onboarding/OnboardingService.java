@@ -67,6 +67,18 @@ public final class OnboardingService {
         }
     }
 
+    /** SPEC 34.3 step four's target, as a config key. */
+    public int ironTarget() {
+        return configs.get(ConfigFile.ONBOARDING).getInt(StarterStep.IRON_TARGET_KEY,
+                StarterStep.DEFAULT_IRON_TARGET);
+    }
+
+    /** SPEC 34.3 step two's distance, as a config key. */
+    public int travelBlocks() {
+        return configs.get(ConfigFile.ONBOARDING).getInt(StarterStep.TRAVEL_BLOCKS_KEY,
+                StarterStep.DEFAULT_TRAVEL_BLOCKS);
+    }
+
     public CompletableFuture<Set<StarterStep>> completed(UUID player) {
         return dao.findCompleted(player).thenApply(keys -> {
             Set<StarterStep> steps = EnumSet.noneOf(StarterStep.class);

@@ -3268,3 +3268,103 @@ Format:
   the expiry are pure and tested; `start`, `end`, `extend` and the rebasing are wired and compiled
   and exercised only through the shipped fixture. What has not been demonstrated is a ninety-day
   cycle, or a rebase over a board with real history behind it. *Date:* 2026-08-11
+
+- **[M15a]** SPEC 40.1 asks a submission to generate "a temporary public warp… available for the
+  duration of the voting window only", and `/contest visit <n>` already teleported directly, which
+  answers the problem SPEC 40.1 states. *Implemented default:* both. The warp adds what the direct
+  teleport cannot — a **named, discoverable** route that appears in `/warp` tab completion beside
+  every other public warp, for a player who never learns the contest commands. It is temporary by
+  construction rather than by a sweep: the warp carries the voting window's end as its `expires_at`,
+  so a contest that is never formally closed still stops advertising its entries. That column has
+  existed since M3b for exactly this. *Date:* 2026-08-11
+
+- **[M15a]** The warp is published **after** the entry is marked submitted, and removed for **every**
+  entry at contest close rather than only the losers. A warp to an entry that failed to submit
+  points at a build nobody may vote on; a losing entry's warp is exactly as stale as a winner's.
+  *Date:* 2026-08-11
+
+- **[M15a]** **A hard-rule violation of my own, from M9b, fixed here.** `IRON_TARGET = 32` and
+  `TRAVEL_BLOCKS = 500` shipped as constants, and SPEC 34.3 states both in its table — SPEC 0 rule 3
+  is "Every numeric value in this document is a default config value, not a hardcoded constant."
+  Found by a `/spec-check` audit rather than by any test, and worth recording why: **neither config
+  sweep can see this class of defect.** `ConfigKeyUsageTest` finds keys nothing reads; a number that
+  was never a key at all is invisible to it, and no test in this project looks for one.
+  *Date:* 2026-08-11
+
+- **[M21a]** SPEC 22.7.1's `/ca history` is **market activity only**, deliberately, and that is the
+  whole difference between it and `/ca ledger`. SPEC 22.1 rates it Critical with a one-line reason —
+  "This is the command for 'what did this player sell'" — and an admin chasing an exploit does not
+  want a player's rent payments interleaved with the eight thousand diamonds they sold in an hour.
+  `/ca history item` groups by **seller sorted by value** rather than by timestamp, because the
+  question that finds an exploit is "who", and four thousand sales in time order find nothing.
+  *Date:* 2026-08-11
+
+- **[M21a]** Staff notes get their own table rather than joining the report queue or `audit_log`.
+  Three different things: a report is somebody complaining, an audit row is an action that happened,
+  and a note is a moderator's own memory across both. Folding them together would mean either a
+  moderator's private working notes appearing in a player-facing report, or an append-only log
+  gaining rows nobody performed. **No update and no delete** — a note that could be quietly revised
+  is not a record of what somebody thought at the time. *Date:* 2026-08-11
+
+- **[M21a]** **The YAML 1.1 boolean trap again**, two milestones after M7a recorded it: `on:` and
+  `off:` are booleans, so `admin.spy.on` loaded as `admin.spy.true` and the orphan sweep flagged
+  both keys. Caught by `LangKeyUsageTest` in under a minute, which is the test earning its keep for
+  the fourth time — but recorded because knowing about a trap and writing the file anyway is the
+  actual failure mode, not ignorance of it. *Date:* 2026-08-11
+
+- **[M21b]** SPEC 36.4's API is **read-only by construction**, and the reason is a sentence in SPEC
+  36.4 worth keeping: "All economy mutation goes through the service layer and is not exposed,
+  deliberately, so no third-party plugin can create money outside the ledger." An API that could
+  move a balance would put money into the world with no ledger row behind it, defeating SPEC 21.4's
+  supply accounting, the circuit breakers and every fraud heuristic in one step. There is no method
+  on the interface that changes anything, and adding one would require deleting that sentence first.
+  The mutation route a third-party plugin does have is the Vault provider, which goes through
+  `EconomyService` and writes a ledger row like everything else. *Date:* 2026-08-11
+
+- **[M21b]** `canBuild` asks `ProtectionService` rather than reassembling the answer from the claim,
+  so a third-party caller gets the same verdict the block listeners give — including bypass, ally
+  trust and SPEC 17.1's dormancy. A convenience method that reimplemented the rule would be the
+  two-authorities defect this project has now found five times, exported to other people's plugins.
+  *Date:* 2026-08-11
+
+- **[M21b]** `hasPermission` takes the flag **by name** rather than by the enum, so a caller need not
+  compile against this plugin's internals, and an unknown flag answers false rather than throwing —
+  a third-party plugin should not be able to crash on a typo in its own config. *Date:* 2026-08-11
+
+- **[M21b]** SPEC 36.6 says metrics are "disableable" and this ships **no switch of its own**.
+  bStats has a server-wide opt-out in `plugins/bStats/config.yml` that an operator already knows
+  about, and a second switch here would let this plugin keep reporting while they believed they had
+  turned metrics off. Every chart is a shape rather than an identity — city count, claim count,
+  storage backend — because "anonymous" has to mean something specific for a plugin that knows where
+  everybody lives. *Date:* 2026-08-11
+
+- **[M21b]** SPEC 36.6's `server_stats` is one row a day rather than a running counter, because the
+  question is always a trend: "are we losing players" is a shape, and a counter cannot be
+  differenced. The line worth reading is **active-in-7 against active-in-30**, which is what shows a
+  server bleeding regulars while its registration count still climbs — the failure SPEC 36.6 calls
+  slow and confusing to diagnose. Keyed on midnight so a second sweep replaces the day rather than
+  adding a second reading of it, which would silently corrupt any differencing.
+  *Date:* 2026-08-11
+
+- **[M22a]** SPEC 22.1's two **Critical** omissions are now built. `/transactions` — "a player had
+  no way to see their own transaction history; only admins could" — reads the ledger rather than a
+  cache, so what a player sees is what an admin sees; a player-facing view that could disagree with
+  the audit trail would be worse than none. `/playtime` prints **both** figures always, because SPEC
+  4.2.1's anti-AFK filter makes them differ and a player told only the total cannot work out why a
+  gate has not opened. *Date:* 2026-08-11
+
+- **[M22a]** `CommandCoverageTest` **derives its universe from SPEC and compares against the tree**,
+  which is the fifth time this project has had to fix that shape. `ConfigKeyUsageTest`'s file list,
+  `HelpPagesTest`'s command list, the migration index and `DaoRoundTripTest`'s count were all
+  hardcoded literals that went stale, and `/quota` and `/toggle` shipped undiscoverable in help for
+  two milestones because of it. Here SPEC's list is transcribed by hand *on purpose* — derived from
+  the tree, the test could only ever agree with itself. *Date:* 2026-08-11
+
+- **[M22a]** **SPEC 22.4's thirteen `/city` information subcommands are not built**, and the test
+  reports them rather than failing. `members`, `online`, `claims`, `treasury`, `upkeep`, `log`,
+  `perms`, `ranks`, `invites`, `relations`, `upgrades`, `stats`, `top`: every one is a read-only view
+  over data a GUI screen already shows, so nothing is unreachable — but SPEC 22.1 is explicit that
+  "a player spends far more time asking 'how much do I have' and 'who is in my city' than they spend
+  claiming chunks", and a command is faster than a menu for all thirteen. *Implemented default:*
+  named in a test that prints them, because a red build here is a build somebody disables. **This is
+  the largest remaining SPEC 22 gap and needs its own pass.** *Date:* 2026-08-11

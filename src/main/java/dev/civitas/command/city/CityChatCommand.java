@@ -71,6 +71,19 @@ public final class CityChatCommand {
                                 StringArgumentType.getString(context, "message"))));
     }
 
+    /**
+     * SPEC 22.7.2's chat monitoring.
+     *
+     * <p>A predicate rather than a service, because the state it reads is a set of UUIDs held by
+     * the command that toggles it. Null until wired, which means no spying -- the safe direction
+     * for a feature whose failure mode is reading somebody's private channel.
+     */
+    private java.util.function.Predicate<java.util.UUID> spy;
+
+    public void useSpy(java.util.function.Predicate<java.util.UUID> watching) {
+        this.spy = java.util.Objects.requireNonNull(watching, "watching");
+    }
+
     private int usage(Audience audience) {
         lang.send(audience, "chat.city-usage");
         return Command.SINGLE_SUCCESS;
@@ -102,6 +115,20 @@ public final class CityChatCommand {
                         LangManager.placeholder("city", own.get().name()),
                         LangManager.placeholder("player", player.getName()),
                         LangManager.placeholder("message", message));
+            }
+        }
+
+        // SPEC 22.7.2's /ca spy. Only admins who asked to watch, and never the speaker's own
+        // city members, who already have it — a moderator inside the city would otherwise see
+        // every line twice.
+        if (spy != null) {
+            for (Player admin : Bukkit.getOnlinePlayers()) {
+                if (spy.test(admin.getUniqueId()) && !own.get().isMember(admin.getUniqueId())) {
+                    lang.send(admin, "admin.spy.line",
+                            LangManager.placeholder("city", own.get().name()),
+                            LangManager.placeholder("player", player.getName()),
+                            LangManager.placeholder("message", message));
+                }
             }
         }
         return Command.SINGLE_SUCCESS;

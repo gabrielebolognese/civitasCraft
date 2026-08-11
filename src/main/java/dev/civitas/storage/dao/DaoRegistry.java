@@ -44,6 +44,8 @@ public final class DaoRegistry {
     private final SeasonDao seasons;
     private final ProtectedChunkDao protectedChunks;
     private final ReportDao reports;
+    private final StaffNoteDao staffNotes;
+    private final ServerStatsDao serverStats;
     private final UpkeepMultiplierDao upkeepMultipliers;
     private final AllianceDao alliances;
     private final TruceDao truces;
@@ -98,6 +100,8 @@ public final class DaoRegistry {
         this.seasons = new SeasonDao(db);
         this.protectedChunks = new ProtectedChunkDao(db);
         this.reports = new ReportDao(db);
+        this.staffNotes = new StaffNoteDao(db);
+        this.serverStats = new ServerStatsDao(db);
         this.upkeepMultipliers = new UpkeepMultiplierDao(db);
         this.alliances = new AllianceDao(db);
         this.truces = new TruceDao(db);
@@ -242,6 +246,14 @@ public final class DaoRegistry {
         return reports;
     }
 
+    public StaffNoteDao staffNotes() {
+        return staffNotes;
+    }
+
+    public ServerStatsDao serverStats() {
+        return serverStats;
+    }
+
     public UpkeepMultiplierDao upkeepMultipliers() {
         return upkeepMultipliers;
     }
@@ -336,7 +348,7 @@ public final class DaoRegistry {
     public List<Dao<?>> all() {
         return List.of(players, playerStats, playerLogins, serverEvents, warChunkHashes, warRollbackIssues, cities, cityRanks, cityMembers, cityInvites, cityBans, claims, outposts,
                 ledger, economySnapshots, moneySupply, wars, warBlockLog, warContainerLog, warParticipants, warKills,
-                warEntitySnapshots, siegeCamps, siegeUnits, bounties, onboarding, seasons, protectedChunks, reports,
+                warEntitySnapshots, siegeCamps, siegeUnits, bounties, onboarding, seasons, protectedChunks, reports, staffNotes, serverStats,
                 upkeepMultipliers, alliances,
                 truces, marketStock, sellQuota, dailyActivity, playerToggles, warps, miningClaims, waystations, playerShops, playerQuests, cityChallenges, contests, contestEntries, contestVotes,
                 cityUpgrades, cityVault, defenseUnits, cityWardens, auditLog);
