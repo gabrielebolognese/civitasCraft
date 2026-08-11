@@ -80,6 +80,7 @@ public record CivitasServices(
         TreasuryService treasury,
         BountyService bounties,
         dev.civitas.core.economy.MoneySupplyService moneySupply,
+        dev.civitas.core.economy.CircuitBreakerService circuitBreaker,
         LedgerRollback ledgerRollback,
         UpkeepCalculator upkeep,
         UpkeepTask upkeepTask,

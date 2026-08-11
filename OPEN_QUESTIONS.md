@@ -3082,3 +3082,59 @@ Format:
   tables holding overlapping readings, which is the shape of a dead twin -- the difference is that
   both are read, and `money_supply` carries the escrow term the older one has no column for.
   *Date:* 2026-08-11
+
+- **[M14b]** SPEC 21.7's table gives each row a **different action**, and treating them uniformly
+  would break the mechanism in one of two directions. Only two of the six can freeze the market:
+  server-wide hourly creation, and 40% weekly inflation. A single player's extraordinary day
+  throttles that player, and one item's busy hour takes **that item** off the buy list. Closing the
+  whole market for either would be the overreaction SPEC 21.7 spends a paragraph rejecting -- "a
+  server that halts entirely because of a suspected exploit does more damage than the exploit" --
+  and there is a test whose only job is to assert which rows can and cannot freeze. *Date:* 2026-08-11
+
+- **[M14b]** **The freeze latches.** SPEC 21.7 does not say whether a trip clears itself, and the
+  obvious implementation -- reset when the next hour's reading is normal -- is wrong: it would
+  reopen the market to whatever tripped it at 4am while nobody was awake, and the ratio would then
+  read as normal because the exploited hour is now part of the baseline. *Implemented default:*
+  cleared by `/ca breaker reset` and by nothing else. `reset` also clears every suspended item,
+  because an admin who has decided the market is safe has decided it about the whole market;
+  leaving one item suspended would be a state nobody can see and nobody remembers to fix.
+  *Date:* 2026-08-11
+
+- **[M14b]** Baselines are read from the **ledger**, not from a counter this plugin keeps. A counter
+  resets on restart, and a breaker whose baseline resets when the server does is one an exploiter
+  turns off by crashing it. It also means the thresholds are ratios rather than absolute figures,
+  which is what makes them work on a server of any size: an absolute figure is a guess about how
+  big this one will be. *Date:* 2026-08-11
+
+- **[M14b]** Every rule **fails silent when it has no baseline**. A new server creates its entire
+  money supply in its first hours, and a breaker that tripped on that would close the market on day
+  one -- the single most damaging false positive this mechanism can produce. Likewise a new account
+  is not flagged for its first good day. *Date:* 2026-08-11
+
+- **[M14b]** SPEC 21.11's `action-on-trip: WARN_ONLY` still **fires every rule**: it logs, alerts
+  admins and writes the audit row, and only declines to shut anything. An operator who chose it
+  chose to be told rather than protected, which is a real choice on a server whose staff are awake;
+  reading it as "detect nothing" would make the setting a way to disable the mechanism without
+  saying so. The per-item suspension is unaffected by it either way, because that row never froze
+  the market. *Date:* 2026-08-11
+
+- **[M14b]** Per-item sell volume is read out of the **ledger's metadata blob** rather than a
+  column. SPEC 3.6 fixes the ledger's shape, and adding a column for one report would mean a
+  migration plus a second place the material could be wrong. The cost is a string scan over
+  `MARKET_SELL` rows in the window, which is bounded by the window rather than by the table.
+  *Date:* 2026-08-11
+
+- **[M14b]** **SPEC 17.4 case 73's item audit is built and has no caller.** `auditRollback` takes
+  the counts either side of a restore and reports any growth with no tolerance, because a rollback
+  is not supposed to create a single item. What does not exist is anything that counts server-wide
+  item totals: doing it honestly means walking every loaded chunk's inventories and every player's,
+  twice, around an operation SPEC 11.1 already says must be reliable above all else. *Implemented
+  default:* the rule ships and the count does not, stated here rather than left to be discovered.
+  **This needs a developer decision** on whether the cost is worth paying.
+  *Date:* 2026-08-11
+
+- **[M14b]** **Unverified: no breaker has ever tripped on a live server.** The rules are pure and
+  exhaustively tested, and the latch, the market seams and the sweep are wired and compiled. What
+  has not been demonstrated is a real trip -- the admin alert reaching an online admin, the audit
+  row landing, and a player meeting `market.frozen` at the moment they try to sell.
+  *Date:* 2026-08-11

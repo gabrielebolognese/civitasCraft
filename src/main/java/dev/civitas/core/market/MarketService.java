@@ -114,6 +114,26 @@ public final class MarketService {
         this.quota = java.util.Objects.requireNonNull(sellQuota, "sellQuota");
     }
 
+    /**
+     * SPEC 21.7's circuit breaker.
+     *
+     * <p>Two seams rather than one, because SPEC 21.7 gives the rules different scopes: a
+     * server-wide freeze closes every sell, and a per-item suspension closes one. A single flag
+     * could not express "diamonds are off the buy list and everything else is fine", which is the
+     * outcome row 3 exists to produce.
+     *
+     * <p>Both answer "open" until wired, which is what every test written before M14b expects and
+     * what a server with the breaker switched off wants.
+     */
+    private java.util.function.BooleanSupplier breaker;
+    private java.util.function.Predicate<String> suspended;
+
+    public void useCircuitBreaker(java.util.function.BooleanSupplier frozen,
+                                  java.util.function.Predicate<String> itemSuspended) {
+        this.breaker = java.util.Objects.requireNonNull(frozen, "frozen");
+        this.suspended = java.util.Objects.requireNonNull(itemSuspended, "itemSuspended");
+    }
+
     /** The quota, or empty on a server without one. */
     public Optional<SellQuota> quota() {
         return Optional.ofNullable(quota);
@@ -162,6 +182,16 @@ public final class MarketService {
     public CompletableFuture<Result<Receipt>> sell(UUID seller, String material, int amount) {
         if (!enabled()) {
             return completed(Result.failure("MARKET_DISABLED", "market.disabled"));
+        }
+        // SPEC 21.7's breaker, checked on the sell path and nowhere else. "Freezing sells rather
+        // than the whole economy is deliberate. Players can still buy, trade with each other,
+        // claim, and play. Only the money faucet closes."
+        if (breaker != null && breaker.getAsBoolean()) {
+            return completed(Result.failure("MARKET_FROZEN", "market.frozen"));
+        }
+        if (suspended != null && suspended.test(material)) {
+            return completed(Result.failure("ITEM_SUSPENDED", "market.item-suspended",
+                    Map.of("item", String.valueOf(material))));
         }
         if (amount <= 0) {
             return completed(Result.failure("AMOUNT_NOT_POSITIVE", "economy.amount-not-positive"));

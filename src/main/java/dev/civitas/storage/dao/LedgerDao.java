@@ -162,6 +162,65 @@ public final class LedgerDao extends Dao<LedgerRow> {
                 actor, since));
     }
 
+    /**
+     * The same as {@link #flowsSince} over a closed window.
+     *
+     * <p>SPEC 21.7's breakers compare an hour against a week, and "since" cannot express the
+     * first of those without also including everything after it.
+     */
+    public CompletableFuture<List<FlowRow>> flowsBetween(long from, long to) {
+        return db.call(connection -> queryListSync(connection,
+                "SELECT type, "
+                        + "COALESCE(SUM(CASE WHEN amount > 0 THEN amount ELSE 0 END), 0) AS in_,"
+                        + "COALESCE(SUM(CASE WHEN amount < 0 THEN -amount ELSE 0 END), 0) AS out_ "
+                        + "FROM ledger WHERE timestamp >= ? AND timestamp < ? "
+                        + "GROUP BY type ORDER BY type ASC",
+                rs -> new FlowRow(rs.getString("type"), money(rs, "in_"), money(rs, "out_")),
+                from, to));
+    }
+
+    /**
+     * Market sell value by item over a window, for SPEC 21.7's per-item breaker.
+     *
+     * <p>The item is read out of the metadata, which is where {@code MARKET_SELL} records it.
+     * That is a string scan rather than a column, and it is the honest trade: SPEC 3.6 fixes the
+     * ledger's shape and adding a column for one report would mean a migration and a second place
+     * the material could be wrong.
+     *
+     * @return material to total value sold, in a map so the caller can divide by a baseline
+     */
+    public CompletableFuture<java.util.Map<String, BigDecimal>> marketVolumeBetween(
+            long from, long to) {
+        return db.call(connection -> {
+            java.util.Map<String, BigDecimal> volumes = new java.util.LinkedHashMap<>();
+            List<LedgerRow> rows = queryListSync(connection,
+                    "SELECT " + COLUMNS + " FROM ledger WHERE type = ? "
+                            + "AND timestamp >= ? AND timestamp < ? AND amount > 0",
+                    this::map, "MARKET_SELL", from, to);
+            for (LedgerRow row : rows) {
+                materialOf(row.metadata()).ifPresent(material ->
+                        volumes.merge(material, row.amount(), BigDecimal::add));
+            }
+            return volumes;
+        });
+    }
+
+    /** Pulls {@code "item":"DIAMOND"} out of a metadata blob without a JSON parser. */
+    private static Optional<String> materialOf(String metadata) {
+        if (metadata == null) {
+            return Optional.empty();
+        }
+        int key = metadata.indexOf("\"item\"");
+        if (key < 0) {
+            return Optional.empty();
+        }
+        int open = metadata.indexOf('"', metadata.indexOf(':', key) + 1);
+        int close = open < 0 ? -1 : metadata.indexOf('"', open + 1);
+        return open < 0 || close < 0
+                ? Optional.empty()
+                : Optional.of(metadata.substring(open + 1, close));
+    }
+
     /** Money in and money out under one ledger type. */
     public record FlowRow(String type, BigDecimal in, BigDecimal out) {
 

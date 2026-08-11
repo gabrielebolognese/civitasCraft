@@ -388,3 +388,47 @@ supply:
   # How much history to keep. Ninety days is a season, which is the window a /ca eco supply
   # question is usually asked over.
   keep-days: 90
+
+# SPEC 21.7's circuit breakers.
+#
+# Every other defence in Part II names an exploit and closes it. This one names none. SPEC 21.4
+# C6: "You cannot enumerate future exploits. The circuit breaker is the mitigation for the
+# exploits you have not thought of yet, and it is the single most valuable safety mechanism in
+# this section."
+#
+# Every threshold is a RATIO against recent history rather than an absolute figure, because an
+# absolute figure is a guess about how big this server will be and a ratio is not. The baselines
+# come from the ledger, not from a counter -- a counter resets on restart, and a breaker whose
+# baseline resets when the server does is one an exploiter turns off by crashing it.
+#
+# What a trip closes is deliberately narrow. SPEC 21.7: "Freezing sells rather than the whole
+# economy is deliberate. Players can still buy, trade with each other, claim, and play. Only the
+# money faucet closes. A server that halts entirely because of a suspected exploit does more
+# damage than the exploit."
+#
+# A freeze LATCHES. It is cleared by /ca breaker reset and by nothing else -- resetting itself
+# when the hour ticks over would reopen the market to whatever tripped it while nobody was awake.
+circuit-breaker:
+  enabled: true
+
+  # Server-wide money creation in one hour, against the 7-day hourly average. Freezes sells.
+  hourly-creation-multiplier-trigger: 3.0
+  # One player's 24h income against their own 30-day daily average. Throttles that player only:
+  # closing the whole market because somebody had an extraordinary day punishes everybody else.
+  player-income-multiplier-trigger: 10.0
+  # One item's hourly sell volume against its own 7-day hourly average. Takes THAT ITEM off the
+  # buy list and leaves the rest of the market open, because a new vector is usually one item.
+  item-volume-multiplier-trigger: 20.0
+
+  # Circulation week over week. SPEC 4.8 already warns at 15 and deliberately does nothing else
+  # ("silent balance reduction destroys player trust"); 40 is growth no legitimate week produces.
+  weekly-inflation-warn-percent: 15
+  weekly-inflation-freeze-percent: 40
+
+  # FREEZE_SELLS or WARN_ONLY. WARN_ONLY still logs, still alerts admins and still writes the
+  # audit row -- an operator choosing it has chosen to be told rather than protected, which is a
+  # real choice on a server whose staff are awake.
+  action-on-trip: FREEZE_SELLS
+
+  # How often the sweep runs. Hourly, matching the window the first rule measures.
+  check-interval-minutes: 60

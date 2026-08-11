@@ -926,6 +926,33 @@ public final class CivitasPlugin extends JavaPlugin {
                 () -> moneySupplyService.prune(System.currentTimeMillis()),
                 12000L, 24L * 60 * 60 * 20L);
 
+        // SPEC 21.7's circuit breakers, M14b. The mitigation for the exploit nobody has
+        // thought of yet: every threshold is a ratio against the ledger's own recent history,
+        // because an absolute figure is a guess about how big this server will be.
+        dev.civitas.core.economy.CircuitBreakerService circuitBreakerService =
+                new dev.civitas.core.economy.CircuitBreakerService(loadedDaos, moneySupplyService,
+                        configs, getLogger());
+        // The market asks these two on every sell. A server-wide freeze and a per-item
+        // suspension are different scopes on purpose: one flag could not express "diamonds are
+        // off the buy list and everything else is fine".
+        marketService.useCircuitBreaker(circuitBreakerService::sellsFrozen,
+                circuitBreakerService::isSuspended);
+        circuitBreakerService.onTrip(trip -> announceTrip(circuitBreakerService, trip));
+        long breakerTicks = Math.max(1L, configs.get(ConfigFile.ECONOMY)
+                .getInt("circuit-breaker.check-interval-minutes", 60)) * 60L * 20L;
+        getServer().getScheduler().runTaskTimerAsynchronously(this, () -> {
+            try {
+                circuitBreakerService.sweep(System.currentTimeMillis()).exceptionally(error -> {
+                    getLogger().log(java.util.logging.Level.WARNING,
+                            "The circuit breaker sweep failed", error);
+                    return java.util.List.of();
+                });
+            } catch (RuntimeException e) {
+                getLogger().log(java.util.logging.Level.WARNING,
+                        "The circuit breaker sweep failed", e);
+            }
+        }, 1200L, breakerTicks);
+
         // ==============================================================================
         // SPEC 29's siege, M19a
         // ==============================================================================
@@ -1203,7 +1230,7 @@ public final class CivitasPlugin extends JavaPlugin {
         services.set(new CivitasServices(cityRegistry, cityService, rankService, claimRegistry,
                 claimService, claimMap, borderRenderer, protection, protectionGuard,
                 blockClassifier, economyService, treasuryService, bountyService,
-                moneySupplyService,
+                moneySupplyService, circuitBreakerService,
                 ledgerRollback,
                 upkeepCalculator,
                 upkeepTask, marketService, marketFilter, togglePreferences, messenger,
@@ -1826,6 +1853,44 @@ public final class CivitasPlugin extends JavaPlugin {
 
         getServer().getScheduler().runTaskAsynchronously(this,
                 () -> worldBackups.snapshotWarZone(warId, chunks));
+    }
+
+    /**
+     * SPEC 21.7: "Every circuit breaker trip writes to `audit_log` and produces an in-game message
+     * to online admins and a console message with the full triggering data."
+     *
+     * <p>The console line is the service's; these two are the plugin's, because the service has no
+     * server. Admins are told even on a WARN_ONLY server — an operator who chose not to be
+     * protected still chose to be told.
+     */
+    private void announceTrip(dev.civitas.core.economy.CircuitBreakerService breaker,
+                              dev.civitas.core.economy.CircuitBreaker.Trip trip) {
+        CivitasServices current = services.get();
+        if (current != null) {
+            current.audit().record(null, "BREAKER_" + trip.trigger(), null,
+                    "{" + '"' + "observed" + '"' + ":" + trip.observed().toPlainString()
+                            + "," + '"' + "baseline" + '"' + ":"
+                            + trip.baseline().toPlainString()
+                            + "," + '"' + "action" + '"' + ":" + '"' + trip.action() + '"'
+                            + trip.subject().map(subject -> "," + '"' + "subject" + '"' + ":"
+                                    + '"' + subject + '"').orElse("")
+                            + "}");
+        }
+        getServer().getScheduler().runTask(this, () -> {
+            for (org.bukkit.entity.Player admin : getServer().getOnlinePlayers()) {
+                if (!admin.hasPermission("civitas.admin.economy")) {
+                    continue;
+                }
+                lang.send(admin, "admin.breaker.tripped",
+                        dev.civitas.command.Replies.p("trigger", trip.trigger().name()),
+                        dev.civitas.command.Replies.p("detail", trip.detail()),
+                        dev.civitas.command.Replies.p("observed",
+                                trip.observed().toPlainString()),
+                        dev.civitas.command.Replies.p("baseline",
+                                trip.baseline().toPlainString()),
+                        dev.civitas.command.Replies.p("ratio", trip.ratio().toPlainString()));
+            }
+        });
     }
 
     private dev.civitas.core.world.WorldBackupService worldBackups;

@@ -265,6 +265,8 @@ chat:
   city-format: "<gray>[<white><tag></white><gray>] "
 
 market:
+  frozen: "<red>Le vendite al mercato sono temporaneamente sospese.</red> <gray>Lo staff e' stato avvisato.</gray>"
+  item-suspended: "<red>Il mercato non compra <white><item></white> al momento.</red> <gray>Lo staff e' stato avvisato.</gray>"
   disabled: "<red>Il mercato del server e chiuso."
   not-bought: "<red>Il server non compra <white><item></white>. Lo vende, ma solo i giocatori te lo comprano."
   quota-warn: "<gray>Hai usato il <white><percent>%</white> della quota di vendita giornaliera. <dark_gray><remaining> C rimasti, si azzera tra <reset>.</dark_gray>"
@@ -1236,6 +1238,19 @@ admin:
     restore-started: "<gray>Ripristino dell'istantanea pre-guerra della guerra <white><id></white>..."
     restore-done: "<green>Ripristinati <white><files></white> file di regione.</green> <gray>I chunk interessati vanno ricaricati, il che di solito significa un riavvio.</gray>"
     restore-missing: "<red>Non esiste un'istantanea pre-guerra per quella guerra."
+  breaker:
+    status-open: "<green>L'interruttore e' libero.</green> <gray>Le vendite al mercato sono aperte."
+    status-frozen: "<red>Le vendite al mercato sono BLOCCATE.</red> <gray>Scattato per <white><trigger></white>: <observed> contro una base di <baseline> (<ratio>x)."
+    status-suspended: "<gray>Sospesi dalla lista d'acquisto: <white><items>"
+    status-recent: "<gray>Scatti recenti: <white><count>"
+    status-trip: "<gray>  <white><trigger></white> <dark_gray>-> <detail> (<ratio>x)"
+    status-disabled: "<yellow>L'interruttore e' disattivato in economy.yml."
+    reset-done: "<green>Interruttore azzerato.</green> <gray>Le vendite sono di nuovo aperte e ogni oggetto sospeso e' tornato nella lista."
+    reset-nothing: "<gray>L'interruttore non era scattato. Niente da azzerare."
+    tripped: "<red>Interruttore: <white><trigger></white></red> <gray>-> <detail>, <observed> contro <baseline> (<ratio>x)."
+    volume-header: "<dark_gray>--- <gold>Volume di mercato<dark_gray>, ultime <white><hours></white>h ---"
+    volume-entry: "<gray>  <white><item></white> <dark_gray>-> <amount> <dark_gray>(<ratio>x la sua base)"
+    volume-none: "<gray>Niente e' stato venduto in quel periodo."
   supply:
     header: "<dark_gray>--- <gold>Massa monetaria<dark_gray>, ultimi <white><days></white> giorni <dark_gray>(<readings> rilevazioni) ---"
     no-readings: "<gray>Nessuna rilevazione ancora. La prima viene presa poco dopo l'avvio."

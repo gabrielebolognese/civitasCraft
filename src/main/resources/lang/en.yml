@@ -265,6 +265,8 @@ chat:
   city-format: "<gray>[<white><tag></white><gray>] "
 
 market:
+  frozen: "<red>Market sales are temporarily suspended.</red> <gray>Staff have been notified.</gray>"
+  item-suspended: "<red>The market is not buying <white><item></white> right now.</red> <gray>Staff have been notified.</gray>"
   disabled: "<red>The server market is closed."
   not-bought: "<red>The server does not buy <white><item></white>. It sells it, but only players buy it from you."
   quota-warn: "<gray>You have used <white><percent>%</white> of today's market sell quota. <dark_gray><remaining> C left, resets in <reset>.</dark_gray>"
@@ -1253,6 +1255,20 @@ admin:
     restore-done: "<green>Restored <white><files></white> region file(s).</green> <gray>The affected chunks need reloading, which usually means a restart.</gray>"
     restore-missing: "<red>There is no pre-war snapshot for that war."
   # SPEC 22.7.1's money supply reports. Where the money is, and where it came from.
+  # SPEC 21.7's circuit breakers.
+  breaker:
+    status-open: "<green>The circuit breaker is clear.</green> <gray>Market sells are open."
+    status-frozen: "<red>Market sells are FROZEN.</red> <gray>Tripped by <white><trigger></white>: <observed> against a baseline of <baseline> (<ratio>x)."
+    status-suspended: "<gray>Suspended from the buy list: <white><items>"
+    status-recent: "<gray>Recent trips: <white><count>"
+    status-trip: "<gray>  <white><trigger></white> <dark_gray>-> <detail> (<ratio>x)"
+    status-disabled: "<yellow>The circuit breaker is switched off in economy.yml."
+    reset-done: "<green>Circuit breaker cleared.</green> <gray>Market sells are open again and every suspended item is back on the buy list."
+    reset-nothing: "<gray>The breaker was not tripped. Nothing to clear."
+    tripped: "<red>Circuit breaker: <white><trigger></white></red> <gray>-> <detail>, <observed> against <baseline> (<ratio>x)."
+    volume-header: "<dark_gray>--- <gold>Market volume<dark_gray>, last <white><hours></white>h ---"
+    volume-entry: "<gray>  <white><item></white> <dark_gray>-> <amount> <dark_gray>(<ratio>x its baseline)"
+    volume-none: "<gray>Nothing has been sold in that window."
   supply:
     header: "<dark_gray>--- <gold>Money supply<dark_gray>, last <white><days></white> days <dark_gray>(<readings> readings) ---"
     no-readings: "<gray>No readings yet. The first is taken shortly after startup."

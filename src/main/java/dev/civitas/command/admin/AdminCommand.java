@@ -57,7 +57,7 @@ public final class AdminCommand {
                 .then(new AdminWarpCommands(services, lang, scheduler).build());
         AdminEconomyCommands economy = new AdminEconomyCommands(services, lang, scheduler,
                 logger);
-        root.then(economy.build()).then(economy.buildMarket());
+        root.then(economy.build()).then(economy.buildMarket()).then(economy.buildBreaker());
         new AdminSystemCommands(services, lang, scheduler, logger, reloadHook).build()
                 .forEach(root::then);
         new AdminInspectCommands(services, lang, scheduler, logger).build()

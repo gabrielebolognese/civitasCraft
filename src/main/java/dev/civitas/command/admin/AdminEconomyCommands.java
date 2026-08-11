@@ -107,6 +107,115 @@ public final class AdminEconomyCommands {
                 .then(top());
     }
 
+    /**
+     * {@code /ca breaker}, a sibling of {@code eco} under {@code /ca}, SPEC 22.7.1.
+     *
+     * <p>Its own branch rather than a subcommand of {@code eco} because an admin reaching for it
+     * is answering "why can nobody sell anything", and that is a different question from anything
+     * else under {@code eco}.
+     */
+    public LiteralArgumentBuilder<CommandSourceStack> buildBreaker() {
+        return Commands.literal("breaker")
+                .requires(source -> source.getSender().hasPermission("civitas.admin.economy"))
+                .executes(context -> {
+                    breakerStatus(context.getSource().getSender());
+                    return Command.SINGLE_SUCCESS;
+                })
+                .then(Commands.literal("status")
+                        .executes(context -> {
+                            breakerStatus(context.getSource().getSender());
+                            return Command.SINGLE_SUCCESS;
+                        }))
+                .then(Commands.literal("reset")
+                        .executes(context -> {
+                            breakerReset(context.getSource().getSender());
+                            return Command.SINGLE_SUCCESS;
+                        }));
+    }
+
+    private void breakerStatus(Audience audience) {
+        CivitasServices current = ready(audience);
+        if (current == null) {
+            return;
+        }
+        var breaker = current.circuitBreaker();
+        if (!breaker.breaker().thresholds().enabled()) {
+            lang.send(audience, "admin.breaker.status-disabled");
+            return;
+        }
+
+        breaker.frozenBy().ifPresentOrElse(trip -> lang.send(audience,
+                        "admin.breaker.status-frozen",
+                        Replies.p("trigger", trip.trigger().name()),
+                        Replies.p("observed", trip.observed().toPlainString()),
+                        Replies.p("baseline", trip.baseline().toPlainString()),
+                        Replies.p("ratio", trip.ratio().toPlainString())),
+                () -> lang.send(audience, "admin.breaker.status-open"));
+
+        if (!breaker.suspendedItems().isEmpty()) {
+            lang.send(audience, "admin.breaker.status-suspended",
+                    Replies.p("items", String.join(", ", breaker.suspendedItems())));
+        }
+        lang.send(audience, "admin.breaker.status-recent",
+                Replies.p("count", String.valueOf(breaker.recentTrips().size())));
+        for (var trip : breaker.recentTrips()) {
+            lang.send(audience, "admin.breaker.status-trip",
+                    Replies.p("trigger", trip.trigger().name()),
+                    Replies.p("detail", trip.detail()),
+                    Replies.p("ratio", trip.ratio().toPlainString()));
+        }
+    }
+
+    private void breakerReset(Audience audience) {
+        CivitasServices current = ready(audience);
+        if (current == null) {
+            return;
+        }
+        current.audit().record(actorOf(audience), "BREAKER_RESET", null, null);
+        current.circuitBreaker().reset().ifPresentOrElse(
+                was -> lang.send(audience, "admin.breaker.reset-done"),
+                () -> lang.send(audience, "admin.breaker.reset-nothing"));
+    }
+
+    /** SPEC 22.7.1's {@code /ca market volume [hours]}, the circuit breaker's own view. */
+    private LiteralArgumentBuilder<CommandSourceStack> marketVolume() {
+        return Commands.literal("volume")
+                .executes(context -> {
+                    volume(context.getSource().getSender(), 1);
+                    return Command.SINGLE_SUCCESS;
+                })
+                .then(Commands.argument("hours",
+                                com.mojang.brigadier.arguments.IntegerArgumentType.integer(1, 168))
+                        .executes(context -> {
+                            volume(context.getSource().getSender(),
+                                    com.mojang.brigadier.arguments.IntegerArgumentType
+                                            .getInteger(context, "hours"));
+                            return Command.SINGLE_SUCCESS;
+                        }));
+    }
+
+    private void volume(Audience audience, int hours) {
+        CivitasServices current = ready(audience);
+        if (current == null) {
+            return;
+        }
+        then(current.circuitBreaker().volumes(hours, System.currentTimeMillis()), audience,
+                volumes -> {
+                    lang.send(audience, "admin.breaker.volume-header",
+                            Replies.p("hours", String.valueOf(hours)));
+                    if (volumes.isEmpty()) {
+                        lang.send(audience, "admin.breaker.volume-none");
+                        return;
+                    }
+                    for (var entry : volumes.stream().limit(15).toList()) {
+                        lang.send(audience, "admin.breaker.volume-entry",
+                                Replies.p("item", entry.material()),
+                                Replies.p("amount", money(current, entry.window())),
+                                Replies.p("ratio", entry.ratio().toPlainString()));
+                    }
+                });
+    }
+
     // ==================================================================================
     // SPEC 22.7.1's money supply reports, M14a
     // ==================================================================================
@@ -291,6 +400,7 @@ public final class AdminEconomyCommands {
     public LiteralArgumentBuilder<CommandSourceStack> buildMarket() {
         return Commands.literal("market")
                 .requires(source -> source.getSender().hasPermission("civitas.admin.economy"))
+                .then(marketVolume())
                 .then(Commands.literal("setprice")
                         .then(Commands.argument("material", StringArgumentType.word())
                                 .suggests(this::suggestMaterials)
