@@ -101,7 +101,190 @@ public final class AdminEconomyCommands {
                                                             StringArgumentType.getString(context, "operation"),
                                                             StringArgumentType.getString(context, "amount"));
                                                     return Command.SINGLE_SUCCESS;
-                                                })))));
+                                                })))))
+                .then(supply())
+                .then(sources())
+                .then(top());
+    }
+
+    // ==================================================================================
+    // SPEC 22.7.1's money supply reports, M14a
+    // ==================================================================================
+
+    /**
+     * {@code /ca eco supply [days]} — SPEC 22.7.1's inflation dashboard.
+     *
+     * <p>"Money supply over time: created, destroyed, net, by ledger type." It is the instrument
+     * SPEC 21.4 Class G exists for: "Without this you cannot detect an exploit you did not
+     * predict." An unknown exploit still shows up as money appearing under some type faster than
+     * it should, and this is where that is visible.
+     */
+    private LiteralArgumentBuilder<CommandSourceStack> supply() {
+        return Commands.literal("supply")
+                .executes(context -> {
+                    supply(context.getSource().getSender(), 7);
+                    return Command.SINGLE_SUCCESS;
+                })
+                .then(Commands.argument("days",
+                                com.mojang.brigadier.arguments.IntegerArgumentType.integer(1, 365))
+                        .executes(context -> {
+                            supply(context.getSource().getSender(),
+                                    com.mojang.brigadier.arguments.IntegerArgumentType
+                                            .getInteger(context, "days"));
+                            return Command.SINGLE_SUCCESS;
+                        }));
+    }
+
+    private void supply(Audience audience, int days) {
+        CivitasServices current = ready(audience);
+        if (current == null) {
+            return;
+        }
+        then(current.moneySupply().supplyOver(days, System.currentTimeMillis()), audience,
+                report -> {
+                    lang.send(audience, "admin.supply.header",
+                            Replies.p("days", String.valueOf(days)),
+                            Replies.p("readings", String.valueOf(report.readings())));
+
+                    report.now().ifPresentOrElse(now -> lang.send(audience, "admin.supply.now",
+                                    Replies.p("total", money(current, now.circulation())),
+                                    Replies.p("wallets", money(current, now.playerTotal())),
+                                    Replies.p("treasuries", money(current, now.treasuryTotal())),
+                                    Replies.p("escrow", money(current, now.escrowTotal()))),
+                            () -> lang.send(audience, "admin.supply.no-readings"));
+
+                    report.percentChange().ifPresent(percent -> lang.send(audience,
+                            "admin.supply.change",
+                            Replies.p("delta", money(current,
+                                    report.change().orElse(BigDecimal.ZERO))),
+                            Replies.p("percent", percent.toPlainString())));
+
+                    lang.send(audience, "admin.supply.flows",
+                            Replies.p("created", money(current, report.created())),
+                            Replies.p("destroyed", money(current, report.destroyed())));
+
+                    for (var flow : report.topSources(5)) {
+                        lang.send(audience, "admin.supply.source",
+                                Replies.p("type", flow.type()),
+                                Replies.p("amount", money(current, flow.in())));
+                    }
+                    for (var flow : report.topSinks(5)) {
+                        lang.send(audience, "admin.supply.sink",
+                                Replies.p("type", flow.type()),
+                                Replies.p("amount", money(current, flow.out())));
+                    }
+                });
+    }
+
+    /** {@code /ca eco sources <player> [days]} — SPEC 22.7.1: "where did this come from". */
+    private LiteralArgumentBuilder<CommandSourceStack> sources() {
+        return Commands.literal("sources")
+                .then(Commands.argument("player", StringArgumentType.word())
+                        .suggests(Suggest.onlinePlayers())
+                        .executes(context -> {
+                            sources(context.getSource().getSender(),
+                                    StringArgumentType.getString(context, "player"), 7);
+                            return Command.SINGLE_SUCCESS;
+                        })
+                        .then(Commands.argument("days",
+                                        com.mojang.brigadier.arguments.IntegerArgumentType
+                                                .integer(1, 365))
+                                .executes(context -> {
+                                    sources(context.getSource().getSender(),
+                                            StringArgumentType.getString(context, "player"),
+                                            com.mojang.brigadier.arguments.IntegerArgumentType
+                                                    .getInteger(context, "days"));
+                                    return Command.SINGLE_SUCCESS;
+                                })));
+    }
+
+    private void sources(Audience audience, String name, int days) {
+        CivitasServices current = ready(audience);
+        if (current == null) {
+            return;
+        }
+        resolve(current, audience, name, found -> then(
+                current.moneySupply().sourcesFor(found.uuid(), days, System.currentTimeMillis()),
+                audience, flows -> {
+                    lang.send(audience, "admin.supply.sources-header",
+                            Replies.p("player", found.name()),
+                            Replies.p("days", String.valueOf(days)));
+                    if (flows.isEmpty()) {
+                        lang.send(audience, "admin.supply.sources-none");
+                        return;
+                    }
+                    for (var flow : flows) {
+                        lang.send(audience, "admin.supply.source",
+                                Replies.p("type", flow.type()),
+                                Replies.p("amount", money(current, flow.in())));
+                    }
+                }));
+    }
+
+    /**
+     * {@code /ca eco top [count]} — SPEC 22.7.1's wealth concentration view.
+     *
+     * <p>SPEC 22.1 says why it is worth a command of its own: "Wealth concentration is the first
+     * thing to check for an exploit."
+     */
+    private LiteralArgumentBuilder<CommandSourceStack> top() {
+        return Commands.literal("top")
+                .executes(context -> {
+                    top(context.getSource().getSender(), 10);
+                    return Command.SINGLE_SUCCESS;
+                })
+                .then(Commands.argument("count",
+                                com.mojang.brigadier.arguments.IntegerArgumentType.integer(1, 50))
+                        .executes(context -> {
+                            top(context.getSource().getSender(),
+                                    com.mojang.brigadier.arguments.IntegerArgumentType
+                                            .getInteger(context, "count"));
+                            return Command.SINGLE_SUCCESS;
+                        }));
+    }
+
+    private void top(Audience audience, int count) {
+        CivitasServices current = ready(audience);
+        if (current == null) {
+            return;
+        }
+        then(current.moneySupply().topPlayers(count), audience, players -> {
+            lang.send(audience, "admin.supply.top-players");
+            for (var holder : players) {
+                lang.send(audience, "admin.supply.top-entry",
+                        Replies.p("name", holder.name() == null ? "?" : holder.name()),
+                        Replies.p("amount", money(current, holder.balance())),
+                        Replies.p("percent", holder.percentOfCirculation().toPlainString()));
+            }
+            then(current.moneySupply().topCities(count), audience, cities -> {
+                lang.send(audience, "admin.supply.top-cities");
+                for (var holder : cities) {
+                    lang.send(audience, "admin.supply.top-entry",
+                            Replies.p("name", holder.name()),
+                            Replies.p("amount", money(current, holder.balance())),
+                            Replies.p("percent", holder.percentOfCirculation().toPlainString()));
+                }
+            });
+        });
+    }
+
+    /**
+     * Runs a read on the storage pool and prints its result on the server thread.
+     *
+     * <p>Every one of these reports is a plain query with no {@code Result} to unwrap, so
+     * {@link Replies#reply} does not fit. A failure is logged and told to the admin rather than
+     * swallowed: a report that silently prints nothing looks the same as a healthy economy.
+     */
+    private <T> void then(java.util.concurrent.CompletableFuture<T> future, Audience audience,
+                          java.util.function.Consumer<T> print) {
+        future.whenComplete((value, error) -> scheduler.runOnMain(() -> {
+            if (error != null || value == null) {
+                logger.log(java.util.logging.Level.WARNING, "Money supply report failed", error);
+                lang.send(audience, "command.error");
+                return;
+            }
+            print.accept(value);
+        }));
     }
 
     /** The {@code market} branch, a sibling of {@code eco} under {@code /ca}. */

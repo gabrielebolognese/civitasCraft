@@ -124,6 +124,54 @@ public final class LedgerDao extends Dao<LedgerRow> {
     }
 
     /**
+     * Money created and destroyed since a moment, grouped by ledger type.
+     *
+     * <p>SPEC 21.4 Class G asks the snapshot to record these. It does not: the ledger already has
+     * every one of them, SPEC 3.6 never deletes from it, and SPEC 1.5 makes it authoritative — so
+     * a copy in another table could disagree with the record a fraud investigation would be
+     * reading. Recomputing is exact and costs one grouped scan.
+     *
+     * <p>Positive and negative are summed separately rather than netted, because a type like
+     * {@code TREASURY_DEPOSIT} writes both sides and would net to zero: what {@code /ca eco
+     * supply} needs to show is that 400,000 C moved, not that nothing happened.
+     */
+    public CompletableFuture<List<FlowRow>> flowsSince(long since) {
+        return db.call(connection -> queryListSync(connection,
+                "SELECT type, "
+                        + "COALESCE(SUM(CASE WHEN amount > 0 THEN amount ELSE 0 END), 0) AS in_,"
+                        + "COALESCE(SUM(CASE WHEN amount < 0 THEN -amount ELSE 0 END), 0) AS out_ "
+                        + "FROM ledger WHERE timestamp >= ? "
+                        + "GROUP BY type ORDER BY type ASC",
+                rs -> new FlowRow(rs.getString("type"), money(rs, "in_"), money(rs, "out_")),
+                since));
+    }
+
+    /**
+     * One player's income since a moment, grouped by ledger type, largest first.
+     *
+     * <p>SPEC 22.7.1's {@code /ca eco sources}: "Answers 'where did this come from.'" Credits
+     * only, for the reason {@link #sumOutflowByActor} gives — a movement writes both sides under
+     * one type and actor, so an unfiltered sum answers a different question.
+     */
+    public CompletableFuture<List<FlowRow>> incomeByTypeFor(UUID actor, long since) {
+        return db.call(connection -> queryListSync(connection,
+                "SELECT type, COALESCE(SUM(amount), 0) AS in_, 0 AS out_ FROM ledger "
+                        + "WHERE actor_uuid = ? AND timestamp >= ? AND amount > 0 "
+                        + "GROUP BY type ORDER BY in_ DESC",
+                rs -> new FlowRow(rs.getString("type"), money(rs, "in_"), BigDecimal.ZERO),
+                actor, since));
+    }
+
+    /** Money in and money out under one ledger type. */
+    public record FlowRow(String type, BigDecimal in, BigDecimal out) {
+
+        /** Net effect on circulation. Negative for a sink. */
+        public BigDecimal net() {
+            return in.subtract(out);
+        }
+    }
+
+    /**
      * The top {@code limit} players by what they have been credited under one type, over all
      * time, highest first.
      *

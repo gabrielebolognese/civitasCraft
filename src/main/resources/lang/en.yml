@@ -1252,6 +1252,20 @@ admin:
     restore-started: "<gray>Restoring the pre-war snapshot of war <white><id></white>..."
     restore-done: "<green>Restored <white><files></white> region file(s).</green> <gray>The affected chunks need reloading, which usually means a restart.</gray>"
     restore-missing: "<red>There is no pre-war snapshot for that war."
+  # SPEC 22.7.1's money supply reports. Where the money is, and where it came from.
+  supply:
+    header: "<dark_gray>--- <gold>Money supply<dark_gray>, last <white><days></white> days <dark_gray>(<readings> readings) ---"
+    no-readings: "<gray>No readings yet. The first is taken shortly after startup."
+    now: "<gray>In circulation: <gold><total></gold> <dark_gray>(<wallets> wallets, <treasuries> treasuries, <escrow> escrowed)"
+    change: "<gray>Change over the window: <white><delta></white> <dark_gray>(<percent>%)"
+    flows: "<gray>Created <green><created></green>, destroyed <red><destroyed></red>"
+    source: "<gray>  + <white><type></white> <dark_gray>-> <green><amount>"
+    sink: "<gray>  - <white><type></white> <dark_gray>-> <red><amount>"
+    sources-header: "<dark_gray>--- <gold>Income for <white><player></white><dark_gray>, last <days> days ---"
+    sources-none: "<gray>No income in that window."
+    top-players: "<dark_gray>--- <gold>Richest players<dark_gray> ---"
+    top-cities: "<dark_gray>--- <gold>Richest cities<dark_gray> ---"
+    top-entry: "<gray>  <white><name></white> <dark_gray>-> <gold><amount></gold> <dark_gray>(<percent>% of circulation)"
   system:
     backup-started: "<gray>Backing up..."
     backup-done: "<green>Backup written to <white><file></white>."

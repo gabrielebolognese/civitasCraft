@@ -2978,3 +2978,107 @@ Format:
   where both cities are a few hundred blocks apart." That is exactly what happened -- twenty-two
   milestones of war tests, all of them within a few hundred blocks of origin, because that is what a
   test fixture builds when nobody insists otherwise. *Date:* 2026-08-11
+
+- **[M20a]** PLAN asks to "verify Rule 1 empirically… three trials each" on a live server. Three
+  trials check three garrison compositions, and SPEC 25.2 Rule 1 is stated over **all** of them:
+  "If a configuration exists where this is false, that configuration is a bug." *Implemented
+  default:* a deterministic model, `CombatModel`, run over every garrison each budget can buy, with
+  `CombatBalanceTest` asserting the result and `COMBAT_BALANCE.md` recording it. This does **not**
+  replace the live pass and says so in three places -- a model cannot find a unit that never
+  acquires a target, a pathfinding failure, or a Warden that ignores its confinement. It finds the
+  composition nobody thought to build, which three trials cannot. *Date:* 2026-08-11
+
+- **[M20a]** The model is **calibrated against SPEC's own two published tables rather than
+  invented**: every cell of SPEC 28.4's damage table and both sword rows of SPEC 28.5, exact to
+  0.1. That was not a formality -- SPEC 28.4's four rows pin the vanilla armour formula precisely
+  enough that a wrong implementation cannot reproduce them, and SPEC 28.5's 28.4s and 34.7s pin the
+  sword attack rate at 1.6/s. A model that disagreed with the only combat arithmetic SPEC publishes
+  would be measuring something else. *Date:* 2026-08-11
+
+- **[M20a]** **Three assumptions are mine, not SPEC's, and the verdict turns on them.** (1) Healing
+  at 0.8 HP/s per attacker, which is Regeneration II from chained golden apples and the
+  conservative end of "good gear"; its worth is quantified in `COMBAT_BALANCE.md` rather than
+  hidden. (2) Nine defenders can engage at once, derived from
+  `defense.placement.max-units-per-chunk` across three chunks rather than picked. (3) A sprinting
+  player moves at 0.33 on SPEC 27's scale, anchored on SPEC 27's own statements that the Warhound
+  at 0.42 is faster than a sprint and the City Guard at 0.28 is not -- no unit sits inside that
+  band, so any value in it gives the same verdicts. *Date:* 2026-08-11
+
+- **[M20a]** **The first version of the model concluded Rule 1 fails at Fortification 2 and above,
+  and the model was wrong rather than the numbers.** It resolved a garrison as one unbroken fight.
+  SPEC 11.2 gives a war **seven days**, and Rule 1 says the garrison must be "beatable" -- not
+  beatable without withdrawing. An attacking force picks where it engages, kills what it can reach,
+  withdraws, heals and returns, which is what SPEC 25.2's "coordinating" describes and what a single
+  continuous-damage sum cannot represent. Recorded because the wrong answer was produced by a model
+  that looked entirely reasonable, and because it would have led to retuning units that are fine.
+  *Date:* 2026-08-11
+
+- **[M20a]** **The finding: coordination is load-bearing, not decorative.** A maxed garrison fought
+  head-on -- standing and trading on the defender's ground -- beats an equal-numbered force, 19.4s
+  of work against 8.4s of survival. That is not a bug: SPEC 27 writes a stated counterplay for every
+  unit and SPEC 25.2 Rule 3 makes having one a shipping gate. But it means Rule 1 should be read as
+  *beatable by a force that uses the counterplay*, and a server whose players charge straight in
+  experiences the defence as much stronger than the design intends.
+  `CombatBalanceTest.headOnLoses` asserts this **fails**, deliberately: if it ever starts passing,
+  the roster has drifted to where the counterplay stopped mattering. *Date:* 2026-08-11
+
+- **[M20a]** **The optimal defensive build is Warhound spam, and it is the un-kiteable one.** The
+  Warhound has the best damage per point in the roster (6/12 = 0.50 against the City Guard's 0.40
+  and the Colossus's 0.36) **and** is the only unit SPEC 27.4 deliberately makes faster than a
+  sprinting player -- so the composition a defender optimising for the fight would build is also the
+  one immune to the counterplay every other unit has. Rule 1 survives it, because the per-chunk cap
+  bounds how many engage at once and 45 HP dies fast. Recorded because it is structural rather than
+  accidental: any future increase to the Warhound's health or damage attacks Rule 1 from the one
+  direction the counterplay cannot answer. *Date:* 2026-08-11
+
+- **[M20a]** **Nothing needed tuning.** The pass was expected to produce config changes and did
+  not: every level passes with a margin above 2.5x under the engagement rules SPEC itself describes,
+  and no unit's cost, health, damage or points value was altered. PLAN's row says "Tune and record
+  in the spec"; the recording is `COMBAT_BALANCE.md`, a sibling document rather than an edit to
+  `SPEC.md`, matching `PERFORMANCE.md`, `MYSQL.md`, `CONFIG.md` and `ANTI_TOXICITY.md` -- measured
+  results live beside the specification so it stays the thing they are measured against.
+  *Date:* 2026-08-11
+
+- **[M14a]** SPEC 21.4 Class G says the hourly snapshot records five things: total player balances,
+  total treasury balances, total escrowed, and the sums of income and of sinks by ledger type.
+  **Only the first three are stored.** *Implemented default:* the flows are read back out of the
+  ledger, which already holds every one of them, which SPEC 3.6 never deletes from, and which SPEC
+  1.5 makes authoritative. Copying them would fork the record -- and the copy is the one a fraud
+  investigation would be reading. Same call M21 made when it declined to snapshot ledger rows into a
+  report. The stocks **must** be stored, because a balance is the sum of every row that ever touched
+  it and summing forty million rows to draw a graph is not a query anybody runs twice.
+  *Date:* 2026-08-11
+
+- **[M14a]** The escrow term is the one that is easy to leave out and the one that matters most.
+  Money held by SPEC 11.3's war escrow or SPEC 4.7's bounties is in neither a wallet nor a treasury,
+  so a circulation figure without it **appears to shrink the moment a war is declared and to grow
+  when it resolves** -- which is exactly the shape of a leak, arriving from a system working
+  perfectly. An operator chasing that would be chasing nothing, and would learn to distrust the
+  dashboard. `escrowIsNotLost` asserts the property directly rather than the arithmetic.
+  *Date:* 2026-08-11
+
+- **[M14a]** Money created and destroyed are summed **separately rather than netted**, because a
+  type like `TREASURY_DEPOSIT` writes both sides under one type and nets to zero. What the report
+  has to show is that 400,000 C moved, not that nothing happened -- the same reasoning M14's
+  Contribution board used when it filtered to positive amounts. *Date:* 2026-08-11
+
+- **[M14a]** The week-over-week baseline is the reading **nearest the start of the window**, not the
+  oldest one kept. An oldest-kept baseline would drift every time retention pruned the table, so the
+  same command would give a different answer for the same week -- which is the worst property a
+  dashboard can have. It falls back to the oldest reading inside the window when nothing older
+  survives, so a freshly pruned table reports a change it can measure rather than none at all.
+  *Date:* 2026-08-11
+
+- **[M14a]** `/ca eco supply`, `sources` and `top` are three views of one question and are all in
+  SPEC 22.7.1, which rates the last of them Medium severity with a stated reason: "Wealth
+  concentration is the first thing to check for an exploit." `/ca eco top` reports each holder's
+  **share of circulation** rather than only their balance, because a balance means nothing without
+  the denominator. *Date:* 2026-08-11
+
+- **[M14a]** `economy_snapshots` (V3, from M5) and `money_supply` (V26) overlap, and the older one
+  is deliberately kept. `InflationTracker` reads it for SPEC 4.8's week-over-week console warning
+  and has done since M5; migrating that to the new table would be a change to a working alarm for
+  no capability, and the two agree on the two columns they share. **Worth knowing:** they are two
+  tables holding overlapping readings, which is the shape of a dead twin -- the difference is that
+  both are read, and `money_supply` carries the escrow term the older one has no column for.
+  *Date:* 2026-08-11

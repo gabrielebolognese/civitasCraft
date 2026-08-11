@@ -29,6 +29,7 @@ public final class DaoRegistry {
     private final OutpostDao outposts;
     private final LedgerDao ledger;
     private final EconomySnapshotDao economySnapshots;
+    private final MoneySupplyDao moneySupply;
     private final WarDao wars;
     private final WarBlockLogDao warBlockLog;
     private final WarContainerLogDao warContainerLog;
@@ -80,6 +81,7 @@ public final class DaoRegistry {
         this.outposts = new OutpostDao(db);
         this.ledger = new LedgerDao(db);
         this.economySnapshots = new EconomySnapshotDao(db);
+        this.moneySupply = new MoneySupplyDao(db);
         this.wars = new WarDao(db);
         this.warBlockLog = new WarBlockLogDao(db);
         this.warContainerLog = new WarContainerLogDao(db);
@@ -173,6 +175,10 @@ public final class DaoRegistry {
 
     public EconomySnapshotDao economySnapshots() {
         return economySnapshots;
+    }
+
+    public MoneySupplyDao moneySupply() {
+        return moneySupply;
     }
 
     public WarDao wars() {
@@ -317,7 +323,7 @@ public final class DaoRegistry {
     /** Every DAO, in no particular order. Used by tests that assert across the whole set. */
     public List<Dao<?>> all() {
         return List.of(players, playerStats, playerLogins, serverEvents, warChunkHashes, warRollbackIssues, cities, cityRanks, cityMembers, cityInvites, cityBans, claims, outposts,
-                ledger, economySnapshots, wars, warBlockLog, warContainerLog, warParticipants, warKills,
+                ledger, economySnapshots, moneySupply, wars, warBlockLog, warContainerLog, warParticipants, warKills,
                 warEntitySnapshots, siegeCamps, siegeUnits, bounties, protectedChunks, reports,
                 upkeepMultipliers, alliances,
                 truces, marketStock, sellQuota, dailyActivity, playerToggles, warps, miningClaims, waystations, playerShops, playerQuests, cityChallenges, contests, contestEntries, contestVotes,

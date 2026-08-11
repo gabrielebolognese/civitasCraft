@@ -57,6 +57,13 @@ public final class BountyDao extends Dao<BountyRow> {
     }
 
     /** Every open bounty on one player, newest first. */
+    /** Money held by SPEC 4.7's bounty escrow, which is escrowed the moment one is placed. */
+    public CompletableFuture<java.math.BigDecimal> totalOpen() {
+        return db.call(connection -> queryOneSync(connection,
+                "SELECT COALESCE(SUM(amount), 0) AS total FROM bounties WHERE state = 'OPEN'",
+                rs -> money(rs, "total")).orElse(java.math.BigDecimal.ZERO));
+    }
+
     public CompletableFuture<List<BountyRow>> findOpenOn(UUID target) {
         return queryList("SELECT " + COLUMNS + " FROM bounties WHERE target_uuid = ? "
                 + "AND state = ? ORDER BY placed_at DESC", target, OPEN);

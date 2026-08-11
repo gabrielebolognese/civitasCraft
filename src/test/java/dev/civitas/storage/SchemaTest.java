@@ -209,6 +209,10 @@ class SchemaTest {
         // hand a fresh 70 points to an attacker whose army was still standing.
         schema.put("siege_units", List.of("id", "war_id", "city_id", "type", "points", "world",
                 "x", "y", "z", "alive", "bought_at"));
+        // V26, SPEC 21.4 Class G. The STOCKS only: the flows SPEC also names are read back out
+        // of the ledger, which already holds them and which SPEC 1.5 makes authoritative.
+        schema.put("money_supply", List.of("id", "timestamp", "player_total",
+                "treasury_total", "escrow_total"));
         return schema;
     }
 

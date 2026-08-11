@@ -69,6 +69,20 @@ public final class WarDao extends Dao<WarRow> {
      * past its end time must roll back, and a {@code ROLLING_BACK} war must resume from its
      * checkpoint rather than be forgotten.
      */
+    /**
+     * Money held by SPEC 11.3's war escrow right now.
+     *
+     * <p>Both wagers, for every war that has been declared and not yet resolved. It is neither in
+     * a wallet nor in a treasury, so a circulation figure without it appears to shrink the moment
+     * a war is declared — which is the shape of a leak, arriving from a system working correctly.
+     */
+    public CompletableFuture<java.math.BigDecimal> totalEscrowed() {
+        return db.call(connection -> queryOneSync(connection,
+                "SELECT COALESCE(SUM(wager), 0) * 2 AS total FROM wars "
+                        + "WHERE state IN ('PREP', 'ACTIVE')",
+                rs -> money(rs, "total")).orElse(java.math.BigDecimal.ZERO));
+    }
+
     public CompletableFuture<List<WarRow>> findByStates(Collection<String> states) {
         if (states.isEmpty()) {
             return CompletableFuture.completedFuture(List.of());

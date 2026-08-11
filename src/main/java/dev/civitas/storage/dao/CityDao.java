@@ -197,6 +197,23 @@ public final class CityDao extends Dao<CityRow> {
         return db.call(connection -> updateSync(connection, "DELETE FROM cities WHERE id = ?", cityId));
     }
 
+    /**
+     * The richest cities, for SPEC 22.7.1's {@code /ca eco top}.
+     *
+     * <p>Soft-deleted cities are excluded for the same reason they are excluded from the total
+     * above: their treasury is not in circulation, and a wealth concentration report that counted
+     * a dead city's money would be measuring something nobody can spend.
+     */
+    public CompletableFuture<java.util.List<dev.civitas.storage.row.NamedTotalRow>>
+            topTreasuries(int limit) {
+        return db.call(connection -> queryListSync(connection,
+                "SELECT name, treasury AS total FROM cities WHERE deleted_at IS NULL "
+                        + "ORDER BY treasury DESC, name ASC LIMIT ?",
+                rs -> new dev.civitas.storage.row.NamedTotalRow(
+                        rs.getString("name"), money(rs, "total")),
+                limit));
+    }
+
     /** Total money held in treasuries, for the SPEC 4.8 circulation check. */
     public CompletableFuture<BigDecimal> totalTreasuries() {
         return db.call(connection -> queryOneSync(connection,

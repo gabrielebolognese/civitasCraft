@@ -368,3 +368,23 @@ audit:
   income-rate-percentile-multiple: 3
   # Reasons are mandatory on admin economy commands when strict mode is on.
   strict-admin-reasons: true
+
+# SPEC 21.4 Class G, the money supply snapshot.
+#
+# "The plugin must be able to answer, at any moment, 'how much money exists and where did it come
+# from.' Without this you cannot detect an exploit you did not predict."
+#
+# Part II's threat catalogue closes about thirty known exploits. This is the instrument for the
+# thirty-first: an exploit nobody has thought of still shows up as money appearing under some
+# ledger type faster than it should, held by somebody, and /ca eco supply, sources and top are the
+# three views of exactly that.
+#
+# Only the STOCKS are stored here -- wallets, treasuries and escrow. The flows are read back out
+# of the ledger, which already holds every one of them and which SPEC 1.5 makes authoritative; a
+# second copy could disagree with the record an investigation would be reading.
+supply:
+  # How often a reading is taken. SPEC 21.4 says hourly.
+  interval-minutes: 60
+  # How much history to keep. Ninety days is a season, which is the window a /ca eco supply
+  # question is usually asked over.
+  keep-days: 90

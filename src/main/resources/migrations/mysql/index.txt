@@ -26,3 +26,4 @@ V22__defense_unit_state.sql
 V23__city_warden.sql
 V24__siege.sql
 V25__siege_units.sql
+V26__money_supply.sql

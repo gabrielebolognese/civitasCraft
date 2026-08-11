@@ -909,6 +909,24 @@ public final class CivitasPlugin extends JavaPlugin {
         });
 
         // ==============================================================================
+        // SPEC 21.4 Class G's money supply accounting, M14a
+        // ==============================================================================
+        // "The plugin must be able to answer, at any moment, how much money exists and where it
+        // came from. Without this you cannot detect an exploit you did not predict."
+        dev.civitas.core.economy.MoneySupplyService moneySupplyService =
+                new dev.civitas.core.economy.MoneySupplyService(loadedDaos, economyService,
+                        treasuryService, configs, getLogger());
+        long supplyTicks = Math.max(1L, moneySupplyService.intervalMinutes()) * 60L * 20L;
+        getServer().getScheduler().runTaskTimerAsynchronously(this,
+                () -> moneySupplyService.recordQuietly(System.currentTimeMillis()),
+                600L, supplyTicks);
+        // Once a day rather than every reading: pruning is a delete over a table that grows by
+        // twenty-four rows, and running it hourly would be twenty-three wasted scans.
+        getServer().getScheduler().runTaskTimerAsynchronously(this,
+                () -> moneySupplyService.prune(System.currentTimeMillis()),
+                12000L, 24L * 60 * 60 * 20L);
+
+        // ==============================================================================
         // SPEC 29's siege, M19a
         // ==============================================================================
         dev.civitas.core.siege.SiegeCatalogue siegeCatalogue =
@@ -1185,6 +1203,7 @@ public final class CivitasPlugin extends JavaPlugin {
         services.set(new CivitasServices(cityRegistry, cityService, rankService, claimRegistry,
                 claimService, claimMap, borderRenderer, protection, protectionGuard,
                 blockClassifier, economyService, treasuryService, bountyService,
+                moneySupplyService,
                 ledgerRollback,
                 upkeepCalculator,
                 upkeepTask, marketService, marketFilter, togglePreferences, messenger,
