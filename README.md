@@ -11,7 +11,7 @@ CivitasCraft is a server plugin for city-building Minecraft servers. Players fou
 - Default ranks Mayor, Co-Mayor, Architect, Citizen and Recruit, plus custom ranks with per-rank permission flags.
 - Land protection covering blocks, containers, entities, explosions, pistons, fire and fluids.
 - Outposts: detached holdings of one to four chunks away from the home city, with teleport, and waystations.
-- Mining claims: a single personal chunk in a resource world for players without a city.
+- Mining claims: a personal chunk in a resource world (one per player by default), paid from the owner's own balance and available to players without a city.
 - Six city upgrade tracks: population, vault, treasury interest, outpost range, fortification and market access.
 - A shared city vault, a City Hall block, city spawn and message of the day.
 - Inactivity handling: mayor transfer, dormancy and soft deletion of abandoned cities.
@@ -85,7 +85,7 @@ cd civitasCraft
 ./gradlew build
 ```
 
-On Windows use `.\gradlew.bat build`. Dependencies are downloaded by Gradle on the first run. The build compiles, runs the test suite and produces the shaded jar at `build/libs/CivitasCraft-0.1.0.jar`. Compilation uses `-Xlint:all -Werror`, so any compiler warning fails the build.
+On Windows use `.\gradlew.bat build`. Dependencies are downloaded by Gradle on the first run. The build compiles, runs the test suite and produces the shaded jar at `build/libs/CivitasCraft-0.1.0.jar`. Compilation uses `-Xlint:all,-serial,-processing` with `-Werror`, so any other compiler warning fails the build.
 
 ### Configuration
 
@@ -131,7 +131,7 @@ Tests use JUnit 5 and MockBukkit. The MySQL dialect tests are skipped unless a s
 
 ## Usage
 
-In game, `/city help` lists every command and `/city` opens the city menu. The main commands:
+In game, `/city help` shows the paginated command help and `/city` opens the city menu for a player who belongs to a city. The main commands:
 
 | Command | What it does |
 | --- | --- |
@@ -140,7 +140,7 @@ In game, `/city help` lists every command and `/city` opens the city menu. The m
 | `/money` (`/balance`), `/pay`, `/transactions` | Balance, transfers and your own ledger |
 | `/shop`, `/sell`, `/worth`, `/quota` | Server market, selling, live prices and the daily sell quota |
 | `/quests`, `/challenges` | Daily quests and weekly city challenges |
-| `/war` | `declare`, `status`, `peace`, `accept`, `join`, `history`, `scoreboard` |
+| `/war` | `declare`, `status`, `decline`, `peace`, `accept`, `join`, `history`, `scoreboard`, `siege` |
 | `/ally`, `/truce` | Alliances and truces |
 | `/bounty` | Put a bounty on a player |
 | `/contest` | Building contest: mark, submit, visit, vote |
@@ -150,7 +150,7 @@ In game, `/city help` lists every command and `/city` opens the city menu. The m
 | `/guide`, `/civitas rules`, `/playtime`, `/toggle`, `/report` | Guide, rules book, playtime, notification settings, reports |
 | `/cityadmin` (`/ca`) | Admin tree; run `/ca` on its own for the subcommand list |
 
-Permissions are declared in `plugin.yml`. Player nodes such as `civitas.use`, `civitas.city.create` and `civitas.market.use` default to everyone; `civitas.admin.*` and `civitas.bypass.*` default to operators. Numeric limit nodes (`civitas.limit.cities.<n>`, `civitas.limit.shops.<n>`) are resolved at runtime.
+Permissions are declared in `plugin.yml`. Player nodes such as `civitas.use`, `civitas.city.create` and `civitas.market.use` default to everyone; `civitas.admin.*` and `civitas.bypass.*` default to operators. Numeric limit nodes (`civitas.limit.shops.<n>`, `civitas.limit.miningclaims.<n>`) are resolved at runtime.
 
 ## Project structure
 
